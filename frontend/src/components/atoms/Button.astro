@@ -14,13 +14,13 @@ const { text, variant, onclick, customClass, ...props } = Astro.props;
   variant === "color" && (
     <button
       class={
-        "text-white font-serif font-bold py-3 px-6 rounded-md text-sm bg-green w-full " +
+        "text-white font-sans font-bold py-3 px-6 rounded-md text-sm bg-green w-full " +
         customClass
       }
       onclick={onclick}
       {...props}
     >
-      <p class="font-serif uppercase">{text}</p>
+      <p class="font-sans uppercase">{text}</p>
     </button>
   )
 }
