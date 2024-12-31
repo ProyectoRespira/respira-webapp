@@ -51,16 +51,8 @@ class MapViewset(generics.GenericAPIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
                 
-        latest_inference_run = (
-            InferenceRuns.objects
-            .filter(Exists(
-                InferenceResults.objects.filter(inference_run_id=OuterRef('id'))
-            ))
-            .order_by('-run_date')
-            .first()
-        )
+        latest_inference_run_id = InferenceRuns.objects.order_by('-run_date').first().id
 
-        latest_inference_run_id = latest_inference_run.id if latest_inference_run else None
             
         # get region_readings, average forecast for regions beloging to region
         if entity == 'region':
