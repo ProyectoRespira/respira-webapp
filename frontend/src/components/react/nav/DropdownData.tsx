@@ -24,7 +24,7 @@ const DropdownData = ({ baseRoute, titleKey, subtitleKey }: DynamicMenuItem) => 
       {!loading &&
         data &&
         data.map((val: any) => (
-          <a href={baseRoute + "/" + val["id"]} key={val["id"]}>
+          <a href={baseRoute + "/" + val["id"]} key={val["id"]} className="py-2">
             <li>
               <p className="font-serif font-bold text-[1rem] text-black">
                 Estación {val[titleKey]}

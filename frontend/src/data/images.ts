@@ -85,6 +85,7 @@ export const ORGANIZATIONS: Image[] = [
     {
         alt: "Facultad de ingenieria Logo",
         path: FiunaBlack,
+        class: "w-20"
     },
     {
         alt: "Mozilla logo",

@@ -53,21 +53,21 @@ statisticsStationId.set(stationId)
     <Typography variant="p">Historial de mediciones de los sensores.</Typography
     >
     <div
-      class="grid md:grid-cols-2 grid-cols-1 mt-12 col-span-4 space-x-4 space-y-4"
+      class="grid md:grid-cols-2 grid-cols-1 mt-12  space-x-4 space-y-4"
     >
-      <div class="cols-span-1">
+      <div class="col-span-1">
         <Typography variant="h6">Última semana</Typography>
         <div class="h-[450px] w-full">
           <BoxPlotChart client:only="react" period="7d" />
         </div>
       </div>
-      <div class="cols-span-1">
+      <div class="col-span-1">
         <Typography variant="h6">Último mes</Typography>
         <div class="h-[450px] w-full">
           <BoxPlotChart client:only="react" period="30d" />
         </div>
       </div>
-      <div class="cols-span-2">
+      <div class="col-span-1 md:col-span-2">
         <Typography variant="h6">Último año</Typography>
         <div class="h-[450px] w-full">
           <BoxPlotChart client:only="react" period="1y" />
