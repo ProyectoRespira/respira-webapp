@@ -13,9 +13,9 @@ import Typography from "../components/atoms/Typography.astro";
 
 <BaseLayout>
     <section
-        class="grid md:grid-cols-3 md:p-20 p-12 gap-4 md:my-16 place-items-center"
+        class="grid md:grid-cols-2 grid-cols-1 md:p-20 p-12 gap-4 md:my-16 place-items-center"
     >
-        <div class="md:col-span-2 sm:row-span-2 space-y-4 justify-stretch">
+        <div class="md:col-span-1 sm:row-span-2 space-y-4 justify-stretch">
             <Typography variant="h6">¿De dónde son nuestros datos?</Typography>
             <Typography variant="h2">
                 Red de Monitoreo de la Calidad del Aire - FIUNA
@@ -37,7 +37,9 @@ import Typography from "../components/atoms/Typography.astro";
                 sobre el problema de la calidad del aire en nuestra región.
             </Typography>
         </div>
-        <Image alt="" src={Fiuna} class="m-auto justify-center flex h-100" loading="lazy"  />
+        <div class="m-auto w-full h-full  content-center justify-self-center">
+        <Image alt="" src={Fiuna} loading="lazy" class="md:min-w-80 m-auto mt-8 md:mt-0" />
+        </div>
     </section>
     <section class="bg-black md:p-20 p-12 md:py-32 py-24">
         <Typography  variant="h2"  color="white">
@@ -45,7 +47,7 @@ import Typography from "../components/atoms/Typography.astro";
         </Typography>
         {
             RESEARCH_PAPERS.map((research) => (
-                <div class="py-6">
+                <div class="py-6 md:max-w-[75%]">
                     <Link
                         text={research.title}
                         href={research.link}
