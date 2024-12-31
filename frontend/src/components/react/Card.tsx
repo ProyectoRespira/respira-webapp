@@ -9,7 +9,7 @@ import { isBackendAvailable } from "../../store/store";
 import { selectedStation } from "../../store/map";
 import { AQI } from "../../data/cards";
 import { getAQIIndex } from "../../utils";
-import { isRecommendationsModalOpen, toggleRecommendationsModal, toggleShareModal } from "../../store/modals";
+import { toggleRecommendationsModal, toggleShareModal } from "../../store/modals";
 import { BASE_URL } from "../../data/constants";
 
 export const Card = (props: any) => {
@@ -44,9 +44,20 @@ export const Card = (props: any) => {
       }}
     >
       {!backendAvailable && (
-        <div className="w-full h-full content-center justify-center">
+        <div className="w-full h-full content-center justify-center m-auto">
           <p className="font-bold text-lg text-center">
             ⚠️ Error conectándose al backend
+          </p>
+          <button className="share w-full text-center mt-4" id="share" onClick={() => handleSharing()}>
+            <p className="text-green text-center font-bold"
+            >Compartir</p>
+          </button>
+        </div>
+      )}
+      {backendAvailable && !data && (
+        <div className="w-full h-full content-center justify-center m-auto">
+          <p className="font-bold text-lg text-center">
+            ⚠️ Error cargando los datos. 
           </p>
           <button className="share w-full text-center mt-4" id="share" onClick={() => handleSharing()}>
             <p className="text-green text-center font-bold"
