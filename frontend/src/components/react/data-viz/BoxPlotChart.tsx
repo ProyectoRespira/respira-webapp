@@ -4,33 +4,20 @@ import { useStore } from "@nanostores/react";
 import { ResponsiveBoxPlot } from "@nivo/boxplot";
 import { DateTime } from "luxon";
 import { boxplotMonthData, boxplotWeekData, boxplotYearData, errorBoxplotMonth, errorBoxplotWeek, errorBoxplotYear, loadingBoxplotMonth, loadingBoxplotWeek, loadingBoxplotYear } from "../../../store/statistics";
-const data = {
-  x: [
-    "2024-12-18",
-    "2024-12-17",
-    "2024-12-16",
-    "2024-12-15",
-    "2024-12-14",
-    "2024-12-13",
-    "2024-12-12",
-  ],
-  q1: [57.5, 29, 16.25, 10, 7.25, 7, 29],
-  median: [60, 31, 19, 10, 8, 9, 30],
-  q3: [64, 44, 21, 13, 9, 10.25, 30.75],
-  lowerfence: [57, 29, 14, 10, 7, 7, 26.375],
-  upperfence: [65, 56, 27, 14, 10, 15.125, 31],
-};
+
 const quantiles = [0, 0.25, 0.5, 0.75, 1];
 
-const formatterWeek = (date: string, { index }: { index?: number }) => DateTime.fromFormat(date, "yyyy-mm-dd", { locale: "es" })
-  .weekdayShort || ""
+const formatterWeek = (date: string, { index }: { index?: number }) => { 
+  const parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd", { locale: "es" })
+  return parsedDate.weekdayShort + "-" + parsedDate.day
+}
 const formatterMonth = (date: string, { index }: { index?: number }) => index !== undefined ? (index + 1) + "W" : ""
 const formatterYear = (date: string, { index }: { index?: number }) => date
 
 const processData = (data: any, formatter: (date: string, { index }: { index?: number }) => string) => {
   if (!data) { return }
   const size = data["x"].length;
-  return data["x"].reverse().map((_: any, index: number) => ({
+  return data["x"].map((_: any, index: number) => ({
     group: formatter(data["x"][index], { index }),
     subGroup: "",
     mean: data["median"][index],
@@ -56,6 +43,7 @@ export const BoxPlotChart = ({ period }: { period: "7d" | "30d" | "1y" }) => {
     loading = useStore(loadingBoxplotWeek)
     error = useStore(errorBoxplotWeek)
     data = processData(useStore(boxplotWeekData), formatterWeek);
+    console.log("processData",data)
   }
   if (period === "30d") {
     loading = useStore(loadingBoxplotMonth)
