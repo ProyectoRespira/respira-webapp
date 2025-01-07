@@ -6,18 +6,21 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 import Footer from "../../components/atoms/Footer.astro";
 import { HistoricLineChart } from "../../components/react/data-viz/HistoricLineChart.tsx";
 import { BoxPlotChart } from "../../components/react/data-viz/BoxPlotChart.tsx";
-import { statisticsSelectedStation, statisticsStationId } from "../../store/statistics";
+import {
+  statisticsSelectedStation,
+  statisticsStationId,
+} from "../../store/statistics";
 import PlaceHolderMap from "../../components/react/PlaceholderMap";
 import BackTop from "../../components/atoms/BackTop.astro";
-import {CharacteristicsStation} from "../../components/react/statistics/Characteristics"
-import {HeaderStatistics} from "../../components/react/statistics/Header"
+import { CharacteristicsStation } from "../../components/react/statistics/Characteristics";
+import { HeaderStatistics } from "../../components/react/statistics/Header";
 
 const { slug } = Astro.params;
-statisticsStationId.set(undefined)
+statisticsStationId.set(undefined);
 if (!slug) return Astro.redirect("/404");
-const stationId=parseInt(slug)
-if(Number.isNaN(stationId))  return Astro.redirect("/404");
-statisticsStationId.set(stationId)
+const stationId = parseInt(slug);
+if (Number.isNaN(stationId)) return Astro.redirect("/404");
+statisticsStationId.set(stationId);
 ---
 
 <BaseLayout>
@@ -43,18 +46,16 @@ statisticsStationId.set(stationId)
       las próximas 6 y 12 horas.</Typography
     >
     <div class="flex overflow-x-auto">
-    <div class="h-[450px] w-full min-w-[60rem]">
-      <HistoricLineChart client:only="react" />
+      <div class="h-[450px] w-full min-w-[60rem]">
+        <HistoricLineChart client:only="react" />
+      </div>
     </div>
-  </div>
     <Typography variant="h3" customClass="pt-10"
       >Histórico: Índice de calidad del aire</Typography
     >
     <Typography variant="p">Historial de mediciones de los sensores.</Typography
     >
-    <div
-      class="grid md:grid-cols-2 grid-cols-1 mt-12  space-x-4 space-y-4"
-    >
+    <div class="grid md:grid-cols-2 grid-cols-1 mt-12 space-x-4 space-y-4">
       <div class="col-span-1">
         <Typography variant="h6">Última semana</Typography>
         <div class="h-[450px] w-full">
@@ -69,7 +70,12 @@ statisticsStationId.set(stationId)
       </div>
       <div class="col-span-1 md:col-span-2">
         <Typography variant="h6">Último año</Typography>
-        <div class="h-[450px] w-full">
+        <div class="flex overflow-x-auto  md:hidden">
+          <div class="h-[450px] w-full min-w-[40rem]">
+            <BoxPlotChart client:only="react" period="1y" />
+          </div>
+        </div>
+        <div class="h-[500px] max-h-[450px] w-full hidden md:block overflow-clip">
           <BoxPlotChart client:only="react" period="1y" />
         </div>
       </div>

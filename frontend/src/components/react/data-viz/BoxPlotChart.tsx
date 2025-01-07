@@ -7,17 +7,20 @@ import { boxplotMonthData, boxplotWeekData, boxplotYearData, errorBoxplotMonth, 
 
 const quantiles = [0, 0.25, 0.5, 0.75, 1];
 
-const formatterWeek = (date: string, { index }: { index?: number }) => { 
+const formatterWeek = (date: string) => { 
   const parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd", { locale: "es" })
   return parsedDate.weekdayShort + "-" + parsedDate.day
 }
-const formatterMonth = (date: string, { index }: { index?: number }) => index !== undefined ? (index + 1) + "W" : ""
-const formatterYear = (date: string, { index }: { index?: number }) => date
+const formatterMonth = (_:string, { index }: { index?: number }) => index !== undefined ? (index + 1) + "W" : ""
+const formatterYear = (date: string) =>  { 
+  const parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd", { locale: "es" }) 
+  return parsedDate.monthShort + "-" + parsedDate.toFormat("yy")
+}
 
 const processData = (data: any, formatter: (date: string, { index }: { index?: number }) => string) => {
   if (!data) { return }
   const size = data["x"].length;
-  return data["x"].map((_: any, index: number) => ({
+  return data["x"].sort().map((_: any, index: number) => ({
     group: formatter(data["x"][index], { index }),
     subGroup: "",
     mean: data["median"][index],
@@ -43,7 +46,6 @@ export const BoxPlotChart = ({ period }: { period: "7d" | "30d" | "1y" }) => {
     loading = useStore(loadingBoxplotWeek)
     error = useStore(errorBoxplotWeek)
     data = processData(useStore(boxplotWeekData), formatterWeek);
-    console.log("processData",data)
   }
   if (period === "30d") {
     loading = useStore(loadingBoxplotMonth)
@@ -55,8 +57,6 @@ export const BoxPlotChart = ({ period }: { period: "7d" | "30d" | "1y" }) => {
     error = useStore(errorBoxplotYear)
     data = processData(useStore(boxplotYearData), formatterYear);
   }
-  console.log(error)
-
   return (
     <>
       {loading && !data && (
