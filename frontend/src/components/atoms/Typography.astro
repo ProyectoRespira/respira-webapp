@@ -59,7 +59,7 @@ const { variant, color, customClass = "" } = Astro.props;
 
 {
     variant === 'nav' && (
-        <h6 class={customClass +` font-serif font-bold text-[1rem] text-${color || "black"} ` }><slot/></h6>
+        <h6 class={customClass +` font-serif font-bold text-[1rem] text-${color || "black"}  text-start` }><slot/></h6>
     )
 }
 

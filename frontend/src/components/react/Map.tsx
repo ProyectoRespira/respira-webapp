@@ -94,7 +94,7 @@ const MapComponent = () => {
       touchZoomRotate={true}
       minZoom={5.5}
       attributionControl={false}
-      style={{ width: dimensions.width, height: dimensions.height * 0.75 }}
+      style={{ width: "100%", height: dimensions.height * 0.75 }}
       maxBounds={[
         [-67.0435297482847, -28.42576579802394],
         [-45.05865460568049, -17.608237804262302],
