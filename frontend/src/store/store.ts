@@ -24,8 +24,8 @@ onMount(isBackendAvailable, () => {
     task(async () => {
         isBackendAvailable.set(await backendHealthCheck())
     })
-  })
+    })
 
 isBackendAvailable.listen(() => {})
 
-await allTasks()
+
