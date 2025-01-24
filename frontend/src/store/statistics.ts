@@ -49,7 +49,6 @@ export const fetchHistoricForecast = async (stationId: number) => {
 }
 
 export const historicForecastData = computed([isBackendAvailable, statisticsSelectedStation], (backendAvailable, station): Task<HISTORIC_FORECAST> => task(async () => {
-  console.log(backendAvailable, station)
   if (!backendAvailable) {
     return undefined
   }
@@ -79,7 +78,6 @@ export const fetchBoxplotWeek = async (stationId: number) => {
 }
 
 export const boxplotWeekData = computed([isBackendAvailable, statisticsSelectedStation], (backendAvailable, station): Task<HISTORIC_FORECAST> => task(async () => {
-  console.log(backendAvailable, station)
   if (!backendAvailable) {
     return undefined
   }
@@ -107,7 +105,6 @@ export const fetchBoxplotMonth = async (stationId: number) => {
 }
 
 export const boxplotMonthData = computed([isBackendAvailable, statisticsSelectedStation], (backendAvailable, station): Task<HISTORIC_FORECAST> => task(async () => {
-  console.log(backendAvailable, station)
   if (!backendAvailable) {
     return undefined
   }
@@ -134,7 +131,6 @@ export const fetchBoxplotYear = async (stationId: number) => {
 }
 
 export const boxplotYearData = computed([isBackendAvailable, statisticsSelectedStation], (backendAvailable, station): Task<HISTORIC_FORECAST> => task(async () => {
-  console.log(backendAvailable, station)
   if (!backendAvailable) {
     return undefined
   }

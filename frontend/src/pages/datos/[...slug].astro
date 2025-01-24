@@ -24,8 +24,8 @@ statisticsStationId.set(stationId);
 ---
 
 <BaseLayout>
-  <section class="flex flex-col md:px-20 px-10 pt-12">
-    <HeaderStatistics />
+  <section class="flex flex-col md:px-20 px-8 pt-12">
+    <HeaderStatistics client:only="react" />
     <hr class="h-px my-8 bg-gray-200 border-1 dark:bg-gray-700" />
     <div
       class="grid md:grid-cols-3 grid-cols-1 md:space-x-12 md:space-y-0 space-y-6"
@@ -33,10 +33,10 @@ statisticsStationId.set(stationId);
       <div class="rounded-lg overflow-clip">
         <PlaceHolderMap client:only="react" />
       </div>
-      <CharacteristicsStation />
+      <CharacteristicsStation client:only="react" />
     </div>
   </section>
-  <section class="flex flex-col md:px-20 px-10 pt-12">
+  <section class="flex flex-col md:px-20 px-8 pt-12">
     <Typography variant="h2">Estadísticas</Typography>
     <Typography variant="h3" customClass="pt-10"
       >Mediciones históricas de calidad de aire (AQI)</Typography
@@ -55,7 +55,7 @@ statisticsStationId.set(stationId);
     >
     <Typography variant="p">Historial de mediciones de los sensores.</Typography
     >
-    <div class="grid md:grid-cols-2 grid-cols-1 mt-12 space-x-4 space-y-4">
+    <div class="grid md:grid-cols-2 grid-cols-1 mt-12 md:space-x-4  sm:space-x-2 space-y-4">
       <div class="col-span-1">
         <Typography variant="h6">Última semana</Typography>
         <div class="h-[450px] w-full">
@@ -70,12 +70,14 @@ statisticsStationId.set(stationId);
       </div>
       <div class="col-span-1 md:col-span-2">
         <Typography variant="h6">Último año</Typography>
-        <div class="flex overflow-x-auto  md:hidden">
+        <div class="flex overflow-x-auto md:hidden">
           <div class="h-[450px] w-full min-w-[40rem]">
             <BoxPlotChart client:only="react" period="1y" />
           </div>
         </div>
-        <div class="h-[500px] max-h-[450px] w-full hidden md:block overflow-clip">
+        <div
+          class="h-[500px] max-h-[450px] w-full hidden md:block overflow-clip"
+        >
           <BoxPlotChart client:only="react" period="1y" />
         </div>
       </div>
