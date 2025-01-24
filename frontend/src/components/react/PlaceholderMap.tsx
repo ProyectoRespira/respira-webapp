@@ -18,7 +18,6 @@ import { statisticsSelectedStation } from "../../store/statistics";
 const PlaceHolderMap = () => {
   const data = useStore(statisticsSelectedStation);
 
-  console.log(data)
   const [dimensions, _] = React.useState({
     height: 300,
     width: '100%',
