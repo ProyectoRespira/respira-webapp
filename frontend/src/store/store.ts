@@ -4,6 +4,7 @@ import { BACKEND_URL } from '../data/constants';
 
 
 
+
 export const backendHealthCheck= async () => {
     try {
         const response = await fetch(BACKEND_URL + '/health');
@@ -18,13 +19,13 @@ export const backendHealthCheck= async () => {
 }
 
 
-export const isBackendAvailable = atom<boolean>(false)
+export const isBackendAvailable = atom<boolean | undefined>(undefined)
 
 onMount(isBackendAvailable, () => {
     task(async () => {
         isBackendAvailable.set(await backendHealthCheck())
     })
-    })
+})
 
 isBackendAvailable.listen(() => {})
 
