@@ -7,7 +7,6 @@ import {
 
 const CharacteristicsStation = (props: any) => {
   const station = useStore(statisticsSelectedStation);
-  console.log(station)
   return (
     <>
       {station && (

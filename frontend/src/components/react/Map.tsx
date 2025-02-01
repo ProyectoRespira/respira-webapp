@@ -72,8 +72,8 @@ const MapComponent = () => {
               }}
             >
               <Pin
-                fill={getColorRange(station.aqi_pm2_5 || 0)}
-                value={station.aqi_pm2_5}
+                fill={getColorRange(station?.aqi_pm2_5 || 0)}
+                value={station?.aqi_pm2_5 || -1}
               />
             </Marker>
           ))

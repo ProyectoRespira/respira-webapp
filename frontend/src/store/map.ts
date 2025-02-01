@@ -94,14 +94,24 @@ export const setSelectedStation = (station_id: number | undefined) => {
     selectedStationId.set(station_id);
 }
 
+export const selectedStationError = atom<boolean>(false)
+
 export const selectedStation = computed([isBackendAvailable, selectedStationId, stations], (backendAvailable, id, stations) : Task<STATION & STATION_FORECAST> => task(async () => {
+    selectedStationError.set(false)
+
     if(!backendAvailable) {
+        selectedStationError.set(true)
         return undefined
     }
     if(!id || !stations) {
+        selectedStationError.set(true)
         return undefined
     }
     const stationForecast = await fetchForecast(id)
+    if(!stationForecast){
+        selectedStationError.set(true)
+        return undefined
+    }
     const station = stations.filter((s: STATION) => s.id === id)[0]
     return {...station, ...stationForecast}
   }))
