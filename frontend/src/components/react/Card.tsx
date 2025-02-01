@@ -87,7 +87,7 @@ export const Card = (props: any) => {
           <span className="sr-only">Loading...</span>
         </div>
       }
-      {!dataAvailable && !loading && (
+      {!dataAvailable && !loading && backendAvailable &&  (
         <div className="w-full h-full content-center justify-center m-auto">
           <p className="font-bold text-lg text-center">
             ⚠️ Error cargando los datos.
