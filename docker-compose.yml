@@ -132,7 +132,7 @@ services:
       - pipeline_nw
     volumes:
       - static_volume:/static
-      - ./certbot/www:/var/www/certbot/:ro
+      - ./certbot/www:/var/www/certbot/
       - ./certbot/conf/:/etc/nginx/ssl/:ro
     depends_on:
       backend:
