@@ -1,4 +1,6 @@
 ---
+export const prerender = false;
+
 import { Image } from "astro:assets";
 import { FOOTER_IMAGES, SOCIAL_MEDIA_IMAGES } from "../../data/images";
 import Typography from "./Typography.astro";
@@ -15,9 +17,9 @@ const getRoute = (route: string | MenuItem[]): string => {
 ---
 
 <div
-  class="bg-black h-auto w-full flex md:flex-row flex-col-reverse md:p-36 p-12"
+  class="bg-black h-auto w-full flex md:flex-row flex-col-reverse md:p-20 lg:p-36 p-12"
 >
-  <div class="flex flex-col w-full md:mr-44">
+  <div class="flex flex-col w-full lg:mr-44 md:mr-16">
     <p class="text-white text-xl font-bold font-serif">Una colaboración de</p>
     <div class="grid md:divide-x text-white md:grid-cols-4 md:mt-8 max-w-sm">
       {
@@ -46,9 +48,10 @@ const getRoute = (route: string | MenuItem[]): string => {
       }
     </div>
   </div>
-  <div class="flex grid w-full md:grid-cols-2 py-8 gap-4">
+  <div class="grid w-full md:grid-cols-2 py-8 lg:gap-4 gap-3">
     {
       FOOTER_MENU.map((item) => {
+        if(!item) {return}
         if (typeof item.route !== "string") {
           return (
             <div>

@@ -3,7 +3,7 @@ import { isBackendAvailable } from "./store";
 import { BACKEND_URL, EXCLUDED_STATIONS } from "../data/constants";
 
 
-type FORECAST = {
+export type FORECAST = {
     value: number,
     timestamp: string
 }
@@ -12,7 +12,10 @@ export type STATION = {
     name: string,
     coordinates: number[],
     is_station_on: boolean,
-    aqi_pm2_5: number
+    aqi_pm2_5: number,
+    region: {
+        name: string
+    }
 }
 
 export type STATION_FORECAST = {
@@ -52,9 +55,11 @@ export const fetchStations = async () => {
         const stationsPromise = await fetch(import.meta.env.PUBLIC_BACKEND_URL + `/stations`)
         const s = await stationsPromise.json()
         const availableStations = s.filter((v: STATION) => v.is_station_on && !(EXCLUDED_STATIONS.includes(v.id)) )
-        
+        loadingStations.set(false)
+
         return availableStations;
     } catch(err){
+        loadingStations.set(false)
         console.log("Error on fetching station data", err)
         errorStations.set("Error getting the stations")
         return undefined
@@ -89,14 +94,24 @@ export const setSelectedStation = (station_id: number | undefined) => {
     selectedStationId.set(station_id);
 }
 
+export const selectedStationError = atom<boolean>(false)
+
 export const selectedStation = computed([isBackendAvailable, selectedStationId, stations], (backendAvailable, id, stations) : Task<STATION & STATION_FORECAST> => task(async () => {
+    selectedStationError.set(false)
+
     if(!backendAvailable) {
+        selectedStationError.set(true)
         return undefined
     }
     if(!id || !stations) {
+        selectedStationError.set(true)
         return undefined
     }
     const stationForecast = await fetchForecast(id)
+    if(!stationForecast){
+        selectedStationError.set(true)
+        return undefined
+    }
     const station = stations.filter((s: STATION) => s.id === id)[0]
     return {...station, ...stationForecast}
   }))

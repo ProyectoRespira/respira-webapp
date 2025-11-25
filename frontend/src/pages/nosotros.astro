@@ -1,4 +1,5 @@
 ---
+
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Footer from "../components/atoms/Footer.astro";
 import BackTop from "../components/atoms/BackTop.astro";
@@ -20,7 +21,7 @@ import { GITHUB_URL } from "../data/constants";
     <section
         class="grid md:grid-cols-2 md:p-20 p-0 gap-12 md:my-16 place-items-center"
     >
-        <div class="space-y-4 justify-stretch m-12 md:m-0">
+        <div class="space-y-4 justify-stretch md:m-0 m-12">
             <Typography variant="h1">Sobre Proyecto Respira</Typography>
             <Typography variant="p"
                 >Ofrecemos al público pronósticos sobre la Calidad del Aire en
@@ -133,17 +134,13 @@ import { GITHUB_URL } from "../data/constants";
         </div>
     </section>
     <section
-        class="grid md:grid-cols-3 md:px-16 gap-12 md:py-32 place-content-stretch place-items-center justify-center bg-light_green p-4"
+        class="grid md:grid-cols-3 md:px-16 gap-12 md:py-32 place-content-stretch place-items-center justify-center bg-light_green p-12"
     >
-        <div class="space-y-4 justify-stretch m-12 md:m-0 md:col-span-2">
+        <div class="space-y-4 justify-stretch mt-12 md:m-0 md:col-span-2">
             <Image src={Github} alt="Github logo" />
-            <Typography variant="h3" customClass="pt-2"
-                >Nuestro proyecto es Open Source!</Typography
-            >
-            <Typography variant="h3"
-                >Accede a nuestro repositorio en GitHub</Typography
-            >
-            <Button variant="color" text="Ir al repositorio" onclick=`window.open("${GITHUB_URL}","_blank","","")`/>
+            <h3 class={`font-sans font-semibold text-[1.2rem] md:text-[1.875rem] text-black` }>Nuestro proyecto es Open Source!</h3>
+            <h3 class={`font-sans font-semibold text-[1.2rem] md:text-[1.875rem] text-black` }>Accede a nuestro repositorio en GitHub</h3>
+            <Button variant="color" text="Ir al repositorio" onclick=`window.open("${GITHUB_URL}","_blank","","")` customClass="max-w-64"/>
         </div>
         <div class="md:mt-8 flex md:items-center md:justify-center">
             <Image src={GithubIcon} alt="Invertocat logo" />

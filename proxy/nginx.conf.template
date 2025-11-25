@@ -20,8 +20,9 @@ http {
         location /.well-known/acme-challenge/ {
             root /var/www/certbot;
         }
-        return 301 https://$SERVER_HOST$request_uri;
-        
+	location / { 
+       	   return 301 https://$SERVER_HOST$request_uri;
+        }
     }
     server {
         listen 80;
