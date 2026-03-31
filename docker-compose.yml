@@ -21,29 +21,21 @@ services:
   backend:
     build: ./backend
     restart: always
+    env_file:
+      - ./backend/.env
     environment:
-      BACKEND_SECRET_KEY: ${BACKEND_SECRET_KEY}
       BACKEND_PORT: ${BACKEND_PORT}
-      BACKEND_POSTGRES_USER: ${POSTGRES_USER}
-      BACKEND_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      BACKEND_POSTGRES_DB: ${POSTGRES_DB}
-      BACKEND_POSTGRES_HOST: db
-      BACKEND_POSTGRES_PORT: ${POSTGRES_PORT}
-      BACKEND_CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
     networks:
-      - backend_nw
       - proxy_nw
     volumes:
       - static_volume:/static
-    depends_on:
-      db:
-        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:${BACKEND_PORT}/api/health/ | grep -q 200"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
+
   pipeline:
     build: ./data_retriever
     restart: always
@@ -87,7 +79,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        -  PUBLIC_REGION_DEFAULT_ID=1
+        -  PUBLIC_REGION_DEFAULT_ID=8495471280173798472
         -  PUBLIC_BACKEND_URL=${BACKEND_URL}
         -  SITE_URL=${SITE_URL}
         -  SMTP_SENDER=${SMTP_SENDER}
@@ -95,7 +87,7 @@ services:
         -  PUBLIC_GTAG=${PUBLIC_GTAG}
     restart: always
     environment:
-      PUBLIC_REGION_DEFAULT_ID: 1
+      PUBLIC_REGION_DEFAULT_ID: 8495471280173798472
       PUBLIC_BACKEND_URL: ${BACKEND_URL}
       FRONTEND_PORT: ${FRONTEND_PORT}
       SITE_URL: ${SITE_URL}
