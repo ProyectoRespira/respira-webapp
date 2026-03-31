@@ -1,25 +1,42 @@
-from datetime import datetime, timedelta
+from collections import defaultdict
+from datetime import timedelta
+from statistics import median, quantiles
 
+from django.db.models.functions import TruncDate, TruncMonth, TruncWeek
 from django.utils import timezone
-from django.db.models import Avg, Min, Max, OuterRef, Subquery
-from django.db.models.functions import TruncDate, TruncWeek, TruncMonth
-
-
-from rest_framework import status
+from rest_framework import generics, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework import generics
-
 from rest_framework.viewsets import ModelViewSet
-from statistics import median, quantiles
-from collections import defaultdict
 
-import pandas as pd
+from .models import InferenceResults, InferenceRuns, RegionReadings, Regions, StationReadingsGold, Stations
+from .serializers import ForecastSerializer, HealthSerializer, MapSerializer, RegionSerializer, StationSerializer
 
-from .models import Stations, Regions, RegionReadings, StationReadingsGold, InferenceRuns, InferenceResults
-from .serializers import StationSerializer, RegionSerializer, MapSerializer, ForecastSerializer, HistorySerializer
+
+def _flatten_forecast_rows(rows):
+    flattened = []
+    for row in rows:
+        if row:
+            flattened.extend(row)
+    return flattened
+
+
+def _mean_forecast_by_timestamp(rows):
+    grouped_values = defaultdict(list)
+    for point in _flatten_forecast_rows(rows):
+        grouped_values[point["timestamp"]].append(point["value"])
+
+    return [
+        {
+            "timestamp": timestamp,
+            "value": sum(values) / len(values),
+        }
+        for timestamp, values in sorted(grouped_values.items())
+    ]
+
 
 class HealthCheckView(generics.GenericAPIView):
+    serializer_class = HealthSerializer
     http_method_names = ['get']
 
     def get(self, request, *args, **kwargs):
@@ -27,6 +44,7 @@ class HealthCheckView(generics.GenericAPIView):
 
 
 class MapViewset(generics.GenericAPIView):
+    serializer_class = MapSerializer
     http_method_names = ['get']
 
     def get(self, request, *args, **kwargs):
@@ -50,96 +68,93 @@ class MapViewset(generics.GenericAPIView):
                 "error": "'id' must be an integer."
             }, status=status.HTTP_400_BAD_REQUEST)
 
-                
-        latest_inference_run_id = InferenceRuns.objects.order_by('-run_date').first().id
+        latest_inference_run = InferenceRuns.objects.order_by('-run_date').first()
+        if latest_inference_run is None:
+            return Response({
+                "error": "No inference runs available."
+            }, status=status.HTTP_404_NOT_FOUND)
 
-            
-        # get region_readings, average forecast for regions beloging to region
         if entity == 'region':
             latest_region_reading = RegionReadings.objects.filter(region_id=entity_id) \
-                            .order_by('-date_utc').first()
+                .order_by('-date_utc').first()
 
-            if latest_region_reading:
-                latest_aqi = latest_region_reading.aqi_region_avg
-            else:
+            if latest_region_reading is None:
                 return Response({
                     "error": "No readings found for this region."
                 }, status=status.HTTP_404_NOT_FOUND)
 
-            # 6h forecast
-            forecast_6h = InferenceResults.objects.filter(inference_run=latest_inference_run_id) \
-                            .values_list('forecasts_6h', flat=True)
-            forecast_6h_data = [item for sublist in forecast_6h for item in sublist]
-            
-            result_forecast_6h = pd.DataFrame(forecast_6h_data) \
-                                    .groupby('timestamp', as_index=False)['value'].mean()
-            
-            # 12h forecast
-            forecast_12h = InferenceResults.objects.filter(inference_run=latest_inference_run_id) \
-                            .values_list('forecasts_12h', flat=True)
-            forecast_12h_data = [item for sublist in forecast_12h for item in sublist]
+            forecast_results = InferenceResults.objects.filter(
+                inference_run=latest_inference_run,
+                station__region_id=entity_id,
+            )
+            result_forecast_6h = _mean_forecast_by_timestamp(
+                forecast_results.values_list('forecasts_6h', flat=True)
+            )
+            result_forecast_12h = _mean_forecast_by_timestamp(
+                forecast_results.values_list('forecasts_12h', flat=True)
+            )
 
-            result_forecast_12h = pd.DataFrame(forecast_12h_data) \
-                                    .groupby('timestamp', as_index=False)['value'].mean()
+            if not result_forecast_6h or not result_forecast_12h:
+                return Response({
+                    "error": "No forecast data available for this region."
+                }, status=status.HTTP_404_NOT_FOUND)
 
-        # get station_readings
-        elif entity == 'station':
+            latest_aqi = latest_region_reading.aqi_region_avg
 
+        else:
             try:
                 station = Stations.objects.get(id=entity_id)
             except Stations.DoesNotExist:
                 return Response({
                     'error': 'Station ID does not exist in the database.'
                 }, status=status.HTTP_404_NOT_FOUND)
-            
+
             if station.is_pattern_station:
                 return Response({
-                    'error':'Station ID is a pattern station.'
+                    'error': 'Station ID is a pattern station.'
                 }, status=status.HTTP_400_BAD_REQUEST)
-            
+
             if not station.is_station_on:
                 return Response({
-                    'error':'Station ID has been manually shut down due to maintenance.'
+                    'error': 'Station ID has been manually shut down due to maintenance.'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             latest_station_reading = StationReadingsGold.objects.filter(station_id=entity_id) \
-                                        .order_by('-date_utc').first()
+                .order_by('-date_utc').first()
 
-            if latest_station_reading:
-                latest_aqi = latest_station_reading.aqi_pm2_5
-            else:
+            if latest_station_reading is None:
                 return Response({
                     "error": "No readings found for this station."
                 }, status=status.HTTP_404_NOT_FOUND)
 
-            # 6h forecast
-            forecast_6h = InferenceResults.objects.filter(inference_run=latest_inference_run_id, station_id=entity_id) \
-                            .values_list('forecasts_6h', flat=True)
-            forecast_6h_data = [item for sublist in forecast_6h for item in sublist]
-
-            if not forecast_6h_data:
+            result_forecast_6h = _flatten_forecast_rows(
+                InferenceResults.objects.filter(
+                    inference_run=latest_inference_run,
+                    station_id=entity_id,
+                ).values_list('forecasts_6h', flat=True)
+            )
+            if not result_forecast_6h:
                 return Response({
                     "error": "No forecast data available for this station."
                 }, status=status.HTTP_404_NOT_FOUND)
-            
-            result_forecast_6h = pd.DataFrame(forecast_6h_data)
 
-            # 12h forecast
-            forecast_12h = InferenceResults.objects.filter(inference_run=latest_inference_run_id, station_id=entity_id) \
-                            .values_list('forecasts_12h', flat=True)
-            forecast_12h_data = [item for sublist in forecast_12h for item in sublist]
-
-            if not forecast_12h_data:
+            result_forecast_12h = _flatten_forecast_rows(
+                InferenceResults.objects.filter(
+                    inference_run=latest_inference_run,
+                    station_id=entity_id,
+                ).values_list('forecasts_12h', flat=True)
+            )
+            if not result_forecast_12h:
                 return Response({
                     "error": "No 12-hour forecast data available for this station."
                 }, status=status.HTTP_404_NOT_FOUND)
 
-            result_forecast_12h = pd.DataFrame(forecast_12h_data)
+            latest_aqi = latest_station_reading.aqi_pm2_5
 
         return Response({
             "aqi": latest_aqi,
-            "forecast_6h": result_forecast_6h.to_dict(orient='records'),
-            "forecast_12h": result_forecast_12h.to_dict(orient='records')
+            "forecast_6h": result_forecast_6h,
+            "forecast_12h": result_forecast_12h
         }, status=status.HTTP_200_OK)
 
 
@@ -162,82 +177,25 @@ class StationViewset(ModelViewSet):
     @action(detail=True, methods=['get'])
     def forecast(self, request, *args, **kwargs):
         station = self.get_object()
-        
-        last_inference = InferenceResults.objects.filter(station=station.id).order_by('-inference_run_id').first()
-        inference_run = InferenceRuns.objects.filter(id=last_inference.inference_run_id).first()
+        last_inference = InferenceResults.objects.filter(station=station) \
+            .select_related('inference_run') \
+            .order_by('-inference_run__run_date') \
+            .first()
 
-        return Response({
-            "forecast_date": inference_run.run_date,
-            "aqi_level": pd.DataFrame(last_inference.aqi_input).to_dict(orient='records'),
-            "forecast_6h": pd.DataFrame(last_inference.forecasts_6h).to_dict(orient='records'),
-            "forecast_12h": pd.DataFrame(last_inference.forecasts_12h).to_dict(orient='records')
-        }, status=status.HTTP_200_OK)
+        if last_inference is None:
+            return Response({
+                "error": "No forecast data available for this station."
+            }, status=status.HTTP_404_NOT_FOUND)
 
-    # @action(detail=True, methods=['get'])
-    # def history(self, request, *args, **kwargs):
-    #     station = self.get_object()
-
-    #     metric = request.query_params.get('metric', 'aqi_pm2_5')
-        
-    #     if metric == 'pm2_5':
-    #         field = 'pm2_5'
-    #         avg_field = 'pm2_5_avg'
-        
-    #     else:
-    #         field = 'aqi_pm2_5'
-    #         avg_field = 'aqi_pm2_5_avg'
-
-    #     # Define the time ranges
-    #     one_day_ago = timezone.now() - timedelta(days=1)
-    #     seven_days_ago = timezone.now() - timedelta(days=7)
-    #     thirty_days_ago = timezone.now() - timedelta(days=30)
-
-    #     # Get the last 30 days
-    #     history_readings = StationReadingsGold.objects.filter(
-    #         station_id=station.id,
-    #         date_utc__gte=thirty_days_ago
-    #     ).order_by('-date_utc')
-
-    #     # Filter: last 24 hours
-    #     historical_1d = history_readings.filter(date_utc__gte=one_day_ago) \
-    #                             .values('date_utc', field) \
-    #                             .order_by('date_utc')
-
-    #     historical_1d = [{'value': entry[field], 'timestamp': entry['date_utc'].strftime('%Y-%m-%d %H:%M:%S')} for entry in historical_1d]
-
-    #     # Filter: last 7 days (group by day and aggregate)
-    #     historical_7d = history_readings.filter(date_utc__gte=seven_days_ago) \
-    #                             .annotate(day=TruncDate('date_utc')) \
-    #                             .values('day') \
-    #                             .annotate(avg_value=Avg(field)) \
-    #                             .order_by('day')
-
-    #     historical_7d = [{'value': entry['avg_value'], 'timestamp': entry['day'].strftime('%Y-%m-%d 00:00:00')} for entry in historical_7d]
-
-    #     # Filter: last 30 days (group by day and aggregate)
-    #     historical_30d = history_readings \
-    #                 .annotate(day=TruncDate('date_utc')) \
-    #                 .values('day') \
-    #                 .annotate(avg_value=Avg(field)) \
-    #                 .order_by('day')
-
-    #     historical_30d = [{'value': entry['avg_value'], 'timestamp': entry['day'].strftime('%Y-%m-%d 00:00:00')} for entry in historical_30d]
-
-    #     # Prepare the data to return
-    #     history_data = {
-    #         'historical_1d': historical_1d,
-    #         'historical_7d': historical_7d,
-    #         'historical_30d': historical_30d
-    #     }
-        
-    #     serializer = HistorySerializer(data=history_data)
-
-    #     if serializer.is_valid():
-    #         return Response(serializer.data, status=status.HTTP_200_OK)
-
-    #     else:
-    #         return Response(serializer.errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+        payload = {
+            "forecast_date": last_inference.inference_run.run_date,
+            "aqi_level": last_inference.aqi_input or [],
+            "forecast_6h": last_inference.forecasts_6h or [],
+            "forecast_12h": last_inference.forecasts_12h or []
+        }
+        serializer = ForecastSerializer(data=payload)
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'])
     def boxplot(self, request, *args, **kwargs):
@@ -265,7 +223,8 @@ class StationViewset(ModelViewSet):
 
         period_values = defaultdict(list)
         for reading in readings:
-            period_values[reading['period']].append(reading['aqi_pm2_5'])
+            if reading['period'] is not None and reading['aqi_pm2_5'] is not None:
+                period_values[reading['period']].append(reading['aqi_pm2_5'])
 
         box_data = {
             "x": [],
@@ -276,17 +235,20 @@ class StationViewset(ModelViewSet):
             "upperfence": []
         }
 
-        # boxplot calculation - improved
-        for period, values in period_values.items():
-            values.sort()  
-            q1, median_val, q3 = quantiles(values, n=4)[0], median(values), quantiles(values, n=4)[2]
-            iqr = q3 - q1
-            lowerfence = max(min(values), q1 - 1.5 * iqr)
-            upperfence = min(max(values), q3 + 1.5 * iqr)
+        for period_value, values in sorted(period_values.items()):
+            values.sort()
+            if len(values) == 1:
+                q1 = median_value = q3 = lowerfence = upperfence = values[0]
+            else:
+                q1, _, q3 = quantiles(values, n=4)
+                median_value = median(values)
+                iqr = q3 - q1
+                lowerfence = max(min(values), q1 - 1.5 * iqr)
+                upperfence = min(max(values), q3 + 1.5 * iqr)
 
-            box_data["x"].append(period.strftime('%Y-%m-%d'))
+            box_data["x"].append(period_value.strftime('%Y-%m-%d'))
             box_data["q1"].append(q1)
-            box_data["median"].append(median_val)
+            box_data["median"].append(median_value)
             box_data["q3"].append(q3)
             box_data["lowerfence"].append(lowerfence)
             box_data["upperfence"].append(upperfence)
