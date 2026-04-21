@@ -7,6 +7,8 @@ on:
 
 jobs:
   deploy:
+    # Auto-deploys stay off by default on main. A manual workflow run can still deploy.
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.ENABLE_PROD_AUTO_DEPLOY == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
