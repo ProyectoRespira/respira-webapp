@@ -1,3 +1,0 @@
-[submodule "data_retriever"]
-	path = data_retriever
-	url = git@github.com:ProyectoRespira/data_retriever.git

@@ -16,6 +16,10 @@ from pathlib import Path
 
 load_dotenv()
 
+
+def _quote_postgres_identifier(identifier: str) -> str:
+    return '"' + identifier.replace('"', '""') + '"'
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -23,14 +27,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('BACKEND_SECRET_KEY')
+SECRET_KEY = os.getenv('BACKEND_SECRET_KEY', 'respira-backend-dev-secret-key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = os.getenv('BACKEND_DEBUG', 'false').lower() == 'true'
 
 ALLOWED_HOSTS = [
     '127.0.0.1',
     'localhost',
+    'testserver',
     '159.65.227.146',
     'proyectorespira.net',
     '.proyectorespira.net',
@@ -105,20 +110,58 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-DATABASES = {
-    # 'default': {
-    #     'ENGINE': 'django.db.backends.sqlite3',
-    #     'NAME': BASE_DIR / 'db.sqlite3',
-    # }
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('BACKEND_POSTGRES_DB'),
-        'USER': os.getenv('BACKEND_POSTGRES_USER'),
-        'PASSWORD': os.getenv('BACKEND_POSTGRES_PASSWORD'),
-        'HOST': os.getenv('BACKEND_POSTGRES_HOST'),
-        'PORT': os.getenv('BACKEND_POSTGRES_PORT'),
-    }
+postgres_config = {
+    'NAME': os.getenv('BACKEND_POSTGRES_DB'),
+    'USER': os.getenv('BACKEND_POSTGRES_USER'),
+    'PASSWORD': os.getenv('BACKEND_POSTGRES_PASSWORD'),
+    'HOST': os.getenv('BACKEND_POSTGRES_HOST'),
+    'PORT': os.getenv('BACKEND_POSTGRES_PORT'),
 }
+
+if all(postgres_config.values()):
+    db_options = {}
+    sslmode = os.getenv('BACKEND_POSTGRES_SSLMODE')
+    if sslmode:
+        db_options['sslmode'] = sslmode
+
+    sslrootcert = os.getenv('BACKEND_POSTGRES_SSLROOTCERT')
+    if sslrootcert:
+        db_options['sslrootcert'] = sslrootcert
+
+    sslcert = os.getenv('BACKEND_POSTGRES_SSLCERT')
+    if sslcert:
+        db_options['sslcert'] = sslcert
+
+    sslkey = os.getenv('BACKEND_POSTGRES_SSLKEY')
+    if sslkey:
+        db_options['sslkey'] = sslkey
+
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            **postgres_config,
+            'OPTIONS': db_options,
+        }
+    }
+
+    db_schemas = [
+        schema.strip()
+        for schema in os.getenv('BACKEND_POSTGRES_SCHEMA', 'respira_gold').split(',')
+        if schema.strip()
+    ]
+
+    if db_schemas:
+        quoted_schemas = [_quote_postgres_identifier(schema) for schema in db_schemas]
+        if 'public' not in {schema.lower() for schema in db_schemas}:
+            quoted_schemas.append('public')
+        DATABASES['default']['OPTIONS']['options'] = f"-c search_path={','.join(quoted_schemas)}"
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation
@@ -167,4 +210,5 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS configuration 
 # See https://github.com/adamchainz/django-cors-headers for details
 
-CORS_ALLOWED_ORIGINS =  os.getenv('BACKEND_CORS_ALLOWED_ORIGINS').split(",")
+cors_allowed_origins = os.getenv('BACKEND_CORS_ALLOWED_ORIGINS', '')
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_allowed_origins.split(',') if origin.strip()]
