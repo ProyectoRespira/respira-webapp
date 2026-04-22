@@ -6,56 +6,77 @@ import { DateTime } from "luxon";
 import { boxplotMonthData, boxplotWeekData, boxplotYearData, errorBoxplotMonth, errorBoxplotWeek, errorBoxplotYear, loadingBoxplotMonth, loadingBoxplotWeek, loadingBoxplotYear } from "../../../store/statistics";
 
 const quantiles = [0, 0.25, 0.5, 0.75, 1];
+type Formatter = (date: string, context: { index?: number }) => string;
 
-const formatterWeek = (date: string) => { 
+type BoxplotApiData = {
+  x: string[];
+  median: number[];
+  lowerfence: number[];
+  q1: number[];
+  q3: number[];
+  upperfence: number[];
+};
+
+const formatterWeek: Formatter = (date) => {
   const parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd", { locale: "es" })
   return parsedDate.weekdayShort + "-" + parsedDate.day
 }
-const formatterMonth = (_:string, { index }: { index?: number }) => index !== undefined ? (index + 1) + "W" : ""
-const formatterYear = (date: string) =>  { 
+const formatterMonth: Formatter = (_, { index }) => index !== undefined ? (index + 1) + "W" : ""
+const formatterYear: Formatter = (date) =>  { 
   const parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd", { locale: "es" }) 
   return parsedDate.monthShort + "-" + parsedDate.toFormat("yy")
 }
 
-const processData = (data: any, formatter: (date: string, { index }: { index?: number }) => string) => {
+const processData = (data: BoxplotApiData | undefined, formatter: Formatter) => {
   if (!data) { return }
-  const size = data["x"].length;
-  return data["x"].sort().map((_: any, index: number) => ({
-    group: formatter(data["x"][index], { index }),
+  const size = data.x.length;
+  return [...data.x].sort().map((_value, index: number) => ({
+    group: formatter(data.x[index], { index }),
     subGroup: "",
-    mean: data["median"][index],
+    mean: data.median[index],
     quantiles: quantiles,
     values: [
-      data["lowerfence"][index],
-      data["q1"][index],
-      data["median"][index],
-      data["q3"][index],
-      data["upperfence"][index],
+      data.lowerfence[index],
+      data.q1[index],
+      data.median[index],
+      data.q3[index],
+      data.upperfence[index],
     ],
     n: size,
-    extrema: [data["lowerfence"][index], data["upperfence"][index]],
+    extrema: [data.lowerfence[index], data.upperfence[index]],
   }));
 };
 
 
 export const BoxPlotChart = ({ period }: { period: "7d" | "30d" | "1y" }) => {
+  const weekLoading = useStore(loadingBoxplotWeek);
+  const monthLoading = useStore(loadingBoxplotMonth);
+  const yearLoading = useStore(loadingBoxplotYear);
+
+  const weekError = useStore(errorBoxplotWeek);
+  const monthError = useStore(errorBoxplotMonth);
+  const yearError = useStore(errorBoxplotYear);
+
+  const weekData = useStore(boxplotWeekData) as unknown as BoxplotApiData | undefined;
+  const monthData = useStore(boxplotMonthData) as unknown as BoxplotApiData | undefined;
+  const yearData = useStore(boxplotYearData) as unknown as BoxplotApiData | undefined;
+
   let data;
   let loading;
   let error;
+
   if (period === "7d") {
-    loading = useStore(loadingBoxplotWeek)
-    error = useStore(errorBoxplotWeek)
-    data = processData(useStore(boxplotWeekData), formatterWeek);
-  }
-  if (period === "30d") {
-    loading = useStore(loadingBoxplotMonth)
-    error = useStore(errorBoxplotMonth)
-    data = processData(useStore(boxplotMonthData), formatterMonth);
-  }
-  if (period === "1y") {
-    loading = useStore(loadingBoxplotYear)
-    error = useStore(errorBoxplotYear)
-    data = processData(useStore(boxplotYearData), formatterYear);
+    loading = weekLoading;
+    error = weekError;
+    data = processData(weekData, formatterWeek);
+  } else if (period === "30d") {
+    loading = monthLoading;
+    error = monthError;
+    data = processData(monthData, formatterMonth);
+  } else {
+    loading = yearLoading;
+    error = yearError;
+    data = processData(yearData, formatterYear);
   }
   return (
     <>

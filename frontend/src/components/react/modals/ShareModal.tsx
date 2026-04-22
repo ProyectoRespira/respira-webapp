@@ -7,7 +7,7 @@ import Telegram from "../../../assets/icons/telegram_icon_gray.svg?react"
 import Facebook from "../../../assets/icons/facebook_icon_gray.svg?react"
 import Twitter from "../../../assets/icons/x_icon_gray.svg?react"
 
-import { BASE_URL, FACEBOOK_SHARE, TELEGRAM_SHARE, TELEGRAM_URL, TWITTER_SHARE } from "../../../data/constants";
+import { BASE_URL, FACEBOOK_SHARE, TELEGRAM_SHARE, TWITTER_SHARE } from "../../../data/constants";
 
 
 const ShareModal = () => {

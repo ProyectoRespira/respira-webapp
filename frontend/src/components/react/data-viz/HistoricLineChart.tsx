@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { ResponsiveLine, type CustomLayerProps } from "@nivo/line";
 import { useStore } from "@nanostores/react";
 import {
@@ -51,15 +51,15 @@ function LinesItem({
   thickness: strokeWidth,
   dashed,
 }: LinesItemProps) {
-  const [styles, setStyles] = useState({
+  const styles = {
     stroke,
     strokeWidth,
     strokeDasharray: dashed ? "6" : "",
-  });
+  };
 
   const path = useMemo(() => lineGenerator(points), [lineGenerator, points]);
-  if (!path) return [];
-  const animatedPath = useAnimatedPath(path);
+  const animatedPath = useAnimatedPath(path ?? "");
+  if (!path) return null;
 
   return (
     <animated.path

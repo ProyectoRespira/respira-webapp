@@ -1,9 +1,6 @@
 import * as React from "react";
 import Map, {
-  GeolocateControl,
-  NavigationControl,
   Marker,
-  Popup,
 } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useStore } from "@nanostores/react";
@@ -18,7 +15,7 @@ import { statisticsSelectedStation } from "../../store/statistics";
 const PlaceHolderMap = () => {
   const data = useStore(statisticsSelectedStation);
 
-  const [dimensions, _] = React.useState({
+  const [dimensions] = React.useState({
     height: 300,
     width: '100%',
   });

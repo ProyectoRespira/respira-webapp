@@ -5,7 +5,12 @@ import { isAlertModalOpen, toggleAlertModal } from "../../../store/modals"
 import Close from "../../../assets/icons/close_icon.svg?react"
 
 
-const AlertModal = (props: any) => {
+type AlertModalProps = {
+  left?: React.ReactNode;
+  right?: React.ReactNode;
+};
+
+const AlertModal = (props: AlertModalProps) => {
   const isOpen = useStore(isAlertModalOpen)
   return (
     <Modal showModal={isOpen} toggleModal={toggleAlertModal} renderHeader={false}>

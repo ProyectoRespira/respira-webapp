@@ -12,7 +12,13 @@ import { getAQIIndex } from "../../utils";
 import { toggleRecommendationsModal, toggleShareModal } from "../../store/modals";
 import { BASE_URL } from "../../data/constants";
 
-export const Card = (props: any) => {
+type CardProps = {
+  header?: React.ReactNode;
+  header_forecast_six?: React.ReactNode;
+  header_forecast_twelve?: React.ReactNode;
+};
+
+export const Card = (props: CardProps) => {
   const backendAvailable = useStore(isBackendAvailable);
   const station = useStore(selectedStation);
   const stationId = useStore(selectedStationId)
@@ -28,7 +34,7 @@ export const Card = (props: any) => {
       return true
     }
     return false
-  }, [station, stationId, data])
+  }, [station, stationId, data, loadingMean, stationError])
 
   const loading = React.useMemo(() => {
     if(stationError){
@@ -127,7 +133,6 @@ export const Card = (props: any) => {
               "text-white font-serif font-bold py-3 px-6 rounded-md text-sm bg-green w-full "
             }
             onClick={() => toggleRecommendationsModal(true)}
-            {...props}
           >
             <p className="font-serif uppercase">Recomendaciones por nivel</p>
           </button>

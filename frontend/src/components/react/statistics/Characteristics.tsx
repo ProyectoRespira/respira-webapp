@@ -5,7 +5,7 @@ import {
   statisticsSelectedStation,
 } from "../../../store/statistics";
 
-const CharacteristicsStation = (props: any) => {
+const CharacteristicsStation = () => {
   const station = useStore(statisticsSelectedStation);
   return (
     <>

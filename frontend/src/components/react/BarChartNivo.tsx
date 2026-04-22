@@ -11,20 +11,27 @@ const customTooltip = ({ value }: { value: number }) => (
   </div>
 );
 
-export const BarChart = ({ data }: any) => {
+type BarDatum = {
+  timestamp: string;
+  value: number;
+};
+
+const formatter = timeFormat("%-I:%M %p");
+
+const formatDateToTimezone = (date: Date) => {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const tzOffset = DateTime.fromJSDate(date).setZone(tz).offset; // minutes
+  return new Date(date.getTime() + (tzOffset - 60) * 60000);
+};
+
+export const BarChart = ({ data }: { data: BarDatum[] }) => {
   const maxValue = React.useMemo(
     () => {
-      return Math.max(...data.map((d:any) => d.value));
+      return Math.max(...data.map((d: BarDatum) => d.value));
     },
     [data]
   );
 
-  const formatter = timeFormat("%-I:%M %p");
-  const formatDateToTimezone = (date:Date) => {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
-    const tzOffset = DateTime.fromJSDate(date).setZone(tz).offset; // minutes
-    return new Date(date.getTime() + (tzOffset - 60) * 60000);
-  }
   const timeScaleTicks: string[] = React.useMemo(() => {
     const scale = scaleTime().domain([
       new Date(data[0].timestamp),
@@ -32,7 +39,7 @@ export const BarChart = ({ data }: any) => {
     ])
     const ticks = scale.ticks(data.length > 6 ? 6 : 10)
     return ticks.map((tick) => formatter(formatDateToTimezone(tick)))
-  }, data)
+  }, [data])
 
   return (
     <ResponsiveBar

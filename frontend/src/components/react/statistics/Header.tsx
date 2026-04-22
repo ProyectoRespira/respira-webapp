@@ -3,7 +3,7 @@ import { useStore } from "@nanostores/react";
 
 import { statisticsSelectedStation } from "../../../store/statistics";
 
-const HeaderStatistics = (props: any) => {
+const HeaderStatistics = () => {
   const station = useStore(statisticsSelectedStation);
   return (
     <>

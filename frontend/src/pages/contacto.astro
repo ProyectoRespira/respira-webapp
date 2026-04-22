@@ -13,7 +13,6 @@ import Button from "../components/atoms/Button.astro";
   import { actions } from "astro:actions";
 
   const form = document.querySelector("form");
-  const button = document.getElementById("form-button");
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(form);

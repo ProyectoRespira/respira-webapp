@@ -32,7 +32,7 @@ export const fetchRegion = async () => {
         const response = await fetch(BACKEND_URL + `/map?entity=region&id=${import.meta.env.PUBLIC_REGION_DEFAULT_ID}`);
         loadingRegion.set(false)
         return response.json()
-    } catch(_){
+    } catch {
         loadingRegion.set(false)
         errorRegion.set("There has been an error getting the region.")
         return undefined
@@ -115,7 +115,6 @@ export const selectedStation = computed([isBackendAvailable, selectedStationId, 
     const station = stations.filter((s: STATION) => s.id === id)[0]
     return {...station, ...stationForecast}
   }))
-
 
 
 

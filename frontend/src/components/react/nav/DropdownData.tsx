@@ -3,6 +3,7 @@ import { useStore } from "@nanostores/react";
 
 import { loadingStations, stations } from "../../../store/map";
 import type { DynamicMenuItem } from "../../../data/menu";
+import type { STATION } from "../../../store/map";
 
 const DropdownData = ({ baseRoute, titleKey, subtitleKey }: DynamicMenuItem) => {
   const data = useStore(stations);
@@ -23,16 +24,18 @@ const DropdownData = ({ baseRoute, titleKey, subtitleKey }: DynamicMenuItem) => 
       )}
       {!loading &&
         data &&
-        data.map((val: any) => (
-          <a href={baseRoute + "/" + val["id"]} key={val["id"]} className="py-2">
+        data.map((val: STATION) => {
+          const valueMap = val as Record<string, unknown>;
+          return (
+          <a href={baseRoute + "/" + val.id} key={val.id} className="py-2">
             <li>
               <p className="font-serif font-bold text-[1rem] text-black">
-                Estación {val[titleKey]}
+                Estación {String(valueMap[titleKey] ?? "")}
               </p>
-              <p className="font-sans text-[0.75rem] text-black">{val[subtitleKey]}</p>
+              <p className="font-sans text-[0.75rem] text-black">{String(valueMap[subtitleKey] ?? "")}</p>
             </li>
           </a>
-        ))}
+        )})}
     </>
   );
 };

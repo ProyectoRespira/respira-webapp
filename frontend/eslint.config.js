@@ -2,6 +2,7 @@ import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 import pluginAstro from "eslint-plugin-astro";
+import reactHooks from "eslint-plugin-react-hooks";
 import eslintConfigPrettier from "eslint-config-prettier";
 import { defineConfig } from "eslint/config";
 
@@ -24,6 +25,14 @@ export default defineConfig([
   },
   ...tseslint.configs.recommended,
   {
+    files: ["**/*.{jsx,tsx}"],
+    plugins: { "react-hooks": reactHooks },
+    rules: {
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
+    },
+  },
+  {
     files: ["**/*.{ts,mts,cts,tsx}"],
     languageOptions: {
       parser: tseslint.parser,
@@ -39,6 +48,12 @@ export default defineConfig([
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
+    },
+  },
+  {
+    files: ["src/env.d.ts"],
+    rules: {
+      "@typescript-eslint/triple-slash-reference": "off",
     },
   },
   ...pluginAstro.configs.recommended,

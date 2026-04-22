@@ -1,5 +1,4 @@
 import { atom, task, onMount } from 'nanostores';
-import { allTasks } from 'nanostores'
 import { BACKEND_URL } from '../data/constants';
 
 
@@ -12,7 +11,7 @@ export const backendHealthCheck= async () => {
            return false
         }
         return true
-    } catch (_) {
+    } catch {
         console.log("Backend not available")
         return false
     }
@@ -28,5 +27,4 @@ onMount(isBackendAvailable, () => {
 })
 
 isBackendAvailable.listen(() => {})
-
 

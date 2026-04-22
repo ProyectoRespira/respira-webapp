@@ -78,7 +78,7 @@
     "eslint": "^10.2.1",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-astro": "1.7.0",
-    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.5.0",
     "msw": "^2.4.9",
     "prettier": "3.8.3",

@@ -41,7 +41,7 @@ export const fetchHistoricForecast = async (stationId: number) => {
     console.log("response")
     console.log(response)
     return response.json()
-  } catch (_) {
+  } catch {
     loadingHistoricForecast.set(false)
     errorHistoricForecast.set("There has been an error getting the region.")
     return undefined
@@ -70,7 +70,7 @@ export const fetchBoxplotWeek = async (stationId: number) => {
     const response = await fetch(BACKEND_URL + `/stations/${stationId}/boxplot/?period=7d`);
     loadingBoxplotWeek.set(false)
     return response.json()
-  } catch (_) {
+  } catch {
     loadingBoxplotWeek.set(false)
     errorBoxplotWeek.set("There has been an error getting the region.")
     return undefined
@@ -97,7 +97,7 @@ export const fetchBoxplotMonth = async (stationId: number) => {
     const response = await fetch(BACKEND_URL + `/stations/${stationId}/boxplot/?period=30d`);
     loadingBoxplotMonth.set(false)
     return response.json()
-  } catch (_) {
+  } catch {
     loadingBoxplotMonth.set(false)
     errorBoxplotMonth.set("There has been an error getting the region.")
     return undefined
@@ -123,7 +123,7 @@ export const fetchBoxplotYear = async (stationId: number) => {
     const response = await fetch(BACKEND_URL + `/stations/${stationId}/boxplot/?period=1y`);
     loadingBoxplotYear.set(false)
     return response.json()
-  } catch (_) {
+  } catch {
     loadingBoxplotYear.set(false)
     errorBoxplotYear.set("There has been an error getting the region.")
     return undefined
@@ -139,7 +139,6 @@ export const boxplotYearData = computed([isBackendAvailable, statisticsSelectedS
   }
   return fetchBoxplotYear(station.id)
 }))
-
 
 
 

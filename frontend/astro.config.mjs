@@ -4,7 +4,6 @@ import react from "@astrojs/react";
 import lottie from "astro-integration-lottie";
 import svgr from "vite-plugin-svgr"
 import node from "@astrojs/node";
-import react from '@astrojs/react';
 import formDebug from "@astro-utils/forms/dist/integration.js";
 import sitemap from '@astrojs/sitemap';
 import requestNanostores from '@inox-tools/request-nanostores';

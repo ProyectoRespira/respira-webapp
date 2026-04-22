@@ -6,7 +6,6 @@ type Props = {
   showModal: boolean;
   toggleModal: (value: boolean) => void;
   title?: string,
-  props?: any,
   renderHeader?: boolean
 }
 

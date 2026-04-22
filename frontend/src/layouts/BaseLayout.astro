@@ -26,8 +26,8 @@ const GTAG=import.meta.env.PUBLIC_GTAG
     ></script>
     <script define:vars={{GTAG}}>
       window.dataLayer = window.dataLayer || [];
-      function gtag() {
-        dataLayer.push(arguments);
+      function gtag(...args) {
+        dataLayer.push(args);
       }
       gtag("js", new Date());
 

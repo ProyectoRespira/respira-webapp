@@ -19,13 +19,13 @@ import { MapTooltip } from "./MapTooltip";
 
 import { BASE_URL } from "../../data/constants";
 
-function debounce(fn: any, ms: number) {
-  let timer: NodeJS.Timeout | undefined;
+function debounce(fn: () => void, ms: number) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   return () => {
     clearTimeout(timer);
     timer = setTimeout(() => {
       timer = undefined;
-      fn.apply(undefined, arguments);
+      fn();
     }, ms);
   };
 }
@@ -50,7 +50,7 @@ const MapComponent = () => {
     return () => {
       window.removeEventListener("resize", debouncedHandleResize);
     };
-  });
+  }, []);
 
   const [popupInfo, setPopupInfo] = React.useState<STATION | undefined>(undefined);
 

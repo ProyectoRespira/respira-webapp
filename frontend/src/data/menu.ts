@@ -2,8 +2,8 @@ import { loadingStations, stations } from "../store/map";
 import { GITHUB_URL } from "./constants";
 
 export type DynamicMenuItem = {
-  store: any;
-  loading: any;
+  store: unknown;
+  loading: unknown;
   baseRoute: string;
   titleKey: string;
   subtitleKey: string
