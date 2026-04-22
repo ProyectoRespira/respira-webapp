@@ -19,10 +19,11 @@ updates:
         applies-to: "security-updates"
         patterns:
           - "*"
-    ignore:
+    allow:
       - dependency-name: "*"
         update-types:
-          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
 
   - package-ecosystem: "pip"
     directory: "/backend"
@@ -43,10 +44,11 @@ updates:
         applies-to: "security-updates"
         patterns:
           - "*"
-    ignore:
+    allow:
       - dependency-name: "*"
         update-types:
-          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
 
   - package-ecosystem: "docker"
     directory: "/"
@@ -64,10 +66,6 @@ updates:
         applies-to: "security-updates"
         patterns:
           - "*"
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-major"
 
   - package-ecosystem: "docker"
     directory: "/backend"
@@ -85,10 +83,6 @@ updates:
         applies-to: "security-updates"
         patterns:
           - "*"
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-major"
 
   - package-ecosystem: "docker"
     directory: "/frontend"
@@ -106,10 +100,6 @@ updates:
         applies-to: "security-updates"
         patterns:
           - "*"
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-major"
 
   - package-ecosystem: "docker"
     directory: "/proxy"
@@ -127,10 +117,6 @@ updates:
         applies-to: "security-updates"
         patterns:
           - "*"
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-major"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -148,7 +134,3 @@ updates:
         applies-to: "security-updates"
         patterns:
           - "*"
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-major"
