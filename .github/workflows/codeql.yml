@@ -7,7 +7,7 @@ on:
     paths-ignore:
       - '.github/codeql/.scan-findings/**'
   schedule:
-    - cron: '27 3 */14 * *'
+    - cron: '0 3 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -49,6 +49,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      security-events: read
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -114,6 +115,8 @@ jobs:
           git add "$REPORT_FILE"
           if git diff --staged --quiet; then
             echo "Findings report unchanged."
+            echo "Skipping PR creation because there are no findings changes to publish."
+            exit 0
           else
             git commit -m "chore(security): update codeql open alerts report"
             git push --set-upstream origin "$BRANCH"

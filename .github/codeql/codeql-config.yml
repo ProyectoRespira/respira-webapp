@@ -6,3 +6,5 @@ queries:
 paths-ignore:
   - '**/*.md'
   - 'docs/**'
+  - 'data_retriever'
+  - 'data_retriever/**'
