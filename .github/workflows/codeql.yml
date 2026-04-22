@@ -1,0 +1,131 @@
+name: CodeQL
+
+on:
+  pull_request:
+    branches: [main, develop, dev]
+    types: [opened, reopened, synchronize]
+    paths-ignore:
+      - '.github/codeql/.scan-findings/**'
+  schedule:
+    - cron: '27 3 */14 * *'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, python, actions]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+
+  create-findings-pr:
+    name: Create Findings PR
+    runs-on: ubuntu-latest
+    needs: [analyze]
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create or update findings PR when alerts exist
+        run: |
+          set -euo pipefail
+          BASE_BRANCH="${GITHUB_REF_NAME}"
+          REPORT_FILE=".github/codeql/.scan-findings/open-alerts.md"
+          REPO_OWNER="${GITHUB_REPOSITORY%/*}"
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          DATE_SUFFIX="$(date -u +'%Y%m%d')"
+
+          ALERTS_JSON="$(gh api --paginate \
+            -H 'Accept: application/vnd.github+json' \
+            "/repos/${GITHUB_REPOSITORY}/code-scanning/alerts?state=open&ref=refs/heads/${BASE_BRANCH}&per_page=100")"
+
+          ALERT_COUNT="$(printf '%s' "$ALERTS_JSON" | jq 'length')"
+          if [[ "$ALERT_COUNT" -eq 0 ]]; then
+            echo "No open code scanning alerts for ${BASE_BRANCH}."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          EXISTING_PR_JSON="$(gh pr list --base "$BASE_BRANCH" --state open --json number,headRefName,title | jq -c '.[] | select(.title == "chore(security): review CodeQL findings")' | head -n 1)"
+          if [[ -n "$EXISTING_PR_JSON" ]]; then
+            PR_NUMBER="$(printf '%s' "$EXISTING_PR_JSON" | jq -r '.number')"
+            BRANCH="$(printf '%s' "$EXISTING_PR_JSON" | jq -r '.headRefName')"
+          else
+            LAST_NUMBER="$(gh api graphql \
+              -f owner="$REPO_OWNER" \
+              -f name="$REPO_NAME" \
+              -f query='query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { issues(last: 1) { nodes { number } } pullRequests(last: 1) { nodes { number } } } }' \
+              --jq '[(.data.repository.issues.nodes[0].number // 0), (.data.repository.pullRequests.nodes[0].number // 0)] | max')"
+            PR_NUMBER="$((LAST_NUMBER + 1))"
+            BRANCH="security/codeql-findings-PR${PR_NUMBER}-${DATE_SUFFIX}"
+          fi
+
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            git fetch origin "$BRANCH"
+            git checkout -B "$BRANCH" "origin/$BRANCH"
+          else
+            git checkout -b "$BRANCH"
+          fi
+
+          mkdir -p .github/codeql/.scan-findings
+          {
+            echo "# CodeQL Open Alerts"
+            echo
+            echo "Generated at: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "Event: ${GITHUB_EVENT_NAME}"
+            echo "Base branch: ${BASE_BRANCH}"
+            echo "Open alerts: ${ALERT_COUNT}"
+            echo
+            echo "## Alerts"
+            printf '%s' "$ALERTS_JSON" | jq -r '.[] | "- [\(.rule.severity // \"unknown\")] \(.rule.id // \"unknown-rule\"): \(.most_recent_instance.location.path // \"unknown-path\")"'
+          } > "$REPORT_FILE"
+
+          git add "$REPORT_FILE"
+          if git diff --staged --quiet; then
+            echo "Findings report unchanged."
+          else
+            git commit -m "chore(security): update codeql open alerts report"
+            git push --set-upstream origin "$BRANCH"
+          fi
+
+          EXISTING_PR="$(gh pr list --head "$BRANCH" --base "$BASE_BRANCH" --state open --json number --jq '.[0].number')"
+          if [[ -n "$EXISTING_PR" ]]; then
+            echo "Open PR already exists: #${EXISTING_PR}"
+          else
+            gh pr create \
+              --base "$BASE_BRANCH" \
+              --head "$BRANCH" \
+              --title "chore(security): review CodeQL findings" \
+              --body "Automated findings PR created because manual or scheduled code scanning detected open alerts."
+          fi
