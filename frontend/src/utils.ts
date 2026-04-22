@@ -3,19 +3,19 @@ import {AQI_COLORS} from "./data/constants"
 
 export const getAQIIndex = (aqi: number): number => {
     const ranges: [number, number][] = [[0, 50], [51, 100], [101, 150], [151, 200], [201, 300], [301, 400]];
-    // If value is out of range the default color is the last one
     let AQIIndex = 5;
 
-    if(!aqi){
+    if (aqi === null || aqi === undefined || Number.isNaN(aqi)) {
         throw SyntaxError("getAQIIndex: 'aqi' is not defined")
     }
-    if(aqi<0){
-        throw SyntaxError("getAQIIndex: 'aqi' is not a valid number; must be > 0")
+    if (aqi < 0) {
+        throw SyntaxError("getAQIIndex: 'aqi' is not a valid number; must be >= 0")
     }
+
     const roundedAqi = Math.round(aqi)
-    for( const [index, r] of ranges.entries()) {
-        if(roundedAqi>=r[0] && roundedAqi<=r[1]){
-            AQIIndex=index
+    for (const [index, r] of ranges.entries()) {
+        if (roundedAqi >= r[0] && roundedAqi <= r[1]) {
+            AQIIndex = index
             break;
         }
     }
