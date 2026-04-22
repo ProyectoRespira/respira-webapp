@@ -1,0 +1,31 @@
+name: Backend Build
+
+on:
+  pull_request:
+    branches: [main, develop, dev]
+    types: [opened, reopened, synchronize]
+    paths:
+      - 'backend/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Backend Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build backend bytecode
+        run: python -m compileall -q backend
