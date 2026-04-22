@@ -3,7 +3,7 @@ updates:
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
-      interval: "biweekly"
+      interval: "weekly"
       day: "monday"
       time: "04:00"
       timezone: "UTC"
@@ -27,55 +27,7 @@ updates:
   - package-ecosystem: "pip"
     directory: "/backend"
     schedule:
-      interval: "biweekly"
-      day: "monday"
-      time: "04:00"
-      timezone: "UTC"
-    open-pull-requests-limit: 10
-    groups:
-      all-non-major:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-      all-security:
-        applies-to: "security-updates"
-        patterns:
-          - "*"
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-major"
-
-  - package-ecosystem: "pip"
-    directory: "/data_retriever"
-    schedule:
-      interval: "biweekly"
-      day: "monday"
-      time: "04:00"
-      timezone: "UTC"
-    open-pull-requests-limit: 10
-    groups:
-      all-non-major:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-      all-security:
-        applies-to: "security-updates"
-        patterns:
-          - "*"
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-major"
-
-  - package-ecosystem: "pip"
-    directory: "/data_retriever/etl-pipeline"
-    schedule:
-      interval: "biweekly"
+      interval: "weekly"
       day: "monday"
       time: "04:00"
       timezone: "UTC"
@@ -99,7 +51,7 @@ updates:
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
-      interval: "biweekly"
+      interval: "weekly"
       day: "monday"
       time: "04:00"
       timezone: "UTC"
@@ -120,7 +72,7 @@ updates:
   - package-ecosystem: "docker"
     directory: "/backend"
     schedule:
-      interval: "biweekly"
+      interval: "weekly"
       day: "monday"
       time: "04:00"
       timezone: "UTC"
@@ -141,7 +93,7 @@ updates:
   - package-ecosystem: "docker"
     directory: "/frontend"
     schedule:
-      interval: "biweekly"
+      interval: "weekly"
       day: "monday"
       time: "04:00"
       timezone: "UTC"
@@ -162,28 +114,7 @@ updates:
   - package-ecosystem: "docker"
     directory: "/proxy"
     schedule:
-      interval: "biweekly"
-      day: "monday"
-      time: "04:00"
-      timezone: "UTC"
-    open-pull-requests-limit: 10
-    groups:
-      all-non-major:
-        patterns:
-          - "*"
-      all-security:
-        applies-to: "security-updates"
-        patterns:
-          - "*"
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-major"
-
-  - package-ecosystem: "docker"
-    directory: "/data_retriever"
-    schedule:
-      interval: "biweekly"
+      interval: "weekly"
       day: "monday"
       time: "04:00"
       timezone: "UTC"
@@ -204,7 +135,7 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "biweekly"
+      interval: "weekly"
       day: "monday"
       time: "04:00"
       timezone: "UTC"
