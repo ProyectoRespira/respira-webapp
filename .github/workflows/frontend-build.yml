@@ -1,0 +1,39 @@
+name: Frontend Build
+
+on:
+  pull_request:
+    branches: [main, develop, dev]
+    types: [opened, reopened, synchronize]
+    paths:
+      - 'frontend/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install frontend dependencies
+        run: pnpm --dir frontend install --frozen-lockfile
+
+      - name: Build frontend
+        run: pnpm --dir frontend run build
