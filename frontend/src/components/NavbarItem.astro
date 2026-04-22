@@ -27,24 +27,26 @@ let isDropdown = type === "dropdown";
 </script>
 {
     isModal && (
-        <button
-            class="dialog place-content-center cursor-default hidden md:block"
-            data-dialog-target="dialog"
-        >
-            <Typography variant="nav" customClass="m-auto select-none">
-                {title}
-            </Typography>
-        </button>
-        <a
-            href={BASE_URL + route}
-            class={ "md:hidden visible justify-items-start"}
-        >
-            <li class="place-content-start cursor-default flex-row flex">
+        <>
+            <button
+                class="dialog place-content-center cursor-default hidden md:block"
+                data-dialog-target="dialog"
+            >
                 <Typography variant="nav" customClass="m-auto select-none">
                     {title}
                 </Typography>
-            </li>
-        </a>
+            </button>
+            <a
+                href={BASE_URL + route}
+                class={ "md:hidden visible justify-items-start"}
+            >
+                <li class="place-content-start cursor-default flex-row flex">
+                    <Typography variant="nav" customClass="m-auto select-none">
+                        {title}
+                    </Typography>
+                </li>
+            </a>
+        </>
     )
 }
 

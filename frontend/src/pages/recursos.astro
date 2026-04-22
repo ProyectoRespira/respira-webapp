@@ -65,24 +65,25 @@ import Typography from "../components/atoms/Typography.astro";
             
             {
                 EXTERNAL_RESOURCES_IMAGES.map((resource) => (
-                    <a
-                        class="flex flex-col md:my-4 justify-center"
-                        href={resource.link}
-                        target="_blank"
-                    >
-                        <Image alt={resource.alt} src={resource.path}  loading="lazy" />
-                    </a>
-                  
-                    <a
-                        class={`md:order-last mb-4 md:m-0`}
-                        href={resource.link}
-                        target="_blank"
-                    >
-                        <Typography variant="label" customClass="underline">
-                            {resource.text}
-                        </Typography>
-                    </a>
-                )   )
+                    <>
+                        <a
+                            class="flex flex-col md:my-4 justify-center"
+                            href={resource.link}
+                            target="_blank"
+                        >
+                            <Image alt={resource.alt} src={resource.path}  loading="lazy" />
+                        </a>
+                        <a
+                            class={`md:order-last mb-4 md:m-0`}
+                            href={resource.link}
+                            target="_blank"
+                        >
+                            <Typography variant="label" customClass="underline">
+                                {resource.text}
+                            </Typography>
+                        </a>
+                    </>
+                ))
             }
         </div>
     </section>
