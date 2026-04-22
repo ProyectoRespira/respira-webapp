@@ -1,0 +1,8 @@
+name: Respira CodeQL Configuration
+
+queries:
+  - uses: security-extended
+
+paths-ignore:
+  - '**/*.md'
+  - 'docs/**'
