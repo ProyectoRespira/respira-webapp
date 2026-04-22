@@ -2,147 +2,163 @@ import { atom, computed, task, type Task } from "nanostores";
 import { isBackendAvailable } from "./store";
 import { BACKEND_URL } from "../data/constants";
 import { stations, type FORECAST, type STATION } from "./map";
-import { shared } from '@it-astro:request-nanostores';
-
+import { shared } from "@it-astro:request-nanostores";
 
 export type HISTORIC_FORECAST = {
-  aqi_level: FORECAST[],
-  forecast_6h: FORECAST[],
-  forecast_12h: FORECAST[]
-}
+  aqi_level: FORECAST[];
+  forecast_6h: FORECAST[];
+  forecast_12h: FORECAST[];
+};
 
+export const statisticsStationId = shared(
+  "statisticsStationId",
+  atom<number | undefined>(undefined),
+);
+export const statisticsSelectedStation = computed(
+  [isBackendAvailable, statisticsStationId, stations],
+  (backendAvailable, id, stations): Task<STATION | undefined> =>
+    task(async () => {
+      if (!backendAvailable) {
+        return undefined;
+      }
+      if (!id) {
+        return undefined;
+      }
+      if (!stations) {
+        return undefined;
+      }
+      console.log(id);
+      const station = stations.find((s) => (s.id === id ? s : undefined));
+      return station;
+    }),
+);
 
-export const statisticsStationId =  shared('statisticsStationId',atom<number | undefined>(undefined))
-export const statisticsSelectedStation =  computed([isBackendAvailable, statisticsStationId, stations], (backendAvailable, id, stations): Task<STATION | undefined> => task(async () => {
-  if (!backendAvailable) {
-    return undefined
-  }
-  if (!id) {
-    return undefined
-  }
-  if(!stations) {
-    return undefined
-  }
-  console.log(id)
-  const station = stations.find((s) =>
-    s.id === id ? s : undefined
-  );
-  return station
-}))
-
-export const errorHistoricForecast = atom<string | undefined>(undefined)
-export const loadingHistoricForecast = atom<boolean>(false)
+export const errorHistoricForecast = atom<string | undefined>(undefined);
+export const loadingHistoricForecast = atom<boolean>(false);
 
 export const fetchHistoricForecast = async (stationId: number) => {
-  loadingHistoricForecast.set(true)
+  loadingHistoricForecast.set(true);
   try {
-    const response = await fetch(BACKEND_URL + `/stations/${stationId}/forecast`);
-    loadingHistoricForecast.set(false)
-    console.log("response")
-    console.log(response)
-    return response.json()
+    const response = await fetch(
+      BACKEND_URL + `/stations/${stationId}/forecast`,
+    );
+    loadingHistoricForecast.set(false);
+    console.log("response");
+    console.log(response);
+    return response.json();
   } catch {
-    loadingHistoricForecast.set(false)
-    errorHistoricForecast.set("There has been an error getting the region.")
-    return undefined
+    loadingHistoricForecast.set(false);
+    errorHistoricForecast.set("There has been an error getting the region.");
+    return undefined;
   }
-}
+};
 
-export const historicForecastData = computed([isBackendAvailable, statisticsSelectedStation], (backendAvailable, station): Task<HISTORIC_FORECAST> => task(async () => {
-  if (!backendAvailable) {
-    return undefined
-  }
-  if (!station) {
-    return undefined
-  }
-  return fetchHistoricForecast(station.id)
-}))
+export const historicForecastData = computed(
+  [isBackendAvailable, statisticsSelectedStation],
+  (backendAvailable, station): Task<HISTORIC_FORECAST> =>
+    task(async () => {
+      if (!backendAvailable) {
+        return undefined;
+      }
+      if (!station) {
+        return undefined;
+      }
+      return fetchHistoricForecast(station.id);
+    }),
+);
 
-
-
-
-export const errorBoxplotWeek = atom<string | undefined>(undefined)
-export const loadingBoxplotWeek = atom<boolean>(false)
+export const errorBoxplotWeek = atom<string | undefined>(undefined);
+export const loadingBoxplotWeek = atom<boolean>(false);
 
 export const fetchBoxplotWeek = async (stationId: number) => {
-  loadingBoxplotWeek.set(true)
+  loadingBoxplotWeek.set(true);
   try {
-    const response = await fetch(BACKEND_URL + `/stations/${stationId}/boxplot/?period=7d`);
-    loadingBoxplotWeek.set(false)
-    return response.json()
+    const response = await fetch(
+      BACKEND_URL + `/stations/${stationId}/boxplot/?period=7d`,
+    );
+    loadingBoxplotWeek.set(false);
+    return response.json();
   } catch {
-    loadingBoxplotWeek.set(false)
-    errorBoxplotWeek.set("There has been an error getting the region.")
-    return undefined
+    loadingBoxplotWeek.set(false);
+    errorBoxplotWeek.set("There has been an error getting the region.");
+    return undefined;
   }
-}
+};
 
-export const boxplotWeekData = computed([isBackendAvailable, statisticsSelectedStation], (backendAvailable, station): Task<HISTORIC_FORECAST> => task(async () => {
-  if (!backendAvailable) {
-    return undefined
-  }
-  if (!station) {
-    return undefined
-  }
-  return fetchBoxplotWeek(station.id)
-}))
+export const boxplotWeekData = computed(
+  [isBackendAvailable, statisticsSelectedStation],
+  (backendAvailable, station): Task<HISTORIC_FORECAST> =>
+    task(async () => {
+      if (!backendAvailable) {
+        return undefined;
+      }
+      if (!station) {
+        return undefined;
+      }
+      return fetchBoxplotWeek(station.id);
+    }),
+);
 
-
-export const errorBoxplotMonth = atom<string | undefined>(undefined)
-export const loadingBoxplotMonth= atom<boolean>(false)
+export const errorBoxplotMonth = atom<string | undefined>(undefined);
+export const loadingBoxplotMonth = atom<boolean>(false);
 
 export const fetchBoxplotMonth = async (stationId: number) => {
-  loadingBoxplotMonth.set(true)
+  loadingBoxplotMonth.set(true);
   try {
-    const response = await fetch(BACKEND_URL + `/stations/${stationId}/boxplot/?period=30d`);
-    loadingBoxplotMonth.set(false)
-    return response.json()
+    const response = await fetch(
+      BACKEND_URL + `/stations/${stationId}/boxplot/?period=30d`,
+    );
+    loadingBoxplotMonth.set(false);
+    return response.json();
   } catch {
-    loadingBoxplotMonth.set(false)
-    errorBoxplotMonth.set("There has been an error getting the region.")
-    return undefined
+    loadingBoxplotMonth.set(false);
+    errorBoxplotMonth.set("There has been an error getting the region.");
+    return undefined;
   }
-}
+};
 
-export const boxplotMonthData = computed([isBackendAvailable, statisticsSelectedStation], (backendAvailable, station): Task<HISTORIC_FORECAST> => task(async () => {
-  if (!backendAvailable) {
-    return undefined
-  }
-  if (!station) {
-    return undefined
-  }
-  return fetchBoxplotMonth(station.id)
-}))
+export const boxplotMonthData = computed(
+  [isBackendAvailable, statisticsSelectedStation],
+  (backendAvailable, station): Task<HISTORIC_FORECAST> =>
+    task(async () => {
+      if (!backendAvailable) {
+        return undefined;
+      }
+      if (!station) {
+        return undefined;
+      }
+      return fetchBoxplotMonth(station.id);
+    }),
+);
 
-export const errorBoxplotYear = atom<string | undefined>(undefined)
-export const loadingBoxplotYear= atom<boolean>(false)
+export const errorBoxplotYear = atom<string | undefined>(undefined);
+export const loadingBoxplotYear = atom<boolean>(false);
 
 export const fetchBoxplotYear = async (stationId: number) => {
-  loadingBoxplotYear.set(true)
+  loadingBoxplotYear.set(true);
   try {
-    const response = await fetch(BACKEND_URL + `/stations/${stationId}/boxplot/?period=1y`);
-    loadingBoxplotYear.set(false)
-    return response.json()
+    const response = await fetch(
+      BACKEND_URL + `/stations/${stationId}/boxplot/?period=1y`,
+    );
+    loadingBoxplotYear.set(false);
+    return response.json();
   } catch {
-    loadingBoxplotYear.set(false)
-    errorBoxplotYear.set("There has been an error getting the region.")
-    return undefined
+    loadingBoxplotYear.set(false);
+    errorBoxplotYear.set("There has been an error getting the region.");
+    return undefined;
   }
-}
+};
 
-export const boxplotYearData = computed([isBackendAvailable, statisticsSelectedStation], (backendAvailable, station): Task<HISTORIC_FORECAST> => task(async () => {
-  if (!backendAvailable) {
-    return undefined
-  }
-  if (!station) {
-    return undefined
-  }
-  return fetchBoxplotYear(station.id)
-}))
-
-
-
-
-
-
-
+export const boxplotYearData = computed(
+  [isBackendAvailable, statisticsSelectedStation],
+  (backendAvailable, station): Task<HISTORIC_FORECAST> =>
+    task(async () => {
+      if (!backendAvailable) {
+        return undefined;
+      }
+      if (!station) {
+        return undefined;
+      }
+      return fetchBoxplotYear(station.id);
+    }),
+);

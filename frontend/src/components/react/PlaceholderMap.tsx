@@ -1,7 +1,5 @@
 import * as React from "react";
-import Map, {
-  Marker,
-} from "react-map-gl/maplibre";
+import Map, { Marker } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useStore } from "@nanostores/react";
 import Pin from "./Pin";
@@ -9,20 +7,17 @@ import Pin from "./Pin";
 import { getColorRange } from "../../utils";
 import { statisticsSelectedStation } from "../../store/statistics";
 
-
-
-
 const PlaceHolderMap = () => {
   const data = useStore(statisticsSelectedStation);
 
   const [dimensions] = React.useState({
     height: 300,
-    width: '100%',
+    width: "100%",
   });
 
   return (
     <>
-      {data ?
+      {data ? (
         <Map
           initialViewState={{
             longitude: data?.coordinates[1] || -57.65,
@@ -42,7 +37,7 @@ const PlaceHolderMap = () => {
           ]}
           mapStyle="https://api.maptiler.com/maps/442672a8-7228-4ab4-9780-83a9932987b5/style.json?key=NKY3xmA1haxXwc5Jm48B"
         >
-         <Marker
+          <Marker
             key={`marker-${data.id}`}
             longitude={data.coordinates[1]}
             latitude={data.coordinates[0]}
@@ -53,11 +48,13 @@ const PlaceHolderMap = () => {
               value={data.aqi_pm2_5}
             />
           </Marker>
-        </Map> 
-        : 
-        <svg className="animate-spin h-20 w-20 mr-3 ..." viewBox="0 0 24 24">
-      </svg>
-      }
+        </Map>
+      ) : (
+        <svg
+          className="animate-spin h-20 w-20 mr-3 ..."
+          viewBox="0 0 24 24"
+        ></svg>
+      )}
     </>
   );
 };

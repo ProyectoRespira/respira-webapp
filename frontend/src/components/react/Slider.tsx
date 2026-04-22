@@ -2,13 +2,12 @@ import * as React from "react";
 import SliderPin from "../react/SliderPin";
 import { getAQIIndex, getColorRange } from "../../utils";
 
-
-const calculateOffset = (value:number) => {
+const calculateOffset = (value: number) => {
   const index = getAQIIndex(value);
   return index * (100 / 6) + 10;
 };
 
-export const Slider = ({ value }: {value: number}) => {
+export const Slider = ({ value }: { value: number }) => {
   return (
     <div className="relative ">
       <div className={"flex flex-row absolute w-[86%] -mt-[1.5rem]"}>

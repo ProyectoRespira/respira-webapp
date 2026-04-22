@@ -1,9 +1,9 @@
 import React from "react";
 import { getColorRange } from "../../utils";
-import { ResponsiveBar} from "@nivo/bar";
+import { ResponsiveBar } from "@nivo/bar";
 import { timeFormat } from "d3-time-format";
 import { scaleTime } from "d3-scale";
-import {DateTime} from "luxon"
+import { DateTime } from "luxon";
 
 const customTooltip = ({ value }: { value: number }) => (
   <div className="flex flex-col rounded bg-black p-2 font-serif text-white">
@@ -25,21 +25,18 @@ const formatDateToTimezone = (date: Date) => {
 };
 
 export const BarChart = ({ data }: { data: BarDatum[] }) => {
-  const maxValue = React.useMemo(
-    () => {
-      return Math.max(...data.map((d: BarDatum) => d.value));
-    },
-    [data]
-  );
+  const maxValue = React.useMemo(() => {
+    return Math.max(...data.map((d: BarDatum) => d.value));
+  }, [data]);
 
   const timeScaleTicks: string[] = React.useMemo(() => {
     const scale = scaleTime().domain([
       new Date(data[0].timestamp),
       new Date(data[data.length - 1].timestamp),
-    ])
-    const ticks = scale.ticks(data.length > 6 ? 6 : 10)
-    return ticks.map((tick) => formatter(formatDateToTimezone(tick)))
-  }, [data])
+    ]);
+    const ticks = scale.ticks(data.length > 6 ? 6 : 10);
+    return ticks.map((tick) => formatter(formatDateToTimezone(tick)));
+  }, [data]);
 
   return (
     <ResponsiveBar
@@ -60,7 +57,7 @@ export const BarChart = ({ data }: { data: BarDatum[] }) => {
       tooltip={(d) => customTooltip(d)}
       valueScale={{
         type: "symlog",
-        min: 0 ,
+        min: 0,
         max: 400,
       }}
       valueFormat={(value) => Math.round(value).toString()}
@@ -68,9 +65,9 @@ export const BarChart = ({ data }: { data: BarDatum[] }) => {
         tickSize: 5,
         tickPadding: 5,
         tickRotation: 0,
-        format: (val) => { 
+        format: (val) => {
           const formatted = formatter(formatDateToTimezone(new Date(val)));
-          return timeScaleTicks.includes(formatted) ? formatted: '' 
+          return timeScaleTicks.includes(formatted) ? formatted : "";
         },
       }}
       theme={{

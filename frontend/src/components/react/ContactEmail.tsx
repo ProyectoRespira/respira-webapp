@@ -1,4 +1,4 @@
-import * as React from 'react';
+import * as React from "react";
 import {
   Body,
   Container,
@@ -9,8 +9,8 @@ import {
   Section,
   Text,
 } from "@react-email/components";
-import type { EmailInput } from '../../actions/index.tsx';
-import { BASE_URL } from '../../data/constants.ts';
+import type { EmailInput } from "../../actions/index.tsx";
+import { BASE_URL } from "../../data/constants.ts";
 
 export function Email(props: EmailInput) {
   const { name, lastname, motive, message, email } = props;
@@ -29,7 +29,9 @@ export function Email(props: EmailInput) {
           />
           <Section>
             <Text style={textBold}>Nombre</Text>
-            <Text style={text}>{name} {lastname}</Text>
+            <Text style={text}>
+              {name} {lastname}
+            </Text>
             <Text style={textBold}>Contacto</Text>
             <Text style={text}>{email}</Text>
             <Text style={textBold}>Motivo de consulta</Text>
@@ -42,7 +44,6 @@ export function Email(props: EmailInput) {
     </Html>
   );
 }
-
 
 const main = {
   backgroundColor: "#f6f9fc",

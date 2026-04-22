@@ -6,8 +6,8 @@ export type DynamicMenuItem = {
   loading: unknown;
   baseRoute: string;
   titleKey: string;
-  subtitleKey: string
-}
+  subtitleKey: string;
+};
 
 export type MenuItem = {
   title: string;
@@ -25,22 +25,23 @@ export type MenuItemDropdown = {
   type?: "dropdown";
 };
 
-
-
-
 export const menu: (MenuItem | MenuItemDropdown)[] = [
   { title: "Recibir alertas", route: "/alertas", id: "alerts", type: "modal" },
   { title: "Contacto", route: "/contacto", id: "contact" },
   { title: "Sobre nosotros", route: "/nosotros", id: "us" },
   { title: "Recursos", route: "/recursos", id: "research" },
   {
-    title: "Datos", route: {
+    title: "Datos",
+    route: {
       store: stations,
       loading: loadingStations,
       baseRoute: "/datos",
       titleKey: "id",
-      subtitleKey: "name"
-    }, id: "data", type: "dropdown" },
+      subtitleKey: "name",
+    },
+    id: "data",
+    type: "dropdown",
+  },
 ];
 
 export const FOOTER_MENU: MenuItem[] = [
@@ -61,7 +62,7 @@ export const FOOTER_MENU: MenuItem[] = [
       {
         title: "Github",
         route: GITHUB_URL,
-        id: "github"
+        id: "github",
       },
     ],
   },

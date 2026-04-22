@@ -5,7 +5,7 @@ import Typography from "./atoms/Typography.astro";
 import { BASE_URL } from "../data/constants";
 import { Dropdown, DropdownItems } from "astro-navbar";
 import { Image } from "astro:assets";
-import DropdownIcon from "../assets/icons/dropdown_icon.svg"
+import DropdownIcon from "../assets/icons/dropdown_icon.svg";
 import { DropdownData } from "./react/nav/DropdownData";
 const { title, route, type } = Astro.props;
 
@@ -14,79 +14,77 @@ let isDropdown = type === "dropdown";
 ---
 
 <script>
-    import { isAlertModalOpen } from "../store/modals";
+  import { isAlertModalOpen } from "../store/modals";
 
-    const buttons = document.querySelectorAll("button.dialog");
+  const buttons = document.querySelectorAll("button.dialog");
 
-    // Handle clicks on each button.
-    buttons.forEach((button) => {
-        button.addEventListener("click", () => {
-            isAlertModalOpen.set(!isAlertModalOpen.get());
-        });
+  // Handle clicks on each button.
+  buttons.forEach((button) => {
+    button.addEventListener("click", () => {
+      isAlertModalOpen.set(!isAlertModalOpen.get());
     });
+  });
 </script>
 {
-    isModal && (
-        <>
-            <button
-                class="dialog place-content-center cursor-default hidden md:block"
-                data-dialog-target="dialog"
-            >
-                <Typography variant="nav" customClass="m-auto select-none">
-                    {title}
-                </Typography>
-            </button>
-            <a
-                href={BASE_URL + route}
-                class={ "md:hidden visible justify-items-start"}
-            >
-                <li class="place-content-start cursor-default flex-row flex">
-                    <Typography variant="nav" customClass="m-auto select-none">
-                        {title}
-                    </Typography>
-                </li>
-            </a>
-        </>
-    )
+  isModal && (
+    <>
+      <button
+        class="dialog place-content-center cursor-default hidden md:block"
+        data-dialog-target="dialog"
+      >
+        <Typography variant="nav" customClass="m-auto select-none">
+          {title}
+        </Typography>
+      </button>
+      <a
+        href={BASE_URL + route}
+        class={"md:hidden visible justify-items-start"}
+      >
+        <li class="place-content-start cursor-default flex-row flex">
+          <Typography variant="nav" customClass="m-auto select-none">
+            {title}
+          </Typography>
+        </li>
+      </a>
+    </>
+  )
 }
 
 {
-    !isModal &&  isDropdown && (
-        <Dropdown class="group">
-            <button>
-            <li class="place-content-center cursor-default flex-row flex">
-                <Typography variant="nav" customClass="m-auto select-none">
-                    {title}
-                </Typography>
-                <Image
-                    class="h-6 w-auto"
-                    alt="Respira"
-                    src={DropdownIcon}
-                    loading="eager"
-                />
-            </li>
-            </button>
-            <DropdownItems  class="md:relative">
-              <div class="md:absolute md:top-8 bg-base md:p-6 pt-2 md:pt-0 rounded min-w-36">
-                <ul class="flex flex-col">
-                    <DropdownData client:only="react" {...route}/>
-                </ul>
-              </div>
-            </DropdownItems>
-          </Dropdown>
-
-    )
+  !isModal && isDropdown && (
+    <Dropdown class="group">
+      <button>
+        <li class="place-content-center cursor-default flex-row flex">
+          <Typography variant="nav" customClass="m-auto select-none">
+            {title}
+          </Typography>
+          <Image
+            class="h-6 w-auto"
+            alt="Respira"
+            src={DropdownIcon}
+            loading="eager"
+          />
+        </li>
+      </button>
+      <DropdownItems class="md:relative">
+        <div class="md:absolute md:top-8 bg-base md:p-6 pt-2 md:pt-0 rounded min-w-36">
+          <ul class="flex flex-col">
+            <DropdownData client:only="react" {...route} />
+          </ul>
+        </div>
+      </DropdownItems>
+    </Dropdown>
+  )
 }
 
-
 {
-    !isModal &&  !isDropdown && (
-        <a href={BASE_URL + route} class={isModal ? "md:hidden visible" : ""} >
-            <li class="place-content-center cursor-default">
-                <Typography variant="nav" customClass="m-auto select-none">
-                    {title}
-                </Typography>
-            </li>
-        </a>
-    )
+  !isModal && !isDropdown && (
+    <a href={BASE_URL + route} class={isModal ? "md:hidden visible" : ""}>
+      <li class="place-content-center cursor-default">
+        <Typography variant="nav" customClass="m-auto select-none">
+          {title}
+        </Typography>
+      </li>
+    </a>
+  )
 }

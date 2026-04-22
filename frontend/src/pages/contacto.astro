@@ -1,5 +1,4 @@
 ---
-
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Footer from "../components/atoms/Footer.astro";
 import BackTop from "../components/atoms/BackTop.astro";
@@ -18,10 +17,10 @@ import Button from "../components/atoms/Button.astro";
     const formData = new FormData(form);
     const { error, data } = await actions.sendMail(formData);
     if (error) {
-      window.alert('Hubo un error enviando el mail')
+      window.alert("Hubo un error enviando el mail");
       return console.error({ error });
     }
-    window.alert('Mensaje enviado!')
+    window.alert("Mensaje enviado!");
     console.log({ data });
   });
 </script>
@@ -129,10 +128,12 @@ import Button from "../components/atoms/Button.astro";
             name="message"
             maxlength="800"
             rows="8"></textarea>
-            <p class="text-[#FF18DA] text-xs">*Máximo número de carácteres es 800</p>
-            <div class="w-full mt-4">
-          <Button text="Enviar" variant="color" id={'form-button'}/>
-        </div>
+          <p class="text-[#FF18DA] text-xs">
+            *Máximo número de carácteres es 800
+          </p>
+          <div class="w-full mt-4">
+            <Button text="Enviar" variant="color" id={"form-button"} />
+          </div>
         </form>
       </div>
     </div>
