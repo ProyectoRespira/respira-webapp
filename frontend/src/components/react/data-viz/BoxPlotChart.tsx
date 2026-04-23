@@ -38,10 +38,21 @@ const formatterYear: Formatter = (date) => {
   return parsedDate.monthShort + "-" + parsedDate.toFormat("yy");
 };
 
+type ProcessedBoxPlotDatum = {
+  group: string;
+  subGroup: string;
+  mean: number;
+  quantiles: number[];
+  values: number[];
+  n: number;
+  extrema: number[];
+  [key: string]: string | number | number[];
+};
+
 const processData = (
   data: BoxplotApiData | undefined,
   formatter: Formatter,
-) => {
+): ProcessedBoxPlotDatum[] | undefined => {
   if (!data) {
     return;
   }
@@ -129,7 +140,8 @@ export const BoxPlotChart = ({ period }: { period: "7d" | "30d" | "1y" }) => {
       )}
       {data && !loading && (
         <ResponsiveBoxPlot
-          data={data}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          data={data as any}
           colors={["#EEC3A4"]}
           medianColor={"#8F4712"}
           whiskerColor={"#818181"}
