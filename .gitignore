@@ -163,3 +163,4 @@ cython_debug/
 #.idea/
 
 frontend/node_modules/*
+.astro/
