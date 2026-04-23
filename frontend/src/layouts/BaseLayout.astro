@@ -16,18 +16,18 @@ import "@fontsource-variable/inter";
 import "../../main.css";
 import { BASE_URL } from "../data/constants";
 
-const GTAG=import.meta.env.PUBLIC_GTAG
+const GTAG = import.meta.env.PUBLIC_GTAG;
 ---
 
 <html lang="en" class="md:overflow-hidden">
   <head>
     <!-- Google tag (gtag.js) -->
-    <script   async src=`https://www.googletagmanager.com/gtag/js?id=${GTAG}`
+    <script async src=`https://www.googletagmanager.com/gtag/js?id=${GTAG}`
     ></script>
-    <script define:vars={{GTAG}}>
+    <script define:vars={{ GTAG }}>
       window.dataLayer = window.dataLayer || [];
-      function gtag() {
-        dataLayer.push(arguments);
+      function gtag(...args) {
+        dataLayer.push(args);
       }
       gtag("js", new Date());
 
@@ -61,7 +61,7 @@ const GTAG=import.meta.env.PUBLIC_GTAG
       <TelegramCard slot="left" />
       <TwitterCard slot="right" customClass="rounded-br-lg" />
     </AlertModal>
-    <Navbar/>
+    <Navbar />
     <div
       class="bg-base overflow-auto overflow-x-hidden absolute md:bottom-0 top-20 w-full [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-black-300"
     >

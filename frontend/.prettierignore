@@ -1,0 +1,7 @@
+# Ignore artifacts:
+.astro
+build
+coverage
+dist
+node_modules
+public/mockServiceWorker.js
