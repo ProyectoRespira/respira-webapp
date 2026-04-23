@@ -2,6 +2,8 @@
 
 If you discover a security vulnerability in this repository, please **report it privately** and do not disclose it publicly until we have had a chance to address it.
 
+For details on how we handle incidents, see [INCIDENT_RESPONSE.md](docs/security/INCIDENT_RESPONSE.md).
+
 ## Reporting a Vulnerability
 
 We strongly encourage you to report security vulnerabilities using GitHub's built-in **Security Advisory** feature. This ensures your report is handled securely and privately by the maintainers.
