@@ -13,6 +13,22 @@ How we respond to security vulnerabilities. For reporting, see [SECURITY.md](../
 
 ---
 
+## ⚠️ Important: Self-Hosted Deployment Model
+
+Unlike centralized platforms, security patches for Respira are distributed through GitHub code updates. Each operator must:
+
+1. Pull the latest code from GitHub or checkout the release tag
+2. Rebuild their Docker container
+3. Deploy to their instance
+
+This means patch adoption is **staggered**—not all instances update simultaneously. 
+
+**For operators:** Monitor GitHub Releases and Security Advisories for critical patches. Subscribe to notifications in the repository settings.
+
+**For maintainers:** Use clear, urgent language in release notes for critical vulnerabilities.
+
+---
+
 ## Phase 1: Triage (≤ 7 days)
 
 1. **Read & acknowledge:**
@@ -109,7 +125,10 @@ Release and disclosure happen together. Do NOT publish advisory before patch is 
    - GitHub advisory auto-notifies watchers
    - Link to advisory from README or docs if critical
    - Update changelogs or deployment guides
-   - Note: Users are responsible for pulling the code and rebuilding their containers
+   - Send email/notification to known major downstream projects if applicable
+   - Note: Operators are responsible for pulling the code and rebuilding their containers
+   - Provide step-by-step upgrade instructions in release notes
+   - Include clear guidance: "Pull latest code: `git pull && git checkout vX.Y.Z`"
 
 4. **Credit the reporter:**
    - Ask first: "May we credit you in the advisory?"
@@ -118,7 +137,32 @@ Release and disclosure happen together. Do NOT publish advisory before patch is 
 
 ---
 
-## Phase 4: Post-Incident Learning (Within 2 weeks)
+## Phase 4: Patch Distribution & Operator Communication
+
+Once the advisory is published, operators are responsible for pulling the patch. Unlike SaaS platforms where all users auto-receive updates, Respira uses a distributed model:
+
+1. **Release timing:** Ensure patch code is pushed to GitHub and release tags are created BEFORE advisory is published
+
+2. **Release notes:** Include:
+    - Affected versions (e.g., "Affects all versions up to v1.2.3")
+    - Upgrade urgency (e.g., "CRITICAL: Security vulnerability")
+    - Upgrade path: `git pull && git checkout v1.2.4` or `git pull && docker compose build`
+    - Backward compatibility notes (if any breaking changes)
+
+3. **Operator actions:** Each operator independently:
+    - Receives notification (GitHub Releases watch, Security Advisory notification)
+    - Decides when to update (may be delayed for various reasons)
+    - Pulls code and rebuilds container
+    - Redeploys to their environment
+
+4. **Staggered adoption:** Some operators may take weeks to patch. Critical vulnerabilities should be communicated with escalation:
+    - Use "CRITICAL" in release notes
+    - Consider pinning notice to README
+    - Reemphasize in subsequent releases if critical unpatched
+
+---
+
+## Phase 5: Post-Incident Learning (Within 2 weeks)
 
 1. **Debrief with the team:**
    - Why did this vulnerability exist?
@@ -208,6 +252,7 @@ Times are targets. For complex issues, communicate with reporter explaining any 
 - **Communicator:** Drafts advisory, manages announcements
 
 One person can fill multiple roles.
+The incident commander is often the developer + reviewer + communicator. The critical checkpoint is always code review (ideally by another maintainer, but even a second pair of eyes helps).
 
 ---
 
@@ -221,11 +266,22 @@ One person can fill multiple roles.
 
 ## What NOT to Do
 
-- Do NOT discuss in public issues/Slack before patch exists
+- Do NOT discuss in public issues before patch exists
 - Do NOT publish exploit details or step-by-step attack instructions
 - Do NOT delay acknowledgment (reply within 3 days)
 - Do NOT publish advisory before patch is available
 - Do NOT skip code review before release
+
+---
+
+## What If Your Team Is Unavailable?
+
+For critical vulnerabilities discovered when no one is available:
+
+1. **Escalate immediately:** Reach out to team members directly
+
+2. **Use interim measures:** If you can't fix in 24-48 hours:
+    - Draft advisory and save as private (don't publish until patch exists)
 
 ---
 

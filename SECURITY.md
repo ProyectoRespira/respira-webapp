@@ -2,7 +2,7 @@
 
 If you discover a security vulnerability in this repository, please **report it privately** and do not disclose it publicly until we have had a chance to address it.
 
-For details on how we handle incidents, see [INCIDENT_RESPONSE.md](docs/security/INCIDENT_RESPONSE.md).
+For details on security procedures and how we handle incidents, see [Security Documentation](docs/security/).
 
 ## Reporting a Vulnerability
 
@@ -50,6 +50,10 @@ We take all security reports seriously and are committed to addressing them prom
 ## Acknowledgments
 
 We appreciate the security research community for responsibly disclosing vulnerabilities and helping us maintain a secure project. Thank you for your contribution to the security of Respira!
+
+## Security Documentation
+
+For a transparent overview of security considerations for this project, see our [Threat Model](docs/security/THREAT_MODEL.md).
 
 ## References
 
