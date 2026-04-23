@@ -140,6 +140,8 @@ export const Card = (props: CardProps) => {
           <div className="h-[100px] w-full">
             <Chart
               data={station ? station.forecast_6h : data.forecast_6h}
+              // TODO: Refactor as wrapper component
+              // @ts-expect-error - Astro directive, not a React prop
               client:only="react"
             />
           </div>
@@ -147,6 +149,8 @@ export const Card = (props: CardProps) => {
           <div className="h-[100px] w-full pb-2">
             <Chart
               data={station ? station.forecast_12h : data.forecast_12h}
+              // TODO: Refactor as wrapper component
+              // @ts-expect-error - Astro directive, not a React prop
               client:only="react"
             />
           </div>
