@@ -7,11 +7,7 @@ import Map, {
 } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useStore } from "@nanostores/react";
-import {
-  stations,
-  setSelectedStation,
-  type STATION,
-} from "../../store/map";
+import { stations, setSelectedStation, type STATION } from "../../store/map";
 import Pin from "./Pin";
 
 import { getColorRange } from "../../utils";
@@ -19,13 +15,13 @@ import { MapTooltip } from "./MapTooltip";
 
 import { BASE_URL } from "../../data/constants";
 
-function debounce(fn: any, ms: number) {
-  let timer: NodeJS.Timeout | undefined;
+function debounce(fn: () => void, ms: number) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   return () => {
     clearTimeout(timer);
     timer = setTimeout(() => {
       timer = undefined;
-      fn.apply(undefined, arguments);
+      fn();
     }, ms);
   };
 }
@@ -50,9 +46,11 @@ const MapComponent = () => {
     return () => {
       window.removeEventListener("resize", debouncedHandleResize);
     };
-  });
+  }, []);
 
-  const [popupInfo, setPopupInfo] = React.useState<STATION | undefined>(undefined);
+  const [popupInfo, setPopupInfo] = React.useState<STATION | undefined>(
+    undefined,
+  );
 
   const pins = React.useMemo(
     () =>
@@ -78,10 +76,9 @@ const MapComponent = () => {
             </Marker>
           ))
         : [],
-    [data]
+    [data],
   );
 
-  
   return (
     <Map
       initialViewState={{
@@ -103,23 +100,27 @@ const MapComponent = () => {
       mapStyle="https://api.maptiler.com/maps/442672a8-7228-4ab4-9780-83a9932987b5/style.json?key=NKY3xmA1haxXwc5Jm48B"
     >
       {data && pins}
-      {popupInfo && ( 
+      {popupInfo && (
         <Popup
           anchor="bottom-left"
           offset={10}
           longitude={Number(popupInfo.coordinates[1])}
           latitude={Number(popupInfo.coordinates[0])}
           onClose={() => setPopupInfo(undefined)}
-        >            
+        >
           <div className="flex flex-col">
-            <p className="font-bold text-[16px] text-white">Estación {popupInfo.id}</p>
+            <p className="font-bold text-[16px] text-white">
+              Estación {popupInfo.id}
+            </p>
             <p className="font-bold font-xs text-white">{popupInfo.name}</p>
-            <a href={BASE_URL+ `/datos/${popupInfo.id}`}><p className="text-green font-bold underline">Ver estadisticas</p></a>
+            <a href={BASE_URL + `/datos/${popupInfo.id}`}>
+              <p className="text-green font-bold underline">Ver estadisticas</p>
+            </a>
           </div>
         </Popup>
       )}
-      <GeolocateControl position="bottom-right"  showAccuracyCircle={false} />
-      <NavigationControl position="bottom-right"/>
+      <GeolocateControl position="bottom-right" showAccuracyCircle={false} />
+      <NavigationControl position="bottom-right" />
       <MapTooltip />
     </Map>
   );

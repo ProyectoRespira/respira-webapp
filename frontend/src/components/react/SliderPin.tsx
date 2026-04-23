@@ -9,10 +9,10 @@ const style = {
 };
 
 type SliderPinProps = {
-  size?: number,
-  value: number,
-  fill: string
-}
+  size?: number;
+  value: number;
+  fill: string;
+};
 
 const Pin = ({ size = 65, value, fill }: SliderPinProps) => {
   return (

@@ -27,7 +27,10 @@ const { text, variant, onclick, customClass, ...props } = Astro.props;
 {
   variant === "void" && (
     <button
-      class={"border text-black font-semibold py-2 px-6 rounded-md text-sm " + customClass}
+      class={
+        "border text-black font-semibold py-2 px-6 rounded-md text-sm " +
+        customClass
+      }
       {...props}
       onclick={onclick}
     >

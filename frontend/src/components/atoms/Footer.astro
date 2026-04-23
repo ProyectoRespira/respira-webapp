@@ -25,7 +25,7 @@ const getRoute = (route: string | MenuItem[]): string => {
       {
         FOOTER_IMAGES.map((image) => (
           <div class="first:pl-0 md:px-4 even:col-span-2 md:py-0 py-4 first:justify-start md:justify-center flex">
-            <Image alt={image.alt} src={image.path}  />
+            <Image alt={image.alt} src={image.path} />
           </div>
         ))
       }
@@ -51,7 +51,9 @@ const getRoute = (route: string | MenuItem[]): string => {
   <div class="grid w-full md:grid-cols-2 py-8 lg:gap-4 gap-3">
     {
       FOOTER_MENU.map((item) => {
-        if(!item) {return}
+        if (!item) {
+          return;
+        }
         if (typeof item.route !== "string") {
           return (
             <div>

@@ -7,6 +7,11 @@
 * `database` (`external postgres`)
 * `proxy` (`nginx`)
 
+## Security
+
+For details on security procedures and how we handle incidents, see:
+- [Security Policy](SECURITY.md)
+- [Security Documentation](docs/security/).
 
 ## Running the project locally
 
