@@ -25,13 +25,13 @@ const ShareModal = () => {
       <div className="flex flex-col pt-0 p-6 ">
         <div className="w-full px-2 border-[0.5px] mb-4"></div>
         <div className="flex flex-row space-x-4 justify-between">
-          <a href={TELEGRAM_SHARE} target="_blank">
+          <a href={TELEGRAM_SHARE} target="_blank" rel="noopener noreferrer">
             <Telegram height={50} width={50} />
           </a>
-          <a href={FACEBOOK_SHARE} target="_blank" data-href="">
+          <a href={FACEBOOK_SHARE} target="_blank" rel="noopener noreferrer" data-href="">
             <Facebook height={50} width={50} />
           </a>
-          <a href={TWITTER_SHARE} target="_blank" data-href="">
+          <a href={TWITTER_SHARE} target="_blank" rel="noopener noreferrer" data-href="">
             <Twitter height={50} width={50} />
           </a>
         </div>

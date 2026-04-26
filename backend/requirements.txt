@@ -7,7 +7,7 @@ coreschema==0.0.4
 Django==4.2.30
 django-cors-headers==4.5.0
 django-rest-swagger==2.2.0
-djangorestframework==3.14.0
+djangorestframework==3.15.1
 drf-nested-routers==0.94.1
 django-cors-headers==4.5.0
 drf-spectacular==0.27.2
@@ -15,7 +15,7 @@ gunicorn==23.0.0
 idna==3.8
 inflection==0.5.1
 itypes==1.2.0
-Jinja2==3.1.4
+Jinja2==3.1.5
 jsonschema==4.23.0
 jsonschema-specifications==2023.12.1
 MarkupSafe==2.1.5
@@ -25,11 +25,11 @@ packaging==24.1
 pandas==2.2.3
 psycopg2-binary==2.9.9
 python-dateutil==2.9.0.post0
-python-dotenv==1.0.0
+python-dotenv==1.0.1
 pytz==2023.3.post1
 PyYAML==6.0.2
 referencing==0.35.1
-requests==2.32.3
+requests==2.32.4
 rpds-py==0.20.0
 simplejson==3.19.3
 six==1.16.0
