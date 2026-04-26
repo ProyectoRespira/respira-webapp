@@ -5,7 +5,14 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
 
-from .models import InferenceResults, InferenceRuns, RegionReadings, Regions, StationReadingsGold, Stations
+from .models import (
+    InferenceResults,
+    InferenceRuns,
+    RegionReadings,
+    Regions,
+    StationReadingsGold,
+    Stations,
+)
 
 
 class BackendEndpointTests(TestCase):
@@ -130,38 +137,69 @@ class BackendEndpointTests(TestCase):
         first_station = response.json()[0]
         self.assertEqual(
             set(first_station.keys()),
-            {"id", "name", "region", "coordinates", "is_station_on", "is_pattern_station", "aqi_pm2_5"},
+            {
+                "id",
+                "name",
+                "region",
+                "coordinates",
+                "is_station_on",
+                "is_pattern_station",
+                "aqi_pm2_5",
+            },
         )
         self.assertEqual(first_station["region"]["has_pattern_station"], False)
         self.assertEqual(first_station["coordinates"], [-25.3, -57.5])
         self.assertEqual(first_station["aqi_pm2_5"], 84.0)
 
     def test_station_map_returns_station_specific_forecasts(self):
-        response = self.client.get(reverse("map"), {"entity": "station", "id": self.station.id})
+        response = self.client.get(
+            reverse("map"), {"entity": "station", "id": self.station.id}
+        )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(set(payload.keys()), {"aqi", "forecast_6h", "forecast_12h"})
         self.assertEqual(payload["aqi"], 84.0)
-        self.assertEqual(payload["forecast_6h"], [{"timestamp": "2026-03-31 12:00:00", "value": 20}])
-        self.assertEqual(payload["forecast_12h"], [{"timestamp": "2026-03-31 12:00:00", "value": 25}])
+        self.assertEqual(
+            payload["forecast_6h"], [{"timestamp": "2026-03-31 12:00:00", "value": 20}]
+        )
+        self.assertEqual(
+            payload["forecast_12h"], [{"timestamp": "2026-03-31 12:00:00", "value": 25}]
+        )
 
     def test_region_map_averages_only_region_stations(self):
-        response = self.client.get(reverse("map"), {"entity": "region", "id": self.region.id})
+        response = self.client.get(
+            reverse("map"), {"entity": "region", "id": self.region.id}
+        )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["aqi"], 72.0)
-        self.assertEqual(payload["forecast_6h"], [{"timestamp": "2026-03-31 12:00:00", "value": 30.0}])
-        self.assertEqual(payload["forecast_12h"], [{"timestamp": "2026-03-31 12:00:00", "value": 35.0}])
+        self.assertEqual(
+            payload["forecast_6h"],
+            [{"timestamp": "2026-03-31 12:00:00", "value": 30.0}],
+        )
+        self.assertEqual(
+            payload["forecast_12h"],
+            [{"timestamp": "2026-03-31 12:00:00", "value": 35.0}],
+        )
 
     def test_station_forecast_uses_latest_run_date_not_latest_uuid(self):
         response = self.client.get(reverse("stations-forecast", args=[self.station.id]))
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(set(payload.keys()), {"forecast_date", "aqi_level", "forecast_6h", "forecast_12h"})
+        self.assertEqual(
+            set(payload.keys()),
+            {"forecast_date", "aqi_level", "forecast_6h", "forecast_12h"},
+        )
         self.assertEqual(payload["forecast_date"], "2026-03-31T12:00:00Z")
-        self.assertEqual(payload["aqi_level"], [{"timestamp": "2026-03-31 11:00:00", "value": 84}])
-        self.assertEqual(payload["forecast_6h"], [{"timestamp": "2026-03-31 12:00:00", "value": 20}])
-        self.assertEqual(payload["forecast_12h"], [{"timestamp": "2026-03-31 12:00:00", "value": 25}])
+        self.assertEqual(
+            payload["aqi_level"], [{"timestamp": "2026-03-31 11:00:00", "value": 84}]
+        )
+        self.assertEqual(
+            payload["forecast_6h"], [{"timestamp": "2026-03-31 12:00:00", "value": 20}]
+        )
+        self.assertEqual(
+            payload["forecast_12h"], [{"timestamp": "2026-03-31 12:00:00", "value": 25}]
+        )

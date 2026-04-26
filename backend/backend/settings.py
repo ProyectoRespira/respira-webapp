@@ -20,6 +20,7 @@ load_dotenv()
 def _quote_postgres_identifier(identifier: str) -> str:
     return '"' + identifier.replace('"', '""') + '"'
 
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -27,139 +28,136 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('BACKEND_SECRET_KEY', 'respira-backend-dev-secret-key')
+SECRET_KEY = os.getenv("BACKEND_SECRET_KEY", "respira-backend-dev-secret-key")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('BACKEND_DEBUG', 'false').lower() == 'true'
+DEBUG = os.getenv("BACKEND_DEBUG", "false").lower() == "true"
 
 ALLOWED_HOSTS = [
-    '127.0.0.1',
-    'localhost',
-    'testserver',
-    '159.65.227.146',
-    'proyectorespira.net',
-    '.proyectorespira.net',
+    "127.0.0.1",
+    "localhost",
+    "testserver",
+    "159.65.227.146",
+    "proyectorespira.net",
+    ".proyectorespira.net",
 ]
 
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    "corsheaders",  
-    'rest_framework',
-    'drf_spectacular',
-    'api'
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "corsheaders",
+    "rest_framework",
+    "drf_spectacular",
+    "api",
 ]
 
-REST_FRAMEWORK = {
-    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema'
-}
+REST_FRAMEWORK = {"DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema"}
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'RespiraAPI',
-    'DESCRIPTION': 'This is the Respira API',
-    'VERSION': '1.0.0',
-    'SERVE_INCLUDE_SCHEMA': False
+    "TITLE": "RespiraAPI",
+    "DESCRIPTION": "This is the Respira API",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
 }
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
+    "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware'
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
 ]
 
 CORS_ORIGIN_ALLOW_ALL = False
 
-CORS_ORIGIN_WHITELIST = [
-    'http://proyectorespira.net',
-    'http://dev.proyectorespira.net'
-]
+CORS_ORIGIN_WHITELIST = ["http://proyectorespira.net", "http://dev.proyectorespira.net"]
 
-ROOT_URLCONF = 'backend.urls'
+ROOT_URLCONF = "backend.urls"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'backend.wsgi.application'
+WSGI_APPLICATION = "backend.wsgi.application"
 
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 postgres_config = {
-    'NAME': os.getenv('BACKEND_POSTGRES_DB'),
-    'USER': os.getenv('BACKEND_POSTGRES_USER'),
-    'PASSWORD': os.getenv('BACKEND_POSTGRES_PASSWORD'),
-    'HOST': os.getenv('BACKEND_POSTGRES_HOST'),
-    'PORT': os.getenv('BACKEND_POSTGRES_PORT'),
+    "NAME": os.getenv("BACKEND_POSTGRES_DB"),
+    "USER": os.getenv("BACKEND_POSTGRES_USER"),
+    "PASSWORD": os.getenv("BACKEND_POSTGRES_PASSWORD"),
+    "HOST": os.getenv("BACKEND_POSTGRES_HOST"),
+    "PORT": os.getenv("BACKEND_POSTGRES_PORT"),
 }
 
 if all(postgres_config.values()):
     db_options = {}
-    sslmode = os.getenv('BACKEND_POSTGRES_SSLMODE')
+    sslmode = os.getenv("BACKEND_POSTGRES_SSLMODE")
     if sslmode:
-        db_options['sslmode'] = sslmode
+        db_options["sslmode"] = sslmode
 
-    sslrootcert = os.getenv('BACKEND_POSTGRES_SSLROOTCERT')
+    sslrootcert = os.getenv("BACKEND_POSTGRES_SSLROOTCERT")
     if sslrootcert:
-        db_options['sslrootcert'] = sslrootcert
+        db_options["sslrootcert"] = sslrootcert
 
-    sslcert = os.getenv('BACKEND_POSTGRES_SSLCERT')
+    sslcert = os.getenv("BACKEND_POSTGRES_SSLCERT")
     if sslcert:
-        db_options['sslcert'] = sslcert
+        db_options["sslcert"] = sslcert
 
-    sslkey = os.getenv('BACKEND_POSTGRES_SSLKEY')
+    sslkey = os.getenv("BACKEND_POSTGRES_SSLKEY")
     if sslkey:
-        db_options['sslkey'] = sslkey
+        db_options["sslkey"] = sslkey
 
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
             **postgres_config,
-            'OPTIONS': db_options,
+            "OPTIONS": db_options,
         }
     }
 
     db_schemas = [
         schema.strip()
-        for schema in os.getenv('BACKEND_POSTGRES_SCHEMA', 'respira_gold').split(',')
+        for schema in os.getenv("BACKEND_POSTGRES_SCHEMA", "respira_gold").split(",")
         if schema.strip()
     ]
 
     if db_schemas:
         quoted_schemas = [_quote_postgres_identifier(schema) for schema in db_schemas]
-        if 'public' not in {schema.lower() for schema in db_schemas}:
-            quoted_schemas.append('public')
-        DATABASES['default']['OPTIONS']['options'] = f"-c search_path={','.join(quoted_schemas)}"
+        if "public" not in {schema.lower() for schema in db_schemas}:
+            quoted_schemas.append("public")
+        DATABASES["default"]["OPTIONS"]["options"] = (
+            f"-c search_path={','.join(quoted_schemas)}"
+        )
 else:
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
         }
     }
 
@@ -169,16 +167,16 @@ else:
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
@@ -186,9 +184,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = "UTC"
 
 USE_I18N = True
 
@@ -198,17 +196,19 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-STATIC_URL = '/static/'
-STATIC_ROOT = '/static/'
+STATIC_URL = "/static/"
+STATIC_ROOT = "/static/"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
-# CORS configuration 
+# CORS configuration
 # See https://github.com/adamchainz/django-cors-headers for details
 
-cors_allowed_origins = os.getenv('BACKEND_CORS_ALLOWED_ORIGINS', '')
-CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_allowed_origins.split(',') if origin.strip()]
+cors_allowed_origins = os.getenv("BACKEND_CORS_ALLOWED_ORIGINS", "")
+CORS_ALLOWED_ORIGINS = [
+    origin.strip() for origin in cors_allowed_origins.split(",") if origin.strip()
+]

@@ -28,10 +28,20 @@ const ShareModal = () => {
           <a href={TELEGRAM_SHARE} target="_blank" rel="noopener noreferrer">
             <Telegram height={50} width={50} />
           </a>
-          <a href={FACEBOOK_SHARE} target="_blank" rel="noopener noreferrer" data-href="">
+          <a
+            href={FACEBOOK_SHARE}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-href=""
+          >
             <Facebook height={50} width={50} />
           </a>
-          <a href={TWITTER_SHARE} target="_blank" rel="noopener noreferrer" data-href="">
+          <a
+            href={TWITTER_SHARE}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-href=""
+          >
             <Twitter height={50} width={50} />
           </a>
         </div>
