@@ -27,16 +27,16 @@ const DropdownData = ({
         data.map((val: STATION) => {
           const valueMap = val as Record<string, unknown>;
           return (
-            <a href={baseRoute + "/" + val.id} key={val.id} className="py-2">
-              <li>
+            <li key={val.id} className="py-2">
+              <a href={baseRoute + "/" + val.id}>
                 <p className="font-serif font-bold text-[1rem] text-black">
                   Estación {String(valueMap[titleKey] ?? "")}
                 </p>
                 <p className="font-sans text-[0.75rem] text-black">
                   {String(valueMap[subtitleKey] ?? "")}
                 </p>
-              </li>
-            </a>
+              </a>
+            </li>
           );
         })}
     </>

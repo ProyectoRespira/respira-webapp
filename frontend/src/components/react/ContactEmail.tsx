@@ -9,7 +9,7 @@ import {
   Section,
   Text,
 } from "@react-email/components";
-import type { EmailInput } from "../../actions/index.tsx";
+import type { EmailInput } from "../../actions/index";
 import { BASE_URL } from "../../data/constants.ts";
 
 export function Email(props: EmailInput) {

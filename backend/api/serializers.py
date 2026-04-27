@@ -7,17 +7,32 @@ from .models import Regions, Stations, StationReadingsGold
 class RegionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Regions
-        fields = ['id', 'name', 'region_code', 'bbox', 'has_weather_data', 'has_pattern_station']
+        fields = [
+            "id",
+            "name",
+            "region_code",
+            "bbox",
+            "has_weather_data",
+            "has_pattern_station",
+        ]
 
 
 class StationSerializer(serializers.ModelSerializer):
     region = RegionSerializer(allow_null=True)
     coordinates = serializers.SerializerMethodField()
     aqi_pm2_5 = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Stations
-        fields = ['id', 'name', 'region', 'coordinates', 'is_station_on', 'is_pattern_station', 'aqi_pm2_5']
+        fields = [
+            "id",
+            "name",
+            "region",
+            "coordinates",
+            "is_station_on",
+            "is_pattern_station",
+            "aqi_pm2_5",
+        ]
 
     @extend_schema_field(
         serializers.ListField(
@@ -31,8 +46,13 @@ class StationSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(OpenApiTypes.FLOAT)
     def get_aqi_pm2_5(self, obj) -> float | None:
-        last_reading = StationReadingsGold.objects.filter(station_id=obj.id).order_by('-date_utc').first()
+        last_reading = (
+            StationReadingsGold.objects.filter(station_id=obj.id)
+            .order_by("-date_utc")
+            .first()
+        )
         return last_reading.aqi_pm2_5 if last_reading else None
+
 
 class HealthSerializer(serializers.Serializer):
     status = serializers.CharField()
