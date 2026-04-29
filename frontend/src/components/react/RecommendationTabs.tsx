@@ -18,7 +18,7 @@ export function RecommendationTabs() {
         placeholder="HEADER"
         className="bg-transparent rounded-xl overflow-clip"
         indicatorProps={{
-          className: "border-2 bg-transparent text-black fisrt:rounded-l-xl",
+          className: "border-2 bg-transparent text-black first:rounded-l-xl",
         }}
       >
         {data.map(({ slug, color }) => (

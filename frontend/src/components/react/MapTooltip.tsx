@@ -22,9 +22,13 @@ export const MapTooltip = () => {
             <div className={`bg-${card.color} h-4 w-4`} />
           </div>
           {data.aqi >= 50 && (
-            <a onClick={() => toggleRecommendationsModal(true)}>
-              <p className="text-white underline text-sm">Recomendaciones</p>
-            </a>
+            <button
+              type="button"
+              onClick={() => toggleRecommendationsModal(true)}
+              className="text-white underline text-sm bg-transparent border-none p-0 m-0 cursor-pointer"
+            >
+              Recomendaciones
+            </button>
           )}
         </div>
       ) : undefined}
