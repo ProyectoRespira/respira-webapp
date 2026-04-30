@@ -147,7 +147,9 @@ class MapViewset(generics.GenericAPIView):
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
-            result_forecast_6h, result_forecast_12h = _latest_region_forecasts(entity_id)
+            result_forecast_6h, result_forecast_12h = _latest_region_forecasts(
+                entity_id
+            )
 
             if not result_forecast_6h or not result_forecast_12h:
                 return Response(
