@@ -48,6 +48,56 @@ def _mean_forecast_by_timestamp(rows):
     ]
 
 
+def _latest_region_forecasts(region_id):
+    candidate_runs = (
+        InferenceRuns.objects.filter(inferenceresults__station__region_id=region_id)
+        .distinct()
+        .order_by("-run_date")
+    )
+
+    for inference_run in candidate_runs:
+        run_results = InferenceResults.objects.filter(
+            inference_run=inference_run,
+            station__region_id=region_id,
+        )
+        forecast_6h = _mean_forecast_by_timestamp(
+            run_results.values_list("forecasts_6h", flat=True)
+        )
+        forecast_12h = _mean_forecast_by_timestamp(
+            run_results.values_list("forecasts_12h", flat=True)
+        )
+
+        if forecast_6h and forecast_12h:
+            return forecast_6h, forecast_12h
+
+    return [], []
+
+
+def _latest_station_forecasts(station_id):
+    candidate_runs = (
+        InferenceRuns.objects.filter(inferenceresults__station_id=station_id)
+        .distinct()
+        .order_by("-run_date")
+    )
+
+    for inference_run in candidate_runs:
+        run_results = InferenceResults.objects.filter(
+            inference_run=inference_run,
+            station_id=station_id,
+        )
+        forecast_6h = _flatten_forecast_rows(
+            run_results.values_list("forecasts_6h", flat=True)
+        )
+        forecast_12h = _flatten_forecast_rows(
+            run_results.values_list("forecasts_12h", flat=True)
+        )
+
+        if forecast_6h and forecast_12h:
+            return forecast_6h, forecast_12h
+
+    return [], []
+
+
 class HealthCheckView(generics.GenericAPIView):
     serializer_class = HealthSerializer
     http_method_names = ["get"]
@@ -84,13 +134,6 @@ class MapViewset(generics.GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        latest_inference_run = InferenceRuns.objects.order_by("-run_date").first()
-        if latest_inference_run is None:
-            return Response(
-                {"error": "No inference runs available."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
         if entity == "region":
             latest_region_reading = (
                 RegionReadings.objects.filter(region_id=entity_id)
@@ -104,16 +147,7 @@ class MapViewset(generics.GenericAPIView):
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
-            forecast_results = InferenceResults.objects.filter(
-                inference_run=latest_inference_run,
-                station__region_id=entity_id,
-            )
-            result_forecast_6h = _mean_forecast_by_timestamp(
-                forecast_results.values_list("forecasts_6h", flat=True)
-            )
-            result_forecast_12h = _mean_forecast_by_timestamp(
-                forecast_results.values_list("forecasts_12h", flat=True)
-            )
+            result_forecast_6h, result_forecast_12h = _latest_region_forecasts(entity_id)
 
             if not result_forecast_6h or not result_forecast_12h:
                 return Response(
@@ -158,11 +192,8 @@ class MapViewset(generics.GenericAPIView):
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
-            result_forecast_6h = _flatten_forecast_rows(
-                InferenceResults.objects.filter(
-                    inference_run=latest_inference_run,
-                    station_id=entity_id,
-                ).values_list("forecasts_6h", flat=True)
+            result_forecast_6h, result_forecast_12h = _latest_station_forecasts(
+                entity_id
             )
             if not result_forecast_6h:
                 return Response(
@@ -170,12 +201,6 @@ class MapViewset(generics.GenericAPIView):
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
-            result_forecast_12h = _flatten_forecast_rows(
-                InferenceResults.objects.filter(
-                    inference_run=latest_inference_run,
-                    station_id=entity_id,
-                ).values_list("forecasts_12h", flat=True)
-            )
             if not result_forecast_12h:
                 return Response(
                     {"error": "No 12-hour forecast data available for this station."},

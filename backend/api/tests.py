@@ -184,6 +184,41 @@ class BackendEndpointTests(TestCase):
             [{"timestamp": "2026-03-31 12:00:00", "value": 35.0}],
         )
 
+    def test_region_map_uses_latest_run_with_valid_forecast_data(self):
+        newer_empty_run = InferenceRuns.objects.create(
+            id=uuid.UUID("00000000-0000-0000-0000-000000000002"),
+            run_date=datetime(2026, 3, 31, 13, 0, tzinfo=timezone.utc),
+        )
+        InferenceResults.objects.create(
+            inference_run=newer_empty_run,
+            station=self.station,
+            forecasts_6h=[],
+            forecasts_12h=[],
+            aqi_input=[{"timestamp": "2026-03-31 12:00:00", "value": 84}],
+        )
+        InferenceResults.objects.create(
+            inference_run=newer_empty_run,
+            station=self.region_station_2,
+            forecasts_6h=[],
+            forecasts_12h=[],
+            aqi_input=[{"timestamp": "2026-03-31 12:00:00", "value": 60}],
+        )
+
+        response = self.client.get(
+            reverse("map"), {"entity": "region", "id": self.region.id}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(
+            payload["forecast_6h"],
+            [{"timestamp": "2026-03-31 12:00:00", "value": 30.0}],
+        )
+        self.assertEqual(
+            payload["forecast_12h"],
+            [{"timestamp": "2026-03-31 12:00:00", "value": 35.0}],
+        )
+
     def test_station_forecast_uses_latest_run_date_not_latest_uuid(self):
         response = self.client.get(reverse("stations-forecast", args=[self.station.id]))
 
@@ -202,4 +237,32 @@ class BackendEndpointTests(TestCase):
         )
         self.assertEqual(
             payload["forecast_12h"], [{"timestamp": "2026-03-31 12:00:00", "value": 25}]
+        )
+
+    def test_station_map_uses_latest_run_with_valid_forecast_data(self):
+        newer_empty_run = InferenceRuns.objects.create(
+            id=uuid.UUID("00000000-0000-0000-0000-000000000003"),
+            run_date=datetime(2026, 3, 31, 13, 30, tzinfo=timezone.utc),
+        )
+        InferenceResults.objects.create(
+            inference_run=newer_empty_run,
+            station=self.station,
+            forecasts_6h=[],
+            forecasts_12h=[],
+            aqi_input=[{"timestamp": "2026-03-31 12:30:00", "value": 84}],
+        )
+
+        response = self.client.get(
+            reverse("map"), {"entity": "station", "id": self.station.id}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(
+            payload["forecast_6h"],
+            [{"timestamp": "2026-03-31 12:00:00", "value": 20}],
+        )
+        self.assertEqual(
+            payload["forecast_12h"],
+            [{"timestamp": "2026-03-31 12:00:00", "value": 25}],
         )
