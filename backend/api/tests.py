@@ -86,13 +86,58 @@ class BackendEndpointTests(TestCase):
             aqi_region_avg=72.0,
         )
 
+        base_run_payload = {
+            "flow_run_id": "flow-run-test",
+            "deployment": "test",
+            "window_hours": 24,
+            "min_points": 6,
+            "model_6h_version": "model-6h-v1",
+            "model_12h_version": "model-12h-v1",
+            "model_6h_path": "/models/6h.pkl",
+            "model_12h_path": "/models/12h.pkl",
+            "started_at": latest_reading_time - timedelta(minutes=5),
+            "status": InferenceRuns.Status.SUCCESS,
+            "stations_total": 3,
+            "stations_success": 3,
+            "stations_skipped": 0,
+            "stations_failed": 0,
+        }
+
         self.older_run = InferenceRuns.objects.create(
             id=uuid.UUID("ffffffff-ffff-ffff-ffff-ffffffffffff"),
             run_date=latest_reading_time - timedelta(hours=6),
+            flow_run_id=f"{base_run_payload['flow_run_id']}-older",
+            deployment=base_run_payload["deployment"],
+            window_hours=base_run_payload["window_hours"],
+            min_points=base_run_payload["min_points"],
+            model_6h_version=base_run_payload["model_6h_version"],
+            model_12h_version=base_run_payload["model_12h_version"],
+            model_6h_path=base_run_payload["model_6h_path"],
+            model_12h_path=base_run_payload["model_12h_path"],
+            started_at=base_run_payload["started_at"] - timedelta(hours=6),
+            status=base_run_payload["status"],
+            stations_total=base_run_payload["stations_total"],
+            stations_success=base_run_payload["stations_success"],
+            stations_skipped=base_run_payload["stations_skipped"],
+            stations_failed=base_run_payload["stations_failed"],
         )
         self.latest_run = InferenceRuns.objects.create(
             id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
             run_date=latest_reading_time,
+            flow_run_id=base_run_payload["flow_run_id"],
+            deployment=base_run_payload["deployment"],
+            window_hours=base_run_payload["window_hours"],
+            min_points=base_run_payload["min_points"],
+            model_6h_version=base_run_payload["model_6h_version"],
+            model_12h_version=base_run_payload["model_12h_version"],
+            model_6h_path=base_run_payload["model_6h_path"],
+            model_12h_path=base_run_payload["model_12h_path"],
+            started_at=base_run_payload["started_at"],
+            status=base_run_payload["status"],
+            stations_total=base_run_payload["stations_total"],
+            stations_success=base_run_payload["stations_success"],
+            stations_skipped=base_run_payload["stations_skipped"],
+            stations_failed=base_run_payload["stations_failed"],
         )
 
         InferenceResults.objects.create(

@@ -2,6 +2,7 @@ import os
 import uuid
 
 from django.db import models
+from django.utils import timezone
 
 
 class Regions(models.Model):
@@ -80,12 +81,34 @@ class StationReadingsGold(models.Model):
 
 
 class InferenceRuns(models.Model):
+    class Status(models.TextChoices):
+        RUNNING = "running", "running"
+        SUCCESS = "success", "success"
+        FAILED = "failed", "failed"
+        CANCELLED = "cancelled", "cancelled"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     run_date = models.DateTimeField(
-        blank=True,
-        null=True,
-        db_column=os.getenv("BACKEND_INFERENCE_RUN_DATE_COLUMN", "as_of"),
+        db_column="as_of",
     )
+    flow_run_id = models.TextField()
+    deployment = models.TextField(blank=True, null=True)
+    window_hours = models.IntegerField()
+    min_points = models.IntegerField()
+    model_6h_version = models.TextField()
+    model_12h_version = models.TextField()
+    model_6h_path = models.TextField(blank=True, null=True)
+    model_12h_path = models.TextField(blank=True, null=True)
+    started_at = models.DateTimeField()
+    ended_at = models.DateTimeField(blank=True, null=True)
+    duration_s = models.IntegerField(blank=True, null=True)
+    status = models.TextField(choices=Status.choices)
+    stations_total = models.IntegerField(default=0)
+    stations_success = models.IntegerField(default=0)
+    stations_skipped = models.IntegerField(default=0)
+    stations_failed = models.IntegerField(default=0)
+    error_summary = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         db_table = "inference_runs"
