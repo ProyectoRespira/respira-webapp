@@ -17,7 +17,6 @@ def _sync_inference_runs_columns(apps, schema_editor):
             for column in table_description
         }
 
-    # Keep this list explicit so model state and physical table evolve together.
     fields_to_ensure = [
         "flow_run_id",
         "deployment",
