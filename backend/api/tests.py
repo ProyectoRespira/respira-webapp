@@ -16,6 +16,35 @@ from .models import (
 
 
 class BackendEndpointTests(TestCase):
+    def _create_inference_run(
+        self,
+        *,
+        run_id,
+        run_date,
+        flow_run_id,
+        status=InferenceRuns.Status.SUCCESS,
+        started_at=None,
+    ):
+        started_at = started_at or (run_date - timedelta(minutes=5))
+        return InferenceRuns.objects.create(
+            id=run_id,
+            run_date=run_date,
+            flow_run_id=flow_run_id,
+            deployment=self.base_run_payload["deployment"],
+            window_hours=self.base_run_payload["window_hours"],
+            min_points=self.base_run_payload["min_points"],
+            model_6h_version=self.base_run_payload["model_6h_version"],
+            model_12h_version=self.base_run_payload["model_12h_version"],
+            model_6h_path=self.base_run_payload["model_6h_path"],
+            model_12h_path=self.base_run_payload["model_12h_path"],
+            started_at=started_at,
+            status=status,
+            stations_total=self.base_run_payload["stations_total"],
+            stations_success=self.base_run_payload["stations_success"],
+            stations_skipped=self.base_run_payload["stations_skipped"],
+            stations_failed=self.base_run_payload["stations_failed"],
+        )
+
     def setUp(self):
         self.client = APIClient()
 
@@ -86,7 +115,7 @@ class BackendEndpointTests(TestCase):
             aqi_region_avg=72.0,
         )
 
-        base_run_payload = {
+        self.base_run_payload = {
             "flow_run_id": "flow-run-test",
             "deployment": "test",
             "window_hours": 24,
@@ -103,41 +132,19 @@ class BackendEndpointTests(TestCase):
             "stations_failed": 0,
         }
 
-        self.older_run = InferenceRuns.objects.create(
-            id=uuid.UUID("ffffffff-ffff-ffff-ffff-ffffffffffff"),
+        self.older_run = self._create_inference_run(
+            run_id=uuid.UUID("ffffffff-ffff-ffff-ffff-ffffffffffff"),
             run_date=latest_reading_time - timedelta(hours=6),
-            flow_run_id=f"{base_run_payload['flow_run_id']}-older",
-            deployment=base_run_payload["deployment"],
-            window_hours=base_run_payload["window_hours"],
-            min_points=base_run_payload["min_points"],
-            model_6h_version=base_run_payload["model_6h_version"],
-            model_12h_version=base_run_payload["model_12h_version"],
-            model_6h_path=base_run_payload["model_6h_path"],
-            model_12h_path=base_run_payload["model_12h_path"],
-            started_at=base_run_payload["started_at"] - timedelta(hours=6),
-            status=base_run_payload["status"],
-            stations_total=base_run_payload["stations_total"],
-            stations_success=base_run_payload["stations_success"],
-            stations_skipped=base_run_payload["stations_skipped"],
-            stations_failed=base_run_payload["stations_failed"],
+            flow_run_id=f"{self.base_run_payload['flow_run_id']}-older",
+            status=self.base_run_payload["status"],
+            started_at=self.base_run_payload["started_at"] - timedelta(hours=6),
         )
-        self.latest_run = InferenceRuns.objects.create(
-            id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
+        self.latest_run = self._create_inference_run(
+            run_id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
             run_date=latest_reading_time,
-            flow_run_id=base_run_payload["flow_run_id"],
-            deployment=base_run_payload["deployment"],
-            window_hours=base_run_payload["window_hours"],
-            min_points=base_run_payload["min_points"],
-            model_6h_version=base_run_payload["model_6h_version"],
-            model_12h_version=base_run_payload["model_12h_version"],
-            model_6h_path=base_run_payload["model_6h_path"],
-            model_12h_path=base_run_payload["model_12h_path"],
-            started_at=base_run_payload["started_at"],
-            status=base_run_payload["status"],
-            stations_total=base_run_payload["stations_total"],
-            stations_success=base_run_payload["stations_success"],
-            stations_skipped=base_run_payload["stations_skipped"],
-            stations_failed=base_run_payload["stations_failed"],
+            flow_run_id=self.base_run_payload["flow_run_id"],
+            status=self.base_run_payload["status"],
+            started_at=self.base_run_payload["started_at"],
         )
 
         InferenceResults.objects.create(
@@ -229,6 +236,92 @@ class BackendEndpointTests(TestCase):
             [{"timestamp": "2026-03-31 12:00:00", "value": 35.0}],
         )
 
+    def test_region_map_ignores_latest_non_success_run(self):
+        failed_run = self._create_inference_run(
+            run_id=uuid.UUID("00000000-0000-0000-0000-000000000002"),
+            run_date=datetime(2026, 3, 31, 13, 0, tzinfo=timezone.utc),
+            flow_run_id="flow-run-failed",
+            status=InferenceRuns.Status.FAILED,
+        )
+        InferenceResults.objects.create(
+            inference_run=failed_run,
+            station=self.station,
+            forecasts_6h=[{"timestamp": "2026-03-31 13:00:00", "value": 999}],
+            forecasts_12h=[{"timestamp": "2026-03-31 13:00:00", "value": 999}],
+            aqi_input=[{"timestamp": "2026-03-31 12:00:00", "value": 84}],
+        )
+        InferenceResults.objects.create(
+            inference_run=failed_run,
+            station=self.region_station_2,
+            forecasts_6h=[{"timestamp": "2026-03-31 13:00:00", "value": 999}],
+            forecasts_12h=[{"timestamp": "2026-03-31 13:00:00", "value": 999}],
+            aqi_input=[{"timestamp": "2026-03-31 12:00:00", "value": 60}],
+        )
+
+        response = self.client.get(
+            reverse("map"), {"entity": "region", "id": self.region.id}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(
+            payload["forecast_6h"],
+            [{"timestamp": "2026-03-31 12:00:00", "value": 30.0}],
+        )
+        self.assertEqual(
+            payload["forecast_12h"],
+            [{"timestamp": "2026-03-31 12:00:00", "value": 35.0}],
+        )
+
+    def test_station_map_resolves_latest_available_forecast_per_station(self):
+        newest_success_run = self._create_inference_run(
+            run_id=uuid.UUID("00000000-0000-0000-0000-000000000003"),
+            run_date=datetime(2026, 3, 31, 13, 30, tzinfo=timezone.utc),
+            flow_run_id="flow-run-success-newest",
+            status=InferenceRuns.Status.SUCCESS,
+        )
+        InferenceResults.objects.create(
+            inference_run=newest_success_run,
+            station=self.station,
+            forecasts_6h=[],
+            forecasts_12h=[],
+            aqi_input=[{"timestamp": "2026-03-31 13:00:00", "value": 84}],
+        )
+        InferenceResults.objects.create(
+            inference_run=newest_success_run,
+            station=self.region_station_2,
+            forecasts_6h=[{"timestamp": "2026-03-31 13:30:00", "value": 55}],
+            forecasts_12h=[{"timestamp": "2026-03-31 13:30:00", "value": 65}],
+            aqi_input=[{"timestamp": "2026-03-31 13:00:00", "value": 60}],
+        )
+
+        station_1_response = self.client.get(
+            reverse("map"), {"entity": "station", "id": self.station.id}
+        )
+        station_2_response = self.client.get(
+            reverse("map"), {"entity": "station", "id": self.region_station_2.id}
+        )
+
+        self.assertEqual(station_1_response.status_code, 200)
+        self.assertEqual(station_2_response.status_code, 200)
+
+        self.assertEqual(
+            station_1_response.json()["forecast_6h"],
+            [{"timestamp": "2026-03-31 12:00:00", "value": 20}],
+        )
+        self.assertEqual(
+            station_1_response.json()["forecast_12h"],
+            [{"timestamp": "2026-03-31 12:00:00", "value": 25}],
+        )
+        self.assertEqual(
+            station_2_response.json()["forecast_6h"],
+            [{"timestamp": "2026-03-31 13:30:00", "value": 55}],
+        )
+        self.assertEqual(
+            station_2_response.json()["forecast_12h"],
+            [{"timestamp": "2026-03-31 13:30:00", "value": 65}],
+        )
+
     def test_station_forecast_uses_latest_run_date_not_latest_uuid(self):
         response = self.client.get(reverse("stations-forecast", args=[self.station.id]))
 
@@ -247,4 +340,27 @@ class BackendEndpointTests(TestCase):
         )
         self.assertEqual(
             payload["forecast_12h"], [{"timestamp": "2026-03-31 12:00:00", "value": 25}]
+        )
+
+    def test_station_forecast_ignores_latest_non_success_run(self):
+        failed_run = self._create_inference_run(
+            run_id=uuid.UUID("00000000-0000-0000-0000-000000000004"),
+            run_date=datetime(2026, 3, 31, 14, 0, tzinfo=timezone.utc),
+            flow_run_id="flow-run-failed-station-endpoint",
+            status=InferenceRuns.Status.FAILED,
+        )
+        InferenceResults.objects.create(
+            inference_run=failed_run,
+            station=self.station,
+            forecasts_6h=[{"timestamp": "2026-03-31 14:00:00", "value": 999}],
+            forecasts_12h=[{"timestamp": "2026-03-31 14:00:00", "value": 999}],
+            aqi_input=[{"timestamp": "2026-03-31 13:30:00", "value": 200}],
+        )
+
+        response = self.client.get(reverse("stations-forecast", args=[self.station.id]))
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["forecast_date"], "2026-03-31T12:00:00Z")
+        self.assertEqual(
+            payload["forecast_6h"], [{"timestamp": "2026-03-31 12:00:00", "value": 20}]
         )
