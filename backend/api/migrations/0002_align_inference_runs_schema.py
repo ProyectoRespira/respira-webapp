@@ -1,23 +1,5 @@
-import copy
-
 from django.db import migrations, models
 from django.utils import timezone
-
-
-def _default_value_for_field(field_name):
-    field_defaults = {
-        "flow_run_id": "",
-        "model_6h_version": "",
-        "model_12h_version": "",
-        "status": "running",
-        "window_hours": 0,
-        "min_points": 0,
-        "stations_total": 0,
-        "stations_success": 0,
-        "stations_skipped": 0,
-        "stations_failed": 0,
-    }
-    return field_defaults.get(field_name)
 
 
 def _sync_inference_runs_columns(apps, schema_editor):
@@ -56,40 +38,12 @@ def _sync_inference_runs_columns(apps, schema_editor):
         "created_at",
     ]
 
-    def _add_field_safely(field_name):
-        field = model._meta.get_field(field_name)
-        existing_columns = _existing_columns()
-        column_name = connection.introspection.identifier_converter(field.column)
-
-        if column_name in existing_columns:
-            return
-
-        add_field = field
-        if not field.null:
-            add_field = copy.deepcopy(field)
-            add_field.null = True
-
-        schema_editor.add_field(model, add_field)
-
-        if not field.null:
-            default_value = (
-                field.get_default()
-                if field.has_default()
-                else _default_value_for_field(field_name)
-            )
-            if default_value is not None:
-                quoted_table = connection.ops.quote_name(table_name)
-                quoted_column = connection.ops.quote_name(field.column)
-                with connection.cursor() as cursor:
-                    cursor.execute(
-                        f"UPDATE {quoted_table} SET {quoted_column} = %s WHERE {quoted_column} IS NULL",
-                        [default_value],
-                    )
-
-            schema_editor.alter_field(model, add_field, field)
-
     for field_name in fields_to_ensure:
-        _add_field_safely(field_name)
+        field = model._meta.get_field(field_name)
+        column_name = connection.introspection.identifier_converter(field.column)
+        existing_columns = _existing_columns()
+        if column_name not in existing_columns:
+            schema_editor.add_field(model, field)
 
 
 class Migration(migrations.Migration):

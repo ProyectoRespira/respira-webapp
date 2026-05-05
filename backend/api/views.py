@@ -56,10 +56,7 @@ def _successful_inference_runs():
 def _latest_region_forecasts(region_id):
     candidate_runs = (
         _successful_inference_runs()
-        .filter(
-            inferenceresults__station__region_id=region_id,
-            inferenceresults__station__is_station_on=True,
-        )
+        .filter(inferenceresults__station__region_id=region_id)
         .distinct()
         .order_by("-run_date", "-created_at")
     )
@@ -68,7 +65,6 @@ def _latest_region_forecasts(region_id):
         run_results = InferenceResults.objects.filter(
             inference_run=inference_run,
             station__region_id=region_id,
-            station__is_station_on=True,
         )
         forecast_6h = _mean_forecast_by_timestamp(
             run_results.values_list("forecasts_6h", flat=True)
@@ -107,85 +103,6 @@ def _latest_station_forecasts(station_id):
             return inference_run, forecast_6h, forecast_12h
 
     return None, [], []
-
-
-def _parse_lat_lon(request):
-    lat_raw = request.query_params.get("lat")
-    lon_raw = request.query_params.get("lon")
-    if lat_raw is None or lon_raw is None:
-        return (
-            None,
-            None,
-            Response(
-                {"error": "Both 'lat' and 'lon' query parameters are required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            ),
-        )
-    try:
-        lat = float(lat_raw)
-        lon = float(lon_raw)
-    except ValueError:
-        return (
-            None,
-            None,
-            Response(
-                {"error": "'lat' and 'lon' must be valid numbers."},
-                status=status.HTTP_400_BAD_REQUEST,
-            ),
-        )
-    if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lon <= 180.0):
-        return (
-            None,
-            None,
-            Response(
-                {"error": "'lat' must be in [-90,90] and 'lon' in [-180,180]."},
-                status=status.HTTP_400_BAD_REQUEST,
-            ),
-        )
-    return lat, lon, None
-
-
-def _haversine_km(lat1, lon1, lat2, lon2):
-    r = 6371.0
-    p1, p2 = radians(lat1), radians(lat2)
-    dphi = radians(lat2 - lat1)
-    dlam = radians(lon2 - lon1)
-    a = sin(dphi / 2) ** 2 + cos(p1) * cos(p2) * sin(dlam / 2) ** 2
-    return 2 * r * asin(sqrt(a))
-
-
-def _nearest_active_station(lat, lon):
-    candidates = Stations.objects.filter(
-        is_station_on=True,
-        is_pattern_station=False,
-        latitude__isnull=False,
-        longitude__isnull=False,
-    )
-    nearest = None
-    nearest_distance = None
-    for station in candidates:
-        distance = _haversine_km(lat, lon, station.latitude, station.longitude)
-        if nearest_distance is None or distance < nearest_distance:
-            nearest = station
-            nearest_distance = distance
-    return nearest, nearest_distance
-
-
-def _latest_station_inference_result(station_id):
-    candidate_results = (
-        InferenceResults.objects.filter(
-            station_id=station_id,
-            inference_run__status=InferenceRuns.Status.SUCCESS,
-        )
-        .select_related("inference_run")
-        .order_by("-inference_run__run_date", "-inference_run__created_at")[:50]
-    )
-
-    for inference_result in candidate_results:
-        if inference_result.forecasts_6h and inference_result.forecasts_12h:
-            return inference_result
-
-    return None
 
 
 class HealthCheckView(generics.GenericAPIView):
@@ -402,7 +319,15 @@ class StationViewset(ModelViewSet):
     @action(detail=True, methods=["get"])
     def forecast(self, request, *args, **kwargs):
         station = self.get_object()
-        last_inference = _latest_station_inference_result(station.id)
+        last_inference = (
+            InferenceResults.objects.filter(
+                station=station,
+                inference_run__status=InferenceRuns.Status.SUCCESS,
+            )
+            .select_related("inference_run")
+            .order_by("-inference_run__run_date", "-inference_run__created_at")
+            .first()
+        )
 
         if last_inference is None:
             return Response(
