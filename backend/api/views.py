@@ -53,27 +53,31 @@ def _successful_inference_runs():
 
 
 def _latest_region_forecasts(region_id):
-    candidate_runs = (
-        _successful_inference_runs()
-        .filter(inferenceresults__station__region_id=region_id)
-        .distinct()
-        .order_by("-run_date", "-created_at")
-    )
+    stations = Stations.objects.filter(region_id=region_id, is_station_on=True)
 
-    for inference_run in candidate_runs:
-        run_results = InferenceResults.objects.filter(
-            inference_run=inference_run,
-            station__region_id=region_id,
-        )
-        forecast_6h = _mean_forecast_by_timestamp(
-            run_results.values_list("forecasts_6h", flat=True)
-        )
-        forecast_12h = _mean_forecast_by_timestamp(
-            run_results.values_list("forecasts_12h", flat=True)
-        )
+    all_forecasts_6h = []
+    all_forecasts_12h = []
 
-        if forecast_6h and forecast_12h:
-            return inference_run, forecast_6h, forecast_12h
+    for station in stations:
+        result = (
+            InferenceResults.objects.filter(
+                station=station,
+                inference_run__status=InferenceRuns.Status.SUCCESS,
+            )
+            .select_related("inference_run")
+            .order_by("-inference_run__run_date", "-inference_run__created_at")
+            .first()
+        )
+        if result and result.forecasts_6h:
+            all_forecasts_6h.append(result.forecasts_6h)
+        if result and result.forecasts_12h:
+            all_forecasts_12h.append(result.forecasts_12h)
+
+    forecast_6h = _mean_forecast_by_timestamp(all_forecasts_6h)
+    forecast_12h = _mean_forecast_by_timestamp(all_forecasts_12h)
+
+    if forecast_6h and forecast_12h:
+        return None, forecast_6h, forecast_12h
 
     return None, [], []
 
