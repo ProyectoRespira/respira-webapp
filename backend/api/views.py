@@ -108,6 +108,23 @@ def _latest_station_forecasts(station_id):
     return None, [], []
 
 
+def _latest_station_inference_result(station_id):
+    candidate_results = (
+        InferenceResults.objects.filter(
+            station_id=station_id,
+            inference_run__status=InferenceRuns.Status.SUCCESS,
+        )
+        .select_related("inference_run")
+        .order_by("-inference_run__run_date", "-inference_run__created_at")[:50]
+    )
+
+    for inference_result in candidate_results:
+        if inference_result.forecasts_6h and inference_result.forecasts_12h:
+            return inference_result
+
+    return None
+
+
 class HealthCheckView(generics.GenericAPIView):
     serializer_class = HealthSerializer
     http_method_names = ["get"]
@@ -250,15 +267,7 @@ class StationViewset(ModelViewSet):
     @action(detail=True, methods=["get"])
     def forecast(self, request, *args, **kwargs):
         station = self.get_object()
-        last_inference = (
-            InferenceResults.objects.filter(
-                station=station,
-                inference_run__status=InferenceRuns.Status.SUCCESS,
-            )
-            .select_related("inference_run")
-            .order_by("-inference_run__run_date", "-inference_run__created_at")
-            .first()
-        )
+        last_inference = _latest_station_inference_result(station.id)
 
         if last_inference is None:
             return Response(
