@@ -46,7 +46,7 @@
 			"username": "respira"
 		},
 		"ghcr.io/devcontainers-extra/features/pnpm:2": {
-			"version": "latest"
+			"version": "9"
 		},
 		"ghcr.io/devcontainers-extra/features/ripgrep:1": {
 			"version": "latest"
