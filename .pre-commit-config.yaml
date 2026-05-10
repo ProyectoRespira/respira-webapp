@@ -20,7 +20,7 @@
 
 minimum_pre_commit_version: '4.6.0'
 default_stages: [pre-commit]
-exclude: ^(backend/\.conda/|frontend/\.astro/|frontend/dist/)
+exclude: ^(backend/\.venv/|frontend/\.astro/|frontend/dist/)
 
 repos:
   # General file checks
@@ -90,7 +90,7 @@ repos:
     hooks:
       - id: django-checks
         name: Django configuration validation (backend)
-        entry: backend/.conda/bin/python backend/manage.py check
+        entry: backend/.venv/bin/python backend/manage.py check
         language: system
         types: [python]
         files: ^backend/
