@@ -49,6 +49,18 @@ Run all hooks manually:
 pre-commit run --all-files
 ```
 
+### Recommended commit flow
+
+To avoid commit-time failures from auto-fixing hooks (for example end-of-file fixes), use this sequence:
+
+```bash
+pre-commit run --all-files
+git add -A
+git commit -m "your message"
+```
+
+If a hook modifies files during commit, re-stage the modified files and commit again.
+
 ## Running with Docker Compose
 
 Create a root `.env` with at least:

@@ -18,4 +18,3 @@ COPY --chmod=0755 entrypoint.sh /entrypoint.sh
 EXPOSE 80
 EXPOSE 443
 CMD ["/bin/sh", "-c", "/entrypoint.sh"]
-
