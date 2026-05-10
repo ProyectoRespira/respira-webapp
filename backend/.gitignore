@@ -5,4 +5,4 @@ staticfiles/
 media/
 
 # Local python environment for backend checks
-.conda/
+.venv/

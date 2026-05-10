@@ -169,7 +169,7 @@ frontend/dist/
 frontend/.astro/
 
 # Backend local tooling environments
-backend/.conda/
+backend/.venv/
 
 # TypeScript
 *.tsbuildinfo
