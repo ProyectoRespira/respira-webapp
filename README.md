@@ -54,6 +54,10 @@ pre-commit run --all-files
 To avoid commit-time failures from auto-fixing hooks (for example end-of-file fixes), use this sequence:
 
 ```bash
+cd backend
+./.venv/bin/python manage.py test
+cd ..
+
 pre-commit run --all-files
 git add -A
 git commit -m "your message"
