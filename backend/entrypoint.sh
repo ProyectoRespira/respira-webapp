@@ -14,4 +14,4 @@ chmod -R o+r /static;
 chmod -R o+x /static;
 chown -R www-data:www-data /static;
 
-gunicorn --bind :${BACKEND_PORT:-8000} --workers 4 backend.wsgi:application
+gunicorn --bind :"${BACKEND_PORT:-8000}" --workers 4 backend.wsgi:application
