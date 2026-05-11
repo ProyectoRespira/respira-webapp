@@ -37,4 +37,4 @@ sqlparse==0.5.4
 typing_extensions==4.9.0
 tzdata==2024.2
 uritemplate==4.1.1
-urllib3==2.6.3
+urllib3==2.7.0
