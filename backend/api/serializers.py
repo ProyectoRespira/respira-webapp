@@ -46,6 +46,9 @@ class StationSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(OpenApiTypes.FLOAT)
     def get_aqi_pm2_5(self, obj) -> float | None:
+        if hasattr(obj, "latest_aqi_pm2_5"):
+            return obj.latest_aqi_pm2_5
+
         last_reading = (
             StationReadingsGold.objects.filter(station_id=obj.id)
             .order_by("-date_utc")

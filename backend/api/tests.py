@@ -92,6 +92,51 @@ class BackendEndpointTests(TestCase):
             is_station_on=True,
             is_pattern_station=False,
         )
+        self.stale_station = Stations.objects.create(
+            id=301,
+            name="AireLibre: Stale",
+            region=self.region,
+            latitude=-25.25,
+            longitude=-57.46,
+            is_station_on=True,
+            is_pattern_station=False,
+        )
+        self.no_aqi_station = Stations.objects.create(
+            id=302,
+            name="AireLibre: No AQI",
+            region=self.region,
+            latitude=-25.31,
+            longitude=-57.52,
+            is_station_on=True,
+            is_pattern_station=False,
+        )
+        self.off_station = Stations.objects.create(
+            id=303,
+            name="AireLibre: Off",
+            region=self.region,
+            latitude=-25.32,
+            longitude=-57.53,
+            is_station_on=False,
+            is_pattern_station=False,
+        )
+        self.pattern_station = Stations.objects.create(
+            id=304,
+            name="Pattern Station",
+            region=self.region,
+            latitude=-25.33,
+            longitude=-57.54,
+            is_station_on=True,
+            is_pattern_station=True,
+        )
+        self.no_coordinates_station = Stations.objects.create(
+            id=305,
+            name="AireLibre: No Coordinates",
+            region=self.region,
+            latitude=None,
+            longitude=None,
+            is_station_on=True,
+            is_pattern_station=False,
+        )
 
         latest_reading_time = datetime(2026, 3, 31, 12, 0, tzinfo=timezone.utc)
         StationReadingsGold.objects.create(
@@ -108,6 +153,31 @@ class BackendEndpointTests(TestCase):
             station=self.other_station,
             date_utc=latest_reading_time,
             aqi_pm2_5=150.0,
+        )
+        StationReadingsGold.objects.create(
+            station=self.stale_station,
+            date_utc=latest_reading_time - timedelta(hours=7),
+            aqi_pm2_5=77.0,
+        )
+        StationReadingsGold.objects.create(
+            station=self.no_aqi_station,
+            date_utc=latest_reading_time,
+            aqi_pm2_5=None,
+        )
+        StationReadingsGold.objects.create(
+            station=self.off_station,
+            date_utc=latest_reading_time,
+            aqi_pm2_5=55.0,
+        )
+        StationReadingsGold.objects.create(
+            station=self.pattern_station,
+            date_utc=latest_reading_time,
+            aqi_pm2_5=58.0,
+        )
+        StationReadingsGold.objects.create(
+            station=self.no_coordinates_station,
+            date_utc=latest_reading_time,
+            aqi_pm2_5=59.0,
         )
         RegionReadings.objects.create(
             region=self.region,
@@ -202,6 +272,21 @@ class BackendEndpointTests(TestCase):
         self.assertEqual(first_station["region"]["has_pattern_station"], False)
         self.assertEqual(first_station["coordinates"], [-25.3, -57.5])
         self.assertEqual(first_station["aqi_pm2_5"], 84.0)
+
+    def test_station_list_excludes_inactive_or_invalid_data_stations(self):
+        response = self.client.get(reverse("stations-list"))
+
+        self.assertEqual(response.status_code, 200)
+        stations_ids = [station["id"] for station in response.json()]
+
+        self.assertIn(self.station.id, stations_ids)
+        self.assertIn(self.region_station_2.id, stations_ids)
+        self.assertIn(self.other_station.id, stations_ids)
+        self.assertNotIn(self.stale_station.id, stations_ids)
+        self.assertNotIn(self.no_aqi_station.id, stations_ids)
+        self.assertNotIn(self.off_station.id, stations_ids)
+        self.assertNotIn(self.pattern_station.id, stations_ids)
+        self.assertNotIn(self.no_coordinates_station.id, stations_ids)
 
     def test_station_map_returns_station_specific_forecasts(self):
         response = self.client.get(

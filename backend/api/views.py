@@ -1,7 +1,9 @@
 from collections import defaultdict
+import os
 from datetime import timedelta
 from statistics import median, quantiles
 
+from django.db.models import Max, OuterRef, Subquery
 from django.db.models.functions import TruncDate, TruncMonth, TruncWeek
 from django.utils import timezone
 from rest_framework import generics, status
@@ -259,8 +261,47 @@ class StationViewset(ModelViewSet):
     serializer_class = StationSerializer
     http_method_names = ["get"]
 
+    _ACTIVE_DATA_WINDOW_HOURS = int(
+        os.getenv("BACKEND_ACTIVE_STATION_DATA_MAX_AGE_HOURS", "6")
+    )
+
     def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
+        latest_network_reading_at = StationReadingsGold.objects.aggregate(
+            latest=Max("date_utc")
+        )["latest"]
+        if latest_network_reading_at is None:
+            return Response([])
+
+        activity_cutoff = latest_network_reading_at - timedelta(
+            hours=self._ACTIVE_DATA_WINDOW_HOURS
+        )
+
+        latest_station_reading = StationReadingsGold.objects.filter(
+            station_id=OuterRef("pk")
+        ).order_by("-date_utc")
+
+        # Active stations are on, mappable, non-pattern, and have recent valid AQI.
+        queryset = (
+            self.get_queryset()
+            .annotate(
+                latest_aqi_pm2_5=Subquery(
+                    latest_station_reading.values("aqi_pm2_5")[:1]
+                ),
+                latest_reading_at=Subquery(
+                    latest_station_reading.values("date_utc")[:1]
+                ),
+            )
+            .filter(
+                is_station_on=True,
+                is_pattern_station=False,
+                latitude__isnull=False,
+                longitude__isnull=False,
+                latest_aqi_pm2_5__isnull=False,
+                latest_reading_at__isnull=False,
+                latest_reading_at__gte=activity_cutoff,
+            )
+            .order_by("id")
+        )
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 

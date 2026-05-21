@@ -22,6 +22,7 @@ BACKEND_POSTGRES_SSLMODE=require
 
 BACKEND_RUN_MIGRATIONS=false
 BACKEND_CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+BACKEND_ACTIVE_STATION_DATA_MAX_AGE_HOURS=6
 ```
 
 If your provider requires a CA bundle or client certificate, also set:
