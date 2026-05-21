@@ -86,7 +86,13 @@ const MapComponent = () => {
   );
 
   return (
-    <div style={{ position: "relative", width: "100%", height: dimensions.height * 0.75 }}>
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: dimensions.height * 0.75,
+      }}
+    >
       {isLoading && (
         <div
           style={{
@@ -108,61 +114,76 @@ const MapComponent = () => {
           }}
         >
           <svg
-            style={{ animation: "spin 0.8s linear infinite", width: 20, height: 20, color: "#16a34a", flexShrink: 0 }}
+            style={{
+              animation: "spin 0.8s linear infinite",
+              width: 20,
+              height: 20,
+              color: "#16a34a",
+              flexShrink: 0,
+            }}
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
           >
             <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
+            <circle
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeOpacity="0.25"
+            />
             <path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
           </svg>
           Cargando mapa…
         </div>
       )}
       <Map
-      initialViewState={{
-        longitude: -57.65,
-        latitude: -25.28,
-        zoom: 10.5,
-      }}
-      dragRotate={false}
-      touchPitch={false}
-      touchZoomRotate={true}
-      minZoom={5.5}
-      attributionControl={false}
-      style={{ width: "100%", height: dimensions.height * 0.75 }}
-      maxBounds={[
-        [-67.0435297482847, -28.42576579802394],
-        [-45.05865460568049, -17.608237804262302],
-      ]}
-      onClick={() => setSelectedStation(undefined)}
-      mapStyle="https://api.maptiler.com/maps/442672a8-7228-4ab4-9780-83a9932987b5/style.json?key=NKY3xmA1haxXwc5Jm48B"
-    >
-      {data && pins}
-      {popupInfo && (
-        <Popup
-          anchor="bottom-left"
-          offset={10}
-          longitude={Number(popupInfo.coordinates[1])}
-          latitude={Number(popupInfo.coordinates[0])}
-          onClose={() => setPopupInfo(undefined)}
-        >
-          <div className="flex flex-col">
-            <p className="font-bold text-[16px] text-white">
-              Estación {popupInfo.id}
-            </p>
-            <p className="font-bold font-xs text-white">{popupInfo.name}</p>
-            <a href={BASE_URL + `/datos/${popupInfo.id}`}>
-              <p className="text-green font-bold underline">Ver estadisticas</p>
-            </a>
-          </div>
-        </Popup>
-      )}
-      <GeolocateControl position="bottom-right" showAccuracyCircle={false} />
-      <NavigationControl position="bottom-right" />
-      <MapTooltip />
-    </Map>
+        initialViewState={{
+          longitude: -57.65,
+          latitude: -25.28,
+          zoom: 10.5,
+        }}
+        dragRotate={false}
+        touchPitch={false}
+        touchZoomRotate={true}
+        minZoom={5.5}
+        attributionControl={false}
+        style={{ width: "100%", height: dimensions.height * 0.75 }}
+        maxBounds={[
+          [-67.0435297482847, -28.42576579802394],
+          [-45.05865460568049, -17.608237804262302],
+        ]}
+        onClick={() => setSelectedStation(undefined)}
+        mapStyle="https://api.maptiler.com/maps/442672a8-7228-4ab4-9780-83a9932987b5/style.json?key=NKY3xmA1haxXwc5Jm48B"
+      >
+        {data && pins}
+        {popupInfo && (
+          <Popup
+            anchor="bottom-left"
+            offset={10}
+            longitude={Number(popupInfo.coordinates[1])}
+            latitude={Number(popupInfo.coordinates[0])}
+            onClose={() => setPopupInfo(undefined)}
+          >
+            <div className="flex flex-col">
+              <p className="font-bold text-[16px] text-white">
+                Estación {popupInfo.id}
+              </p>
+              <p className="font-bold font-xs text-white">{popupInfo.name}</p>
+              <a href={BASE_URL + `/datos/${popupInfo.id}`}>
+                <p className="text-green font-bold underline">
+                  Ver estadisticas
+                </p>
+              </a>
+            </div>
+          </Popup>
+        )}
+        <GeolocateControl position="bottom-right" showAccuracyCircle={false} />
+        <NavigationControl position="bottom-right" />
+        <MapTooltip />
+      </Map>
     </div>
   );
 };
