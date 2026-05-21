@@ -7,7 +7,12 @@ import Map, {
 } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useStore } from "@nanostores/react";
-import { stations, setSelectedStation, type STATION } from "../../store/map";
+import {
+  stations,
+  loadingStations,
+  setSelectedStation,
+  type STATION,
+} from "../../store/map";
 import Pin from "./Pin";
 
 import { getColorRange } from "../../utils";
@@ -28,6 +33,7 @@ function debounce(fn: () => void, ms: number) {
 
 const MapComponent = () => {
   const data = useStore(stations);
+  const isLoading = useStore(loadingStations);
 
   const [dimensions, setDimensions] = React.useState({
     height: window.innerHeight,
@@ -80,7 +86,41 @@ const MapComponent = () => {
   );
 
   return (
-    <Map
+    <div style={{ position: "relative", width: "100%", height: dimensions.height * 0.75 }}>
+      {isLoading && (
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            backgroundColor: "#fff",
+            borderRadius: 999,
+            padding: "10px 20px",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
+            fontSize: 14,
+            fontWeight: 500,
+            color: "#374151",
+          }}
+        >
+          <svg
+            style={{ animation: "spin 0.8s linear infinite", width: 20, height: 20, color: "#16a34a", flexShrink: 0 }}
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
+            <path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+          </svg>
+          Cargando mapa…
+        </div>
+      )}
+      <Map
       initialViewState={{
         longitude: -57.65,
         latitude: -25.28,
@@ -123,6 +163,7 @@ const MapComponent = () => {
       <NavigationControl position="bottom-right" />
       <MapTooltip />
     </Map>
+    </div>
   );
 };
 
