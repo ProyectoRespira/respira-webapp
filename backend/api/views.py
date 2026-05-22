@@ -115,7 +115,7 @@ def _latest_station_inference_result(station_id):
             inference_run__status=InferenceRuns.Status.SUCCESS,
         )
         .select_related("inference_run")
-        .order_by("-inference_run__run_date", "-inference_run__created_at")[:50]
+        .order_by("-inference_run__run_date", "-inference_run__created_at")
     )
 
     for inference_result in candidate_results:
