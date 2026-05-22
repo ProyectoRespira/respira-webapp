@@ -112,7 +112,10 @@
       "vite>rollup": ">=4.59.0",
       "@rollup/pluginutils>picomatch": ">=4.0.4",
       "micromatch>picomatch": ">=4.0.4",
-      "anymatch>picomatch": ">=4.0.4"
+      "anymatch>picomatch": ">=4.0.4",
+      "fast-uri": "3.1.2",
+      "postcss": "8.5.15",
+      "@babel/plugin-transform-modules-systemjs": "7.27.1"
     }
   }
 }

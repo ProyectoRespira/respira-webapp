@@ -12,7 +12,7 @@ drf-nested-routers==0.94.1
 django-cors-headers==4.5.0
 drf-spectacular==0.27.2
 gunicorn==23.0.0
-idna==3.8
+idna==3.15
 inflection==0.5.1
 itypes==1.2.0
 Jinja2==3.1.5
@@ -37,4 +37,4 @@ sqlparse==0.5.4
 typing_extensions==4.9.0
 tzdata==2024.2
 uritemplate==4.1.1
-urllib3==2.6.3
+urllib3==2.7.0
