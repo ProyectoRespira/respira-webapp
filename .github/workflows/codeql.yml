@@ -49,7 +49,7 @@ jobs:
       # Initialize CodeQL with the configured languages and query settings
       # Latest stable: v4 (releases: https://github.com/github/codeql-action/releases)
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 #v4.35.2
+        uses: github/codeql-action/init@7211b7c8077ea37d8641b6271f6a365a22a5fbfa #v4.36.0
         with:
           languages: ${{ matrix.language }}
           # Use custom configuration for extended security queries and path exclusions
@@ -60,4 +60,4 @@ jobs:
 
       # Perform the actual CodeQL analysis on the initialized database
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 #v4.35.2
+        uses: github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa #v4.36.0
