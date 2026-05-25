@@ -1,41 +1,50 @@
 FROM node:24 AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
+WORKDIR /app
 
+# Pin pnpm major for lockfile/config compatibility with frozen installs.
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+
+FROM base AS prod-deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
+
+FROM deps AS build
 ARG PUBLIC_BACKEND_URL
 ARG PUBLIC_REGION_DEFAULT_ID
 ARG SITE_URL
-ARG SMTP_KEY
-ARG SMTP_SENDER
 ARG PUBLIC_GTAG
 
-RUN corepack enable
-COPY . /app
-WORKDIR /app
+ENV PUBLIC_BACKEND_URL=$PUBLIC_BACKEND_URL
+ENV PUBLIC_REGION_DEFAULT_ID=$PUBLIC_REGION_DEFAULT_ID
+ENV SITE_URL=$SITE_URL
+ENV PUBLIC_GTAG=$PUBLIC_GTAG
 
-FROM base AS prod-deps
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
-
-FROM base AS build
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store  pnpm install --frozen-lockfile
-RUN echo SITE_URL=$SITE_URL >> .env
-RUN echo PUBLIC_BACKEND_URL=$PUBLIC_BACKEND_URL >> .env
-RUN echo PUBLIC_REGION_DEFAULT_ID=$PUBLIC_REGION_DEFAULT_ID >> .env
-RUN echo SMTP_KEY=$SMTP_KEY >> .env
-RUN echo SMTP_SENDER=$SMTP_SENDER >> .env
-RUN echo PUBLIC_GTAG=$PUBLIC_GTAG >> .env
-
+COPY . .
 RUN pnpm run build
 
-FROM base
-COPY --from=prod-deps /app/node_modules /app/node_modules
+FROM node:22-bookworm-slim AS runtime
+WORKDIR /app
 
-FROM base AS runtime
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends curl \
+	&& rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --system --gid 1001 nodejs \
+	&& useradd --system --uid 1001 --gid nodejs app
+
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 
-ENV HOST=0.0.0.0
-ENV PORT=${FRONTEND_PORT}
+RUN chown -R app:nodejs /app
 
-EXPOSE ${FRONTEND_PORT}
-CMD export PORT=${FRONTEND_PORT} && node ./dist/server/entry.mjs
+ENV HOST=0.0.0.0
+USER app
+
+EXPOSE 4321
+CMD ["sh", "-c", "PORT=${FRONTEND_PORT:-4321} node ./dist/server/entry.mjs"]

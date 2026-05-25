@@ -20,7 +20,6 @@
 
 minimum_pre_commit_version: '4.6.0'
 default_stages: [pre-commit]
-exclude: ^(backend/\.venv/|frontend/\.astro/|frontend/dist/)
 
 repos:
   # General file checks

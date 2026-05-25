@@ -24,8 +24,6 @@ services:
         -  PUBLIC_REGION_DEFAULT_ID=8495471280173798472
         -  PUBLIC_BACKEND_URL=${BACKEND_URL}
         -  SITE_URL=${SITE_URL}
-        -  SMTP_SENDER=${SMTP_SENDER}
-        -  SMTP_KEY=${SMTP_KEY}
         -  PUBLIC_GTAG=${PUBLIC_GTAG}
     restart: always
     environment:
