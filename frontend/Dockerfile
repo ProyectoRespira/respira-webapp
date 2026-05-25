@@ -3,8 +3,8 @@ ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 WORKDIR /app
 
-# Pin pnpm major for lockfile/config compatibility with frozen installs.
-RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+# Pin pnpm to 11.3.0 (latest stable) for lockfile v9.0 support and config mismatch fixes.
+RUN corepack enable && corepack prepare pnpm@11.3.0 --activate
 
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
