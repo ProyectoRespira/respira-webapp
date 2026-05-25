@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyo
 
 # Django stuff:
 *.log
@@ -16,5 +17,27 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Python tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage*
+
+# Version control and editor metadata
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Environment files (keep examples only)
+.env
+.env.*
+!.env.example
+
+# Optional local-only files
+README.md
+tests/
 
 .DS_Store
