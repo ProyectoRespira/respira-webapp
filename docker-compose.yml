@@ -61,8 +61,8 @@ services:
       - proxy_nw
     volumes:
       - static_volume:/static
-      - ./certbot/www:/var/www/certbot/
-      - ./certbot/conf/:/etc/nginx/ssl/:ro
+      - ${HOST_WORKSPACE_FOLDER:-.}/certbot/www:/var/www/certbot/
+      - ${HOST_WORKSPACE_FOLDER:-.}/certbot/conf/:/etc/nginx/ssl/:ro
     depends_on:
       backend:
         condition: service_healthy
@@ -72,8 +72,8 @@ services:
   certbot:
     image: certbot/certbot:latest
     volumes:
-      - ./certbot/www/:/var/www/certbot/:rw
-      - ./certbot/conf/:/etc/letsencrypt/:rw
+      - ${HOST_WORKSPACE_FOLDER:-.}/certbot/www/:/var/www/certbot/:rw
+      - ${HOST_WORKSPACE_FOLDER:-.}/certbot/conf/:/etc/letsencrypt/:rw
 volumes:
   static_volume:
 

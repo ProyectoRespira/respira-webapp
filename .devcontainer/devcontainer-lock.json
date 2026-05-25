@@ -10,15 +10,15 @@
       "resolved": "ghcr.io/devcontainers-extra/features/pnpm@sha256:694c2b6182435c9e9c06f6071728b087c1181b38c18cecf0defe2ab8c11cddd6",
       "integrity": "sha256:694c2b6182435c9e9c06f6071728b087c1181b38c18cecf0defe2ab8c11cddd6"
     },
-    "ghcr.io/devcontainers-extra/features/poetry:2": {
-      "version": "2.0.18",
-      "resolved": "ghcr.io/devcontainers-extra/features/poetry@sha256:7b5f2c66d25d8b3cc5d601af6b81b720c77dd315f24d5e6f84b342cccc3c9228",
-      "integrity": "sha256:7b5f2c66d25d8b3cc5d601af6b81b720c77dd315f24d5e6f84b342cccc3c9228"
-    },
     "ghcr.io/devcontainers-extra/features/pre-commit:2": {
       "version": "2.0.18",
       "resolved": "ghcr.io/devcontainers-extra/features/pre-commit@sha256:6e0bb2ce80caca1d94f44dab5d0653d88a1c00984e590adb7c6bce012d0ade6e",
       "integrity": "sha256:6e0bb2ce80caca1d94f44dab5d0653d88a1c00984e590adb7c6bce012d0ade6e"
+    },
+    "ghcr.io/devcontainers-extra/features/ripgrep:1": {
+      "version": "1.0.15",
+      "resolved": "ghcr.io/devcontainers-extra/features/ripgrep@sha256:0dfc0ac16f0d6aa754d006a138fd4cb4a62c245d308306edf8ad1b7a80b8fdf2",
+      "integrity": "sha256:0dfc0ac16f0d6aa754d006a138fd4cb4a62c245d308306edf8ad1b7a80b8fdf2"
     },
     "ghcr.io/devcontainers-extra/features/uv:1": {
       "version": "1.0.2",
@@ -34,11 +34,6 @@
       "version": "2.5.7",
       "resolved": "ghcr.io/devcontainers/features/common-utils@sha256:dbf431d6b42d55cde50fa1df75c7f7c3999a90cde6d73f7a7071174b3c3d0cc4",
       "integrity": "sha256:dbf431d6b42d55cde50fa1df75c7f7c3999a90cde6d73f7a7071174b3c3d0cc4"
-    },
-    "ghcr.io/devcontainers/features/conda:2": {
-      "version": "2.0.1",
-      "resolved": "ghcr.io/devcontainers/features/conda@sha256:f5f3e5b96a33a90377eba3be0fdba7aef6a128b5702571e1f586b2c9e0083840",
-      "integrity": "sha256:f5f3e5b96a33a90377eba3be0fdba7aef6a128b5702571e1f586b2c9e0083840"
     },
     "ghcr.io/devcontainers/features/copilot-cli:1": {
       "version": "1.1.2",
