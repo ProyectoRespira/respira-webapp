@@ -54,6 +54,9 @@
 	},
 	"remoteUser": "respira",
 	"postCreateCommand": "pre-commit install --install-hooks",
+	"containerEnv": {
+		"HOST_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
+	},
 
 	"customizations": {
 		"vscode": {
