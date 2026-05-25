@@ -3,10 +3,7 @@ export const prerender = false;
 
 import Typography from "./atoms/Typography.astro";
 import { BASE_URL } from "../data/constants";
-import { Dropdown, DropdownItems } from "astro-navbar";
-import { Image } from "astro:assets";
-import DropdownIcon from "../assets/icons/dropdown_icon.svg";
-import { DropdownData } from "./react/nav/DropdownData";
+import { NavDropdown } from "./react/nav/NavDropdown";
 const { title, route, type } = Astro.props;
 
 let isModal = type === "modal";
@@ -52,28 +49,9 @@ let isDropdown = type === "dropdown";
 
 {
   !isModal && isDropdown && (
-    <Dropdown class="group">
-      <button>
-        <li class="place-content-center cursor-default flex-row flex">
-          <Typography variant="nav" customClass="m-auto select-none">
-            {title}
-          </Typography>
-          <Image
-            class="h-6 w-auto"
-            alt="Respira"
-            src={DropdownIcon}
-            loading="eager"
-          />
-        </li>
-      </button>
-      <DropdownItems class="md:relative">
-        <div class="md:absolute md:top-8 bg-base md:p-6 pt-2 md:pt-0 rounded min-w-36">
-          <ul class="flex flex-col">
-            <DropdownData client:only="react" {...route} />
-          </ul>
-        </div>
-      </DropdownItems>
-    </Dropdown>
+    <li class="place-content-center cursor-default">
+      <NavDropdown client:load title={title} {...route} />
+    </li>
   )
 }
 
