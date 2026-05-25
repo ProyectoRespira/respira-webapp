@@ -6,7 +6,7 @@ import { BASE_URL } from "../data/constants";
 import { Dropdown, DropdownItems } from "astro-navbar";
 import { Image } from "astro:assets";
 import DropdownIcon from "../assets/icons/dropdown_icon.svg";
-import { DropdownData } from "./react/nav/DropdownData";
+import { StationList } from "./react/nav/StationList";
 const { title, route, type } = Astro.props;
 
 let isModal = type === "modal";
@@ -69,7 +69,7 @@ let isDropdown = type === "dropdown";
       <DropdownItems class="md:relative">
         <div class="md:absolute md:top-8 bg-base md:p-6 pt-2 md:pt-0 rounded min-w-36">
           <ul class="flex flex-col">
-            <DropdownData client:only="react" {...route} />
+            <StationList client:only="react" {...route} />
           </ul>
         </div>
       </DropdownItems>
