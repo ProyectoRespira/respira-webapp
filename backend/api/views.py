@@ -113,22 +113,34 @@ def _parse_lat_lon(request):
     lat_raw = request.query_params.get("lat")
     lon_raw = request.query_params.get("lon")
     if lat_raw is None or lon_raw is None:
-        return None, None, Response(
-            {"error": "Both 'lat' and 'lon' query parameters are required."},
-            status=status.HTTP_400_BAD_REQUEST,
+        return (
+            None,
+            None,
+            Response(
+                {"error": "Both 'lat' and 'lon' query parameters are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            ),
         )
     try:
         lat = float(lat_raw)
         lon = float(lon_raw)
     except ValueError:
-        return None, None, Response(
-            {"error": "'lat' and 'lon' must be valid numbers."},
-            status=status.HTTP_400_BAD_REQUEST,
+        return (
+            None,
+            None,
+            Response(
+                {"error": "'lat' and 'lon' must be valid numbers."},
+                status=status.HTTP_400_BAD_REQUEST,
+            ),
         )
     if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lon <= 180.0):
-        return None, None, Response(
-            {"error": "'lat' must be in [-90,90] and 'lon' in [-180,180]."},
-            status=status.HTTP_400_BAD_REQUEST,
+        return (
+            None,
+            None,
+            Response(
+                {"error": "'lat' must be in [-90,90] and 'lon' in [-180,180]."},
+                status=status.HTTP_400_BAD_REQUEST,
+            ),
         )
     return lat, lon, None
 
@@ -301,9 +313,7 @@ class MapViewset(generics.GenericAPIView):
 
 def _region_aqi_payload(region_id):
     latest_region_reading = (
-        RegionReadings.objects.filter(region_id=region_id)
-        .order_by("-date_utc")
-        .first()
+        RegionReadings.objects.filter(region_id=region_id).order_by("-date_utc").first()
     )
     if latest_region_reading is None:
         return None, Response(
