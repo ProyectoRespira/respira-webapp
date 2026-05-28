@@ -1,7 +1,7 @@
 import { defineAction } from "astro:actions";
 import { z } from "astro:schema";
 import { Resend } from "resend";
-import { BASE_URL, CONTACT_MAIL } from "../data/constants";
+import { CONTACT_MAIL } from "../data/constants";
 import { Email } from "../components/react/ContactEmail";
 const resend = new Resend(import.meta.env.SMTP_KEY);
 
