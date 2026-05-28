@@ -59,7 +59,8 @@ export const TEAM: TEAM_CARD[] = [
     name: "Clara Berendsen",
     title: "Frontend Developer",
     image: { path: Clara },
-  },{
+  },
+  {
     name: "Soledad Benítez",
     title: "Product Designer",
     image: { path: Sol },
