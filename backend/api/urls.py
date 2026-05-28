@@ -3,7 +3,14 @@ from rest_framework.routers import DefaultRouter
 
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
-from .views import StationViewset, RegionViewset, MapViewset, HealthCheckView
+from .views import (
+    StationViewset,
+    RegionViewset,
+    MapViewset,
+    HealthCheckView,
+    NearestRegionView,
+    NearestStationView,
+)
 
 router = DefaultRouter()
 
@@ -11,6 +18,8 @@ router.register(r"regions", RegionViewset, basename="regions")
 router.register(r"stations", StationViewset, basename="stations")
 
 urlpatterns = [
+    path(r"map/nearest-region/", NearestRegionView.as_view(), name="nearest-region"),
+    path(r"stations/nearest/", NearestStationView.as_view(), name="nearest-station"),
     path(r"", include(router.urls)),
     path(r"map/", MapViewset.as_view(), name="map"),
     path(r"health/", HealthCheckView.as_view(), name="health"),
