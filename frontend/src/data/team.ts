@@ -1,91 +1,62 @@
 import type { Image } from "./images";
 
+import Gaby from "../assets/team/gaby_gaona.png";
 import Fernanda from "../assets/team/fernanda_carles.png";
-import Alvaro from "../assets/team/alvaro_machuca.png";
-import Sol from "../assets/team/sol_benitez.png";
-import Liliana from "../assets/team/liliana_estigarribia.png";
-import Carlos from "../assets/team/carlos_sauer.png";
-import Carolina from "../assets/team/carolina_recalde.png";
-import Diego from "../assets/team/diego_stalder.png";
-import Fabian from "../assets/team/fabian_bozzolo.png";
-import Luis from "../assets/team/luis_bernal.png";
+import Katya from "../assets/team/katya_vazquez.jpg";
 import Clara from "../assets/team/clara_berendsen.png";
+import Sam from "../assets/team/sam_riveros.jpeg";
+import Bertha from "../assets/team/bertha_isasi.png";
+import Alvaro from "../assets/team/alvaro_machuca.png";
+import Koichi from "../assets/team/koichi_oguro.jpeg";
 
 type TEAM_CARD = {
   name: string;
   title: string;
   image: Omit<Image, "alt">;
+  imageClass?: string;
 };
 
 export const TEAM: TEAM_CARD[] = [
   {
+    name: "Gabriela Gaona",
+    title: "Product Owner",
+    image: { path: Gaby },
+    imageClass: "object-top",
+  },
+  {
     name: "Fernanda Carles",
-    title: "Project Leader, Data Scientist and Developer",
-    image: {
-      path: Fernanda,
-    },
+    title: "Tech Lead",
+    image: { path: Fernanda },
+  },
+  {
+    name: "Katya Vazquez",
+    title: "FullStack Developer",
+    image: { path: Katya },
+    imageClass: "object-top",
+  },
+  {
+    name: "Koichi Oguro",
+    title: "DevOps Engineer",
+    image: { path: Koichi },
+  },
+  {
+    name: "Sam Riveros",
+    title: "Quality Assurance",
+    image: { path: Sam },
+  },
+  {
+    name: "Bertha Isasi",
+    title: "Project Manager",
+    image: { path: Bertha },
   },
   {
     name: "Álvaro Machuca",
     title: "Software Architect, Developer",
-    image: {
-      path: Alvaro,
-    },
-  },
-  {
-    name: "Soledad Benítez",
-    title: "Product Designer",
-    image: {
-      path: Sol,
-    },
+    image: { path: Alvaro },
   },
   {
     name: "Clara Berendsen",
     title: "Frontend Developer",
-    image: {
-      path: Clara,
-    },
-  },
-  {
-    name: "Liliana Estigarribia",
-    title: "Project Coordinator",
-    image: {
-      path: Liliana,
-    },
-  },
-  {
-    name: "Fabián Bozzolo",
-    title: "Comunicación",
-    image: {
-      path: Fabian,
-    },
-  },
-  {
-    name: "Diego Stalder",
-    title: "Data Science Advisor - FIUNA",
-    image: {
-      path: Diego,
-    },
-  },
-  {
-    name: "Carlos Sauer",
-    title: "Data Science Advisor - FIUNA",
-    image: {
-      path: Carlos,
-    },
-  },
-  {
-    name: "Luis Bernal",
-    title: "Database Manager - FIUNA",
-    image: {
-      path: Luis,
-    },
-  },
-  {
-    name: "Carolina Recalde",
-    title: "Especialista en Monitoreo Ambiental - FIUNA",
-    image: {
-      path: Carolina,
-    },
+    image: { path: Clara },
   },
 ];
