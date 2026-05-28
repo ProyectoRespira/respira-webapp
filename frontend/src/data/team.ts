@@ -8,6 +8,7 @@ import Sam from "../assets/team/sam_riveros.jpeg";
 import Bertha from "../assets/team/bertha_isasi.png";
 import Alvaro from "../assets/team/alvaro_machuca.png";
 import Koichi from "../assets/team/koichi_oguro.jpeg";
+import Sol from "../assets/team/sol_benitez.png";
 
 type TEAM_CARD = {
   name: string;
@@ -58,5 +59,9 @@ export const TEAM: TEAM_CARD[] = [
     name: "Clara Berendsen",
     title: "Frontend Developer",
     image: { path: Clara },
+  },{
+    name: "Soledad Benítez",
+    title: "Product Designer",
+    image: { path: Sol },
   },
 ];
