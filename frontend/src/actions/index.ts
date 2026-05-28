@@ -16,12 +16,14 @@ const formInput = z.object({
 export type EmailInput = z.infer<typeof formInput>;
 
 const sendMail = async (values: EmailInput) => {
-  return resend.emails.send({
+  const { data, error } = await resend.emails.send({
     from: import.meta.env.SMTP_SENDER,
     to: [CONTACT_MAIL],
-    subject: `[${BASE_URL}] ${values.motive} `,
+    subject: `[Respira] ${values.motive}`,
     react: Email(values),
   });
+  if (error) throw new Error(error.message);
+  return data;
 };
 export const server = {
   sendMail: defineAction({

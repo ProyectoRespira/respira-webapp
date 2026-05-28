@@ -11,17 +11,28 @@ import Button from "../components/atoms/Button.astro";
 <script>
   import { actions } from "astro:actions";
 
-  const form = document.querySelector("form");
+  const form = document.querySelector<HTMLFormElement>("form");
+  const submitBtn = document.querySelector<HTMLButtonElement>("#form-button");
+  const successMsg = document.querySelector<HTMLElement>("#form-success");
+  const errorMsg = document.querySelector<HTMLElement>("#form-error");
+
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (submitBtn) submitBtn.disabled = true;
+    successMsg?.classList.add("hidden");
+    errorMsg?.classList.add("hidden");
+
     const formData = new FormData(form);
-    const { error, data } = await actions.sendMail(formData);
+    const { error } = await actions.sendMail(formData);
+
     if (error) {
-      window.alert("Hubo un error enviando el mail");
-      return console.error({ error });
+      errorMsg?.classList.remove("hidden");
+      console.error({ error });
+    } else {
+      successMsg?.classList.remove("hidden");
+      form.reset();
     }
-    window.alert("Mensaje enviado!");
-    console.log({ data });
+    if (submitBtn) submitBtn.disabled = false;
   });
 </script>
 
@@ -77,7 +88,7 @@ import Button from "../components/atoms/Button.astro";
           <input
             class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
             id="email"
-            type="text"
+            type="email"
             name="email"
             placeholder="Correo"
             required
@@ -97,7 +108,6 @@ import Button from "../components/atoms/Button.astro";
             >
               <option>Solicitar datos de la red</option>
               <option>Colaboración en investigación</option>
-              <option>Información sobre pasantías (FIUNA)</option>
               <option>Qué hacer en caso de AQI muy altos</option>
               <option>Pedido sobre información de Salud </option>
             </select>
@@ -130,6 +140,18 @@ import Button from "../components/atoms/Button.astro";
             rows="8"></textarea>
           <p class="text-[#FF18DA] text-xs">
             *Máximo número de carácteres es 800
+          </p>
+          <p
+            id="form-success"
+            class="hidden text-green-600 text-sm font-medium mt-2"
+          >
+            ¡Mensaje enviado! Nos pondremos en contacto pronto.
+          </p>
+          <p
+            id="form-error"
+            class="hidden text-red-600 text-sm font-medium mt-2"
+          >
+            Hubo un error al enviar el mensaje. Por favor intentá de nuevo.
           </p>
           <div class="w-full mt-4">
             <Button text="Enviar" variant="color" id={"form-button"} />
