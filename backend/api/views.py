@@ -390,7 +390,7 @@ class RegionViewset(ModelViewSet):
 
 
 class StationViewset(ModelViewSet):
-    queryset = Stations.objects.all()
+    queryset = Stations.objects.all().order_by("id")
     serializer_class = StationSerializer
     http_method_names = ["get"]
 

@@ -203,6 +203,13 @@ class BackendEndpointTests(TestCase):
         self.assertEqual(first_station["coordinates"], [-25.3, -57.5])
         self.assertEqual(first_station["aqi_pm2_5"], 84.0)
 
+    def test_station_list_is_ordered_by_id(self):
+        response = self.client.get(reverse("stations-list"))
+
+        self.assertEqual(response.status_code, 200)
+        ids = [station["id"] for station in response.json()]
+        self.assertEqual(ids, sorted(ids))
+
     def test_station_map_returns_station_specific_forecasts(self):
         response = self.client.get(
             reverse("map"), {"entity": "station", "id": self.station.id}
