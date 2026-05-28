@@ -23,7 +23,10 @@ const NavDropdown = ({ title, baseRoute }: NavDropdownProps) => {
   useEffect(() => {
     if (!open) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     };
@@ -62,9 +65,10 @@ const NavDropdown = ({ title, baseRoute }: NavDropdownProps) => {
           bg-base md:p-6 pt-2 md:pt-0 rounded min-w-48 md:shadow-lg
           overflow-y-auto nav-dropdown-list
           transition-all duration-200 ease-in-out
-          ${open
-            ? "max-h-72 opacity-100 pointer-events-auto"
-            : "max-h-0 opacity-0 pointer-events-none md:overflow-hidden"
+          ${
+            open
+              ? "max-h-72 opacity-100 pointer-events-auto"
+              : "max-h-0 opacity-0 pointer-events-none md:overflow-hidden"
           }
         `}
         style={{ msOverflowStyle: "none", scrollbarWidth: "none" }}
