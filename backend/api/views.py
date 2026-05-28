@@ -109,6 +109,68 @@ def _latest_station_forecasts(station_id):
     return None, [], []
 
 
+def _parse_lat_lon(request):
+    lat_raw = request.query_params.get("lat")
+    lon_raw = request.query_params.get("lon")
+    if lat_raw is None or lon_raw is None:
+        return (
+            None,
+            None,
+            Response(
+                {"error": "Both 'lat' and 'lon' query parameters are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            ),
+        )
+    try:
+        lat = float(lat_raw)
+        lon = float(lon_raw)
+    except ValueError:
+        return (
+            None,
+            None,
+            Response(
+                {"error": "'lat' and 'lon' must be valid numbers."},
+                status=status.HTTP_400_BAD_REQUEST,
+            ),
+        )
+    if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lon <= 180.0):
+        return (
+            None,
+            None,
+            Response(
+                {"error": "'lat' must be in [-90,90] and 'lon' in [-180,180]."},
+                status=status.HTTP_400_BAD_REQUEST,
+            ),
+        )
+    return lat, lon, None
+
+
+def _haversine_km(lat1, lon1, lat2, lon2):
+    r = 6371.0
+    p1, p2 = radians(lat1), radians(lat2)
+    dphi = radians(lat2 - lat1)
+    dlam = radians(lon2 - lon1)
+    a = sin(dphi / 2) ** 2 + cos(p1) * cos(p2) * sin(dlam / 2) ** 2
+    return 2 * r * asin(sqrt(a))
+
+
+def _nearest_active_station(lat, lon):
+    candidates = Stations.objects.filter(
+        is_station_on=True,
+        is_pattern_station=False,
+        latitude__isnull=False,
+        longitude__isnull=False,
+    )
+    nearest = None
+    nearest_distance = None
+    for station in candidates:
+        distance = _haversine_km(lat, lon, station.latitude, station.longitude)
+        if nearest_distance is None or distance < nearest_distance:
+            nearest = station
+            nearest_distance = distance
+    return nearest, nearest_distance
+
+
 def _latest_station_inference_result(station_id):
     candidate_results = (
         InferenceResults.objects.filter(
