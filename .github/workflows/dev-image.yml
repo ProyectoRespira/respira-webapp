@@ -97,9 +97,6 @@ jobs:
           cache-to: type=gha,scope=frontend,mode=max
           provenance: true
           sbom: true
-          build-args: |
-            SITE_URL=${{ vars.SITE_URL }}
-            PUBLIC_GTAG=${{ vars.PUBLIC_GTAG }}
 
       - name: Generate backend image attestation
         uses: actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb #v4

@@ -3,7 +3,26 @@ import { z } from "astro:schema";
 import { Resend } from "resend";
 import { CONTACT_MAIL } from "../data/constants";
 import { Email } from "../components/react/ContactEmail";
-const resend = new Resend(import.meta.env.SMTP_KEY);
+
+const getRequiredRuntimeEnv = (key: string): string => {
+  const value = (process.env[key] || "").trim();
+  if (!value) {
+    throw new Error(`Missing runtime ${key} in frontend container.`);
+  }
+  return value;
+};
+
+const resend = new Resend(getRequiredRuntimeEnv("SMTP_KEY"));
+
+const getSiteUrl = (): string => {
+  const siteUrl = (process.env.SITE_URL || "").trim().replace(/\/+$/, "");
+
+  if (!siteUrl) {
+    throw new Error("Missing runtime SITE_URL in frontend container.");
+  }
+
+  return siteUrl;
+};
 
 const formInput = z.object({
   email: z.string().email(),
@@ -16,8 +35,10 @@ const formInput = z.object({
 export type EmailInput = z.infer<typeof formInput>;
 
 const sendMail = async (values: EmailInput) => {
+  const smtpSender = getRequiredRuntimeEnv("SMTP_SENDER");
+
   const { data, error } = await resend.emails.send({
-    from: import.meta.env.SMTP_SENDER,
+    from: smtpSender,
     to: [CONTACT_MAIL],
     subject: `[Respira] ${values.motive}`,
     react: Email(values),

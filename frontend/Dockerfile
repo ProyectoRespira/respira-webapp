@@ -15,12 +15,6 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
 
 FROM deps AS build
-ARG SITE_URL
-ARG PUBLIC_GTAG
-
-ENV SITE_URL=$SITE_URL
-ENV PUBLIC_GTAG=$PUBLIC_GTAG
-
 COPY . .
 RUN pnpm run build
 
@@ -43,4 +37,4 @@ ENV HOST=0.0.0.0
 USER app
 
 EXPOSE 4321
-CMD ["sh", "-c", "PORT=${FRONTEND_PORT:-4321} node ./dist/server/entry.mjs"]
+CMD ["sh", "-c", "PORT=${FRONTEND_PORT:?Missing runtime FRONTEND_PORT} node ./dist/server/entry.mjs"]

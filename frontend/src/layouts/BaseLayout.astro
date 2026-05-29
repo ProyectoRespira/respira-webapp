@@ -14,10 +14,13 @@ import "@fontsource/merriweather/900-italic.css";
 import "@fontsource-variable/inter";
 
 import "../../main.css";
-import { BASE_URL } from "../data/constants";
+
+const GTAG = (process.env.PUBLIC_GTAG || "").trim();
 import { getLangFromLocals } from "../i18n/utils";
 
-const GTAG = import.meta.env.PUBLIC_GTAG;
+if (!GTAG) {
+  throw new Error("Missing runtime PUBLIC_GTAG in frontend container.");
+}
 const lang = getLangFromLocals(Astro.locals);
 ---
 
@@ -37,7 +40,7 @@ const lang = getLangFromLocals(Astro.locals);
     </script>
     <meta charset="utf-8" />
     <link rel="sitemap" href="/sitemap-index.xml" />
-    <link rel="icon" type="image/svg+xml" href={BASE_URL + "/favicon.svg"} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

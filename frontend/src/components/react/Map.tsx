@@ -233,7 +233,7 @@ const MapComponent = () => {
                 {t("stats.station")} {popupInfo.id}
               </p>
               <p className="font-bold font-xs text-white">{popupInfo.name}</p>
-              <a href={BASE_URL + `/datos/${popupInfo.id}`}>
+              <a href={`/datos/${popupInfo.id}`}>
                 <p className="text-green font-bold underline">
                   {t("map.viewStats")}
                 </p>
