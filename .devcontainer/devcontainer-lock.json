@@ -5,10 +5,10 @@
       "resolved": "ghcr.io/devcontainers-extra/features/claude-code@sha256:37b0d444a704021ee5f6d24242a4621bf337867d110e4e3c06b863a3a78122ac",
       "integrity": "sha256:37b0d444a704021ee5f6d24242a4621bf337867d110e4e3c06b863a3a78122ac"
     },
-    "ghcr.io/devcontainers-extra/features/pnpm:2": {
-      "version": "2.0.5",
-      "resolved": "ghcr.io/devcontainers-extra/features/pnpm@sha256:694c2b6182435c9e9c06f6071728b087c1181b38c18cecf0defe2ab8c11cddd6",
-      "integrity": "sha256:694c2b6182435c9e9c06f6071728b087c1181b38c18cecf0defe2ab8c11cddd6"
+    "ghcr.io/devcontainers-extra/features/corepack:1": {
+      "version": "1.0.2",
+      "resolved": "ghcr.io/devcontainers-extra/features/corepack@sha256:5142e3f736841bf4cd1b9d8e6a2e51885cab510d5f014eac10be9b0627a9bf97",
+      "integrity": "sha256:5142e3f736841bf4cd1b9d8e6a2e51885cab510d5f014eac10be9b0627a9bf97"
     },
     "ghcr.io/devcontainers-extra/features/pre-commit:2": {
       "version": "2.0.18",

@@ -31,6 +31,9 @@
 			"installTools": true,
 			"version": "os-provided"
 		},
+		"ghcr.io/devcontainers-extra/features/corepack:1": {
+			"version": "latest"
+		},
 		"ghcr.io/devcontainers-extra/features/claude-code:2": {
 			"version": "latest"
 		},
@@ -45,15 +48,13 @@
 			"omzPlugins": "https://github.com/zsh-users/zsh-autosuggestions",
 			"username": "respira"
 		},
-		"ghcr.io/devcontainers-extra/features/pnpm:2": {
-			"version": "11"
-		},
 		"ghcr.io/devcontainers-extra/features/ripgrep:1": {
 			"version": "latest"
 		}
 	},
 	"remoteUser": "respira",
-	"postCreateCommand": "pre-commit install --install-hooks",
+	"postCreateCommand": "(cd frontend && corepack install) && pre-commit install --install-hooks",
+	"postStartCommand": "cd frontend && corepack install",
 	"containerEnv": {
 		"HOST_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
 	},

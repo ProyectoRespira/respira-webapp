@@ -1,4 +1,4 @@
-FROM node:24 AS base
+FROM node:24-bookworm-slim AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 WORKDIR /app
@@ -26,7 +26,7 @@ ENV PUBLIC_GTAG=$PUBLIC_GTAG
 COPY . .
 RUN pnpm run build
 
-FROM node:22-bookworm-slim AS runtime
+FROM node:24-bookworm-slim AS runtime
 WORKDIR /app
 
 RUN apt-get update \
