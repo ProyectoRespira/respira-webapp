@@ -12,29 +12,28 @@ import "@fontsource/merriweather/400-italic.css";
 import "@fontsource/merriweather/700-italic.css";
 import "@fontsource/merriweather/900-italic.css";
 import "@fontsource-variable/inter";
+import { getRequiredRuntimeEnv } from "../runtime-env";
 
 import "../../main.css";
 
-const GTAG = (process.env.PUBLIC_GTAG || "").trim();
-
-if (!GTAG) {
-  throw new Error("Missing runtime PUBLIC_GTAG in frontend container.");
-}
+const analyticsTag = getRequiredRuntimeEnv("PUBLIC_GTAG");
 ---
 
 <html lang="en" class="md:overflow-hidden">
   <head>
     <!-- Google tag (gtag.js) -->
-    <script async src=`https://www.googletagmanager.com/gtag/js?id=${GTAG}`
+    <script
+      async
+      src=`https://www.googletagmanager.com/gtag/js?id=${analyticsTag}`
     ></script>
-    <script define:vars={{ GTAG }}>
+    <script define:vars={{ analyticsTag }}>
       window.dataLayer = window.dataLayer || [];
       function gtag(...args) {
         dataLayer.push(args);
       }
       gtag("js", new Date());
 
-      gtag("config", GTAG);
+      gtag("config", analyticsTag);
     </script>
     <meta charset="utf-8" />
     <link rel="sitemap" href="/sitemap-index.xml" />

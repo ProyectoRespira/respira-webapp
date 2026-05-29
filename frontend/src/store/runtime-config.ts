@@ -1,10 +1,22 @@
+import { normalizeSiteUrl } from "../runtime-env";
+
 type RuntimeConfig = {
   backendUrl: string;
   regionDefaultId: string;
   siteUrl: string;
+  gtag: string;
 };
 
-const normalizeSiteUrl = (value: string): string => value.replace(/\/+$/, "");
+const getRequiredRuntimeConfigField = (
+  config: Partial<RuntimeConfig>,
+  key: keyof RuntimeConfig,
+): string => {
+  const value = config[key];
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`Runtime config is missing required field '${key}'.`);
+  }
+  return value;
+};
 
 let runtimeConfigPromise: Promise<RuntimeConfig> | undefined;
 
@@ -20,22 +32,19 @@ const loadRuntimeConfig = async (): Promise<RuntimeConfig> => {
   }
 
   const json = (await response.json()) as Partial<RuntimeConfig>;
-  if (!json.backendUrl || typeof json.backendUrl !== "string") {
-    throw new Error("Runtime config is missing required field 'backendUrl'.");
-  }
-  if (!json.regionDefaultId || typeof json.regionDefaultId !== "string") {
-    throw new Error(
-      "Runtime config is missing required field 'regionDefaultId'.",
-    );
-  }
-  if (!json.siteUrl || typeof json.siteUrl !== "string") {
-    throw new Error("Runtime config is missing required field 'siteUrl'.");
-  }
+  const backendUrl = getRequiredRuntimeConfigField(json, "backendUrl");
+  const regionDefaultId = getRequiredRuntimeConfigField(
+    json,
+    "regionDefaultId",
+  );
+  const siteUrl = getRequiredRuntimeConfigField(json, "siteUrl");
+  const gtag = getRequiredRuntimeConfigField(json, "gtag");
 
   return {
-    backendUrl: json.backendUrl,
-    regionDefaultId: json.regionDefaultId,
-    siteUrl: normalizeSiteUrl(json.siteUrl),
+    backendUrl,
+    regionDefaultId,
+    siteUrl: normalizeSiteUrl(siteUrl),
+    gtag,
   };
 };
 
@@ -64,4 +73,9 @@ export const getRegionDefaultId = async (): Promise<string> => {
 export const getSiteUrl = async (): Promise<string> => {
   const config = await getRuntimeConfig();
   return config.siteUrl;
+};
+
+export const getGtag = async (): Promise<string> => {
+  const config = await getRuntimeConfig();
+  return config.gtag;
 };

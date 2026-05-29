@@ -3,19 +3,12 @@ import { z } from "astro:schema";
 import { Resend } from "resend";
 import { CONTACT_MAIL } from "../data/constants";
 import { Email } from "../components/react/ContactEmail";
-
-const getRequiredRuntimeEnv = (key: string): string => {
-  const value = (process.env[key] || "").trim();
-  if (!value) {
-    throw new Error(`Missing runtime ${key} in frontend container.`);
-  }
-  return value;
-};
+import { getRequiredRuntimeEnv, normalizeSiteUrl } from "../runtime-env";
 
 const resend = new Resend(getRequiredRuntimeEnv("SMTP_KEY"));
 
 const getSiteUrl = (): string => {
-  const siteUrl = (process.env.SITE_URL || "").trim().replace(/\/+$/, "");
+  const siteUrl = normalizeSiteUrl(getRequiredRuntimeEnv("SITE_URL"));
 
   if (!siteUrl) {
     throw new Error("Missing runtime SITE_URL in frontend container.");
