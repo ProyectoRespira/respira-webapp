@@ -6,6 +6,8 @@ const CACHE_HEADERS = {
   Expires: "0",
 };
 
+const normalizeSiteUrl = (value: string): string => value.replace(/\/+$/, "");
+
 const errorResponse = (message: string) =>
   new Response(JSON.stringify({ error: message }), {
     status: 500,
@@ -15,6 +17,7 @@ const errorResponse = (message: string) =>
 export const GET: APIRoute = () => {
   const backendUrl = (process.env.BACKEND_URL || "").trim();
   const regionDefaultId = (process.env.PUBLIC_REGION_DEFAULT_ID || "").trim();
+  const siteUrl = normalizeSiteUrl((process.env.SITE_URL || "").trim());
 
   if (!backendUrl) {
     return errorResponse(
@@ -28,11 +31,20 @@ export const GET: APIRoute = () => {
     );
   }
 
-  return new Response(JSON.stringify({ backendUrl, regionDefaultId }), {
-    status: 200,
-    headers: {
-      "Content-Type": "application/json",
-      ...CACHE_HEADERS,
+  if (!siteUrl) {
+    return errorResponse(
+      "Missing runtime site URL. Set SITE_URL in the frontend container.",
+    );
+  }
+
+  return new Response(
+    JSON.stringify({ backendUrl, regionDefaultId, siteUrl }),
+    {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        ...CACHE_HEADERS,
+      },
     },
-  });
+  );
 };

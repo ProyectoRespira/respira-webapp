@@ -20,15 +20,13 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        -  SITE_URL=${SITE_URL}
-        -  PUBLIC_GTAG=${PUBLIC_GTAG}
     restart: always
     environment:
-      PUBLIC_REGION_DEFAULT_ID: 8495471280173798472
+      PUBLIC_REGION_DEFAULT_ID: ${PUBLIC_REGION_DEFAULT_ID}
       BACKEND_URL: ${BACKEND_URL}
       FRONTEND_PORT: ${FRONTEND_PORT}
       SITE_URL: ${SITE_URL}
+      PUBLIC_GTAG: ${PUBLIC_GTAG}
       SMTP_SENDER: ${SMTP_SENDER}
       SMTP_KEY: ${SMTP_KEY}
     networks:
