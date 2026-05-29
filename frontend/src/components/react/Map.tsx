@@ -18,6 +18,8 @@ import Pin from "./Pin";
 import { getColorRange } from "../../utils";
 import { MapTooltip } from "./MapTooltip";
 
+import { BASE_URL } from "../../data/constants";
+
 function debounce(fn: () => void, ms: number) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   return () => {
@@ -170,7 +172,7 @@ const MapComponent = () => {
                 Estación {popupInfo.id}
               </p>
               <p className="font-bold font-xs text-white">{popupInfo.name}</p>
-              <a href={`/datos/${popupInfo.id}`}>
+              <a href={BASE_URL + `/datos/${popupInfo.id}`}>
                 <p className="text-green font-bold underline">
                   Ver estadisticas
                 </p>

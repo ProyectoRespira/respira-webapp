@@ -1,21 +1,9 @@
 import { defineAction } from "astro:actions";
 import { z } from "astro:schema";
 import { Resend } from "resend";
-import { CONTACT_MAIL } from "../data/constants";
+import { BASE_URL, CONTACT_MAIL } from "../data/constants";
 import { Email } from "../components/react/ContactEmail";
-import { getRequiredRuntimeEnv, normalizeSiteUrl } from "../runtime-env";
-
-const resend = new Resend(getRequiredRuntimeEnv("SMTP_KEY"));
-
-const getSiteUrl = (): string => {
-  const siteUrl = normalizeSiteUrl(getRequiredRuntimeEnv("SITE_URL"));
-
-  if (!siteUrl) {
-    throw new Error("Missing runtime SITE_URL in frontend container.");
-  }
-
-  return siteUrl;
-};
+const resend = new Resend(import.meta.env.SMTP_KEY);
 
 const formInput = z.object({
   email: z.string().email(),
@@ -28,14 +16,11 @@ const formInput = z.object({
 export type EmailInput = z.infer<typeof formInput>;
 
 const sendMail = async (values: EmailInput) => {
-  const siteUrl = getSiteUrl();
-  const smtpSender = getRequiredRuntimeEnv("SMTP_SENDER");
-
   return resend.emails.send({
-    from: smtpSender,
+    from: import.meta.env.SMTP_SENDER,
     to: [CONTACT_MAIL],
-    subject: `[${siteUrl}] ${values.motive} `,
-    react: Email({ ...values, siteUrl }),
+    subject: `[${BASE_URL}] ${values.motive} `,
+    react: Email(values),
   });
 };
 export const server = {

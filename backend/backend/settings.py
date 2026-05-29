@@ -13,7 +13,6 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 import os
 from dotenv import load_dotenv
 from pathlib import Path
-from typing import Any
 
 load_dotenv()
 
@@ -107,7 +106,7 @@ WSGI_APPLICATION = "backend.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-postgres_config: dict[str, str | None] = {
+postgres_config = {
     "NAME": os.getenv("BACKEND_POSTGRES_DB"),
     "USER": os.getenv("BACKEND_POSTGRES_USER"),
     "PASSWORD": os.getenv("BACKEND_POSTGRES_PASSWORD"),
@@ -115,13 +114,8 @@ postgres_config: dict[str, str | None] = {
     "PORT": os.getenv("BACKEND_POSTGRES_PORT"),
 }
 
-DATABASES: dict[str, dict[str, Any]]
-
 if all(postgres_config.values()):
-    postgres_config_clean = {
-        key: value for key, value in postgres_config.items() if value is not None
-    }
-    db_options: dict[str, str] = {}
+    db_options = {}
     sslmode = os.getenv("BACKEND_POSTGRES_SSLMODE")
     if sslmode:
         db_options["sslmode"] = sslmode
@@ -141,7 +135,7 @@ if all(postgres_config.values()):
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            **postgres_config_clean,
+            **postgres_config,
             "OPTIONS": db_options,
         }
     }
@@ -156,14 +150,14 @@ if all(postgres_config.values()):
         quoted_schemas = [_quote_postgres_identifier(schema) for schema in db_schemas]
         if "public" not in {schema.lower() for schema in db_schemas}:
             quoted_schemas.append("public")
-        default_db = DATABASES["default"]
-        db_options_map = default_db.setdefault("OPTIONS", {})
-        db_options_map["options"] = f"-c search_path={','.join(quoted_schemas)}"
+        DATABASES["default"]["OPTIONS"]["options"] = (
+            f"-c search_path={','.join(quoted_schemas)}"
+        )
 else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": str(BASE_DIR / "db.sqlite3"),
+            "NAME": BASE_DIR / "db.sqlite3",
         }
     }
 

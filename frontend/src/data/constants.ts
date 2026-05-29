@@ -23,3 +23,11 @@ export const AQI_COLORS: string[] = [
 ];
 
 export const EXCLUDED_STATIONS: number[] = [101];
+
+export const BACKEND_URL = import.meta.env.PUBLIC_BACKEND_URL;
+
+export const BASE_URL = import.meta.env.SITE;
+
+export const TELEGRAM_SHARE = `https://telegram.me/share/url?url=${encodeURIComponent(BASE_URL)}`;
+export const TWITTER_SHARE = `https://twitter.com/share?text=${encodeURIComponent("Mira la calidad del aire en Asunción en..." + BASE_URL)}&url=${encodeURIComponent(BASE_URL)}`;
+export const FACEBOOK_SHARE = `https://www.facebook.com/dialog/share?display=popup&href=${encodeURIComponent(BASE_URL)}&redirect_uri=${encodeURIComponent(BASE_URL)}`;

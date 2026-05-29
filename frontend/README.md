@@ -1,50 +1,47 @@
-# Frontend
+# Astro Starter Kit: Minimal
 
-Frontend for Respira, built with Astro and React.
-
-## Setup
-
-```bash
-cd frontend
-pnpm install
+```sh
+npm create astro@latest -- --template minimal
 ```
 
-## Development commands
+[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/withastro/astro/tree/latest/examples/minimal)
+[![Open with CodeSandbox](https://assets.codesandbox.io/github/button-edit-lime.svg)](https://codesandbox.io/p/sandbox/github/withastro/astro/tree/latest/examples/minimal)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/withastro/astro?devcontainer_path=.devcontainer/minimal/devcontainer.json)
 
-```bash
-pnpm dev            # Astro dev server
-pnpm start          # astro check + dev server
-pnpm build          # astro check + production build
-pnpm preview        # preview built app
-pnpm lint           # astro check + eslint
-pnpm lint:astro     # astro check only
-pnpm lint:eslint    # eslint only
-pnpm format         # prettier write
-pnpm format:check   # prettier check
-```
+> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
 
-## Project layout
+## 🚀 Project Structure
+
+Inside of your Astro project, you'll see the following folders and files:
 
 ```text
-frontend/
+/
 ├── public/
 ├── src/
-│   ├── actions/
-│   ├── assets/
-│   ├── components/
-│   ├── data/
-│   ├── layouts/
-│   ├── pages/
-│   └── store/
-├── astro.config.mjs
+│   └── pages/
+│       └── index.astro
 └── package.json
 ```
 
-## Pre-commit integration
+Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
 
-The repository pre-commit configuration runs frontend checks via pnpm:
+There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
 
-- eslint (`eslint` hook)
-- markdown formatting check (`prettier-markdown` hook)
-- frontend formatting check (`prettier-local` hook)
-- Astro type checks (`astro-typecheck-build` hook)
+Any static assets, like images, can be placed in the `public/` directory.
+
+## 🧞 Commands
+
+All commands are run from the root of the project, from a terminal:
+
+| Command                   | Action                                           |
+| :------------------------ | :----------------------------------------------- |
+| `npm install`             | Installs dependencies                            |
+| `npm run dev`             | Starts local dev server at `localhost:4321`      |
+| `npm run build`           | Build your production site to `./dist/`          |
+| `npm run preview`         | Preview your build locally, before deploying     |
+| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
+| `npm run astro -- --help` | Get help using the Astro CLI                     |
+
+## 👀 Want to learn more?
+
+Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).

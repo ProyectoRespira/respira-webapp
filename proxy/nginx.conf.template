@@ -16,11 +16,11 @@ http {
             autoindex on;
             access_log off;
         }
-
+        
         location /.well-known/acme-challenge/ {
             root /var/www/certbot;
         }
-	location / {
+	location / { 
        	   return 301 https://$SERVER_HOST$request_uri;
         }
     }
