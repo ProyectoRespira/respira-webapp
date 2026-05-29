@@ -40,7 +40,6 @@ pip-delete-this-directory.txt
 htmlcov/
 .tox/
 .nox/
-.ruff_cache/
 .coverage
 .coverage.*
 .cache
@@ -163,21 +162,5 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-# Frontend (Node.js / Astro / Vite)
-frontend/node_modules/
-frontend/dist/
-frontend/.astro/
-
-# Backend local tooling environments
-backend/.venv/
-
-# TypeScript
-*.tsbuildinfo
-
-# Vite
-vite.config.js.timestamp-*
-vite.config.ts.timestamp-*
-.vite/
-
-# PNPM
-.pnpm-store/
+frontend/node_modules/*
+.astro/

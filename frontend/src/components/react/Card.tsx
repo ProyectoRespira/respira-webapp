@@ -18,7 +18,7 @@ import {
   toggleRecommendationsModal,
   toggleShareModal,
 } from "../../store/modals";
-import { getSiteUrl } from "../../store/runtime-config";
+import { BASE_URL } from "../../data/constants";
 
 type CardProps = {
   header?: React.ReactNode;
@@ -33,15 +33,6 @@ export const Card = (props: CardProps) => {
   const data = useStore(region);
   const loadingMean = useStore(loadingRegion);
   const stationError = useStore(selectedStationError);
-  const [siteUrl, setSiteUrl] = React.useState<string>("");
-
-  React.useEffect(() => {
-    getSiteUrl()
-      .then((value) => setSiteUrl(value))
-      .catch((error) => {
-        console.error("Could not load runtime siteUrl", error);
-      });
-  }, []);
 
   const dataAvailable = React.useMemo(() => {
     if (stationId && station && !stationError) {
@@ -70,7 +61,7 @@ export const Card = (props: CardProps) => {
     if (navigator.share) {
       try {
         await navigator
-          .share({ url: siteUrl })
+          .share({ url: BASE_URL })
           .then(() =>
             console.log("Hooray! Your content was shared to tha world"),
           );

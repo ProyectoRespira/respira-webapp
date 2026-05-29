@@ -4,12 +4,12 @@ How we respond to security vulnerabilities. For reporting, see [SECURITY.md](../
 
 ## Quick Reference
 
-| Phase          | Timeline          | Action                                              |
-| -------------- | ----------------- | --------------------------------------------------- |
-| **Triage**     | ≤ 7 days          | Reproduce, assess severity, create private advisory |
-| **Mitigation** | 1-30 days         | Fix quietly, test, review                           |
-| **Disclosure** | Same day as patch | Release patch + publish advisory simultaneously     |
-| **Learning**   | 2 weeks           | Debrief, document root cause, prevent recurrence    |
+| Phase | Timeline | Action |
+|-------|----------|--------|
+| **Triage** | ≤ 7 days | Reproduce, assess severity, create private advisory |
+| **Mitigation** | 1-30 days | Fix quietly, test, review |
+| **Disclosure** | Same day as patch | Release patch + publish advisory simultaneously |
+| **Learning** | 2 weeks | Debrief, document root cause, prevent recurrence |
 
 ---
 
@@ -21,7 +21,7 @@ Unlike centralized platforms, security patches for Respira are distributed throu
 2. Rebuild their Docker container
 3. Deploy to their instance
 
-This means patch adoption is **staggered**—not all instances update simultaneously.
+This means patch adoption is **staggered**—not all instances update simultaneously. 
 
 **For operators:** Monitor GitHub Releases and Security Advisories for critical patches. Subscribe to notifications in the repository settings.
 
@@ -144,21 +144,21 @@ Once the advisory is published, operators are responsible for pulling the patch.
 1. **Release timing:** Ensure patch code is pushed to GitHub and release tags are created BEFORE advisory is published
 
 2. **Release notes:** Include:
-   - Affected versions (e.g., "Affects all versions up to v1.2.3")
-   - Upgrade urgency (e.g., "CRITICAL: Security vulnerability")
-   - Upgrade path: `git pull && git checkout v1.2.4` or `git pull && docker compose build`
-   - Backward compatibility notes (if any breaking changes)
+    - Affected versions (e.g., "Affects all versions up to v1.2.3")
+    - Upgrade urgency (e.g., "CRITICAL: Security vulnerability")
+    - Upgrade path: `git pull && git checkout v1.2.4` or `git pull && docker compose build`
+    - Backward compatibility notes (if any breaking changes)
 
 3. **Operator actions:** Each operator independently:
-   - Receives notification (GitHub Releases watch, Security Advisory notification)
-   - Decides when to update (may be delayed for various reasons)
-   - Pulls code and rebuilds container
-   - Redeploys to their environment
+    - Receives notification (GitHub Releases watch, Security Advisory notification)
+    - Decides when to update (may be delayed for various reasons)
+    - Pulls code and rebuilds container
+    - Redeploys to their environment
 
 4. **Staggered adoption:** Some operators may take weeks to patch. Critical vulnerabilities should be communicated with escalation:
-   - Use "CRITICAL" in release notes
-   - Consider pinning notice to README
-   - Reemphasize in subsequent releases if critical unpatched
+    - Use "CRITICAL" in release notes
+    - Consider pinning notice to README
+    - Reemphasize in subsequent releases if critical unpatched
 
 ---
 
@@ -234,11 +234,11 @@ RESULT:
 
 ## Severity & Response Time
 
-| Severity   | Acknowledge | Assess | Fix Target |
-| ---------- | ----------- | ------ | ---------- |
-| **High**   | 3 days      | 7 days | 7-14 days  |
-| **Medium** | 3 days      | 7 days | 14-30 days |
-| **Low**    | 3 days      | 7 days | 30+ days   |
+| Severity | Acknowledge | Assess | Fix Target |
+|----------|---|---|---|
+| **High** | 3 days | 7 days | 7-14 days |
+| **Medium** | 3 days | 7 days | 14-30 days |
+| **Low** | 3 days | 7 days | 30+ days |
 
 Times are targets. For complex issues, communicate with reporter explaining any delays.
 
@@ -281,7 +281,7 @@ For critical vulnerabilities discovered when no one is available:
 1. **Escalate immediately:** Reach out to team members directly
 
 2. **Use interim measures:** If you can't fix in 24-48 hours:
-   - Draft advisory and save as private (don't publish until patch exists)
+    - Draft advisory and save as private (don't publish until patch exists)
 
 ---
 

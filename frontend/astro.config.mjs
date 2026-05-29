@@ -42,30 +42,19 @@ export default defineConfig({
     ],
   },
 
-  // Note: the sitemap integration cannot generate entries for dynamic
-  // routes when Astro is running in SSR (`output: "server"`) mode.
-  // See https://docs.astro.build/en/guides/integrations-guide/sitemap/
   site: SITE_URL || "http://localhost:4321",
   base: "",
   output: "server",
   trailingSlash: "ignore",
   srcDir: "./src",
-  integrations: (() => {
-    const list = [
-      formDebug,
-      react(),
-      tailwind(),
-      lottie(),
-      requestNanostores(),
-    ];
-    // Only enable sitemap for non-SSR/static output builds. Enabling the
-    // integration in `server` mode can cause the integration to receive
-    // incomplete route information and crash during `astro build`.
-    if ("server" !== "server") {
-      list.push(sitemap());
-    }
-    return list;
-  })(),
+  integrations: [
+    formDebug,
+    react(),
+    tailwind(),
+    lottie(),
+    sitemap(),
+    requestNanostores(),
+  ],
   adapter: node({
     mode: "standalone",
   }),

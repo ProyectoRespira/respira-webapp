@@ -6,26 +6,16 @@ import Copy from "../../../assets/icons/copy_icon.svg?react";
 import Telegram from "../../../assets/icons/telegram_icon_gray.svg?react";
 import Facebook from "../../../assets/icons/facebook_icon_gray.svg?react";
 import Twitter from "../../../assets/icons/x_icon_gray.svg?react";
-import { getSiteUrl } from "../../../store/runtime-config";
 
-const SHARE_TEXT_PREFIX = "Mira la calidad del aire en Asunción en...";
+import {
+  BASE_URL,
+  FACEBOOK_SHARE,
+  TELEGRAM_SHARE,
+  TWITTER_SHARE,
+} from "../../../data/constants";
 
 const ShareModal = () => {
   const isOpen = useStore(isShareModalOpen);
-  const [siteUrl, setSiteUrl] = React.useState<string>("");
-
-  React.useEffect(() => {
-    getSiteUrl()
-      .then((value) => setSiteUrl(value))
-      .catch((error) => {
-        console.error("Could not load runtime siteUrl", error);
-      });
-  }, []);
-
-  const telegramShare = `https://telegram.me/share/url?url=${encodeURIComponent(siteUrl)}`;
-  const facebookShare = `https://www.facebook.com/dialog/share?display=popup&href=${encodeURIComponent(siteUrl)}&redirect_uri=${encodeURIComponent(siteUrl)}`;
-  const twitterShare = `https://twitter.com/share?text=${encodeURIComponent(SHARE_TEXT_PREFIX + siteUrl)}&url=${encodeURIComponent(siteUrl)}`;
-
   return (
     <Modal
       showModal={isOpen}
@@ -35,11 +25,11 @@ const ShareModal = () => {
       <div className="flex flex-col pt-0 p-6 ">
         <div className="w-full px-2 border-[0.5px] mb-4"></div>
         <div className="flex flex-row space-x-4 justify-between">
-          <a href={telegramShare} target="_blank" rel="noopener noreferrer">
+          <a href={TELEGRAM_SHARE} target="_blank" rel="noopener noreferrer">
             <Telegram height={50} width={50} />
           </a>
           <a
-            href={facebookShare}
+            href={FACEBOOK_SHARE}
             target="_blank"
             rel="noopener noreferrer"
             data-href=""
@@ -47,7 +37,7 @@ const ShareModal = () => {
             <Facebook height={50} width={50} />
           </a>
           <a
-            href={twitterShare}
+            href={TWITTER_SHARE}
             target="_blank"
             rel="noopener noreferrer"
             data-href=""
@@ -60,7 +50,7 @@ const ShareModal = () => {
         </h5>
         <div className="bg-white rounded-lg border-lightgray border-2 p-3 flex flex-row items-center w-98">
           <p className="text-lightgray font-sans flex-grow max-w-2/3 text-ellipsis">
-            {siteUrl}
+            {BASE_URL}
           </p>
           <button className="copy">
             <Copy />
