@@ -1,8 +1,8 @@
 import { atom, computed, task, type Task } from "nanostores";
 import { isBackendAvailable } from "./store";
-import { BACKEND_URL } from "../data/constants";
 import { stations, type FORECAST, type STATION } from "./map";
 import { shared } from "@it-astro:request-nanostores";
+import { getBackendUrl } from "./runtime-config";
 
 export type HISTORIC_FORECAST = {
   aqi_level: FORECAST[];
@@ -39,8 +39,9 @@ export const loadingHistoricForecast = atom<boolean>(false);
 export const fetchHistoricForecast = async (stationId: number) => {
   loadingHistoricForecast.set(true);
   try {
+    const backendUrl = await getBackendUrl();
     const response = await fetch(
-      BACKEND_URL + `/stations/${stationId}/forecast`,
+      backendUrl + `/stations/${stationId}/forecast`,
     );
     loadingHistoricForecast.set(false);
     console.log("response");
@@ -73,8 +74,9 @@ export const loadingBoxplotWeek = atom<boolean>(false);
 export const fetchBoxplotWeek = async (stationId: number) => {
   loadingBoxplotWeek.set(true);
   try {
+    const backendUrl = await getBackendUrl();
     const response = await fetch(
-      BACKEND_URL + `/stations/${stationId}/boxplot/?period=7d`,
+      backendUrl + `/stations/${stationId}/boxplot/?period=7d`,
     );
     loadingBoxplotWeek.set(false);
     return response.json();
@@ -105,8 +107,9 @@ export const loadingBoxplotMonth = atom<boolean>(false);
 export const fetchBoxplotMonth = async (stationId: number) => {
   loadingBoxplotMonth.set(true);
   try {
+    const backendUrl = await getBackendUrl();
     const response = await fetch(
-      BACKEND_URL + `/stations/${stationId}/boxplot/?period=30d`,
+      backendUrl + `/stations/${stationId}/boxplot/?period=30d`,
     );
     loadingBoxplotMonth.set(false);
     return response.json();
@@ -137,8 +140,9 @@ export const loadingBoxplotYear = atom<boolean>(false);
 export const fetchBoxplotYear = async (stationId: number) => {
   loadingBoxplotYear.set(true);
   try {
+    const backendUrl = await getBackendUrl();
     const response = await fetch(
-      BACKEND_URL + `/stations/${stationId}/boxplot/?period=1y`,
+      backendUrl + `/stations/${stationId}/boxplot/?period=1y`,
     );
     loadingBoxplotYear.set(false);
     return response.json();
