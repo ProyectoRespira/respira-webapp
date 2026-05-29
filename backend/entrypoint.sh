@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 APP_USER="${BACKEND_APP_USER:-appuser}"
