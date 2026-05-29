@@ -21,6 +21,25 @@ const getRequiredRuntimeConfigField = (
 let runtimeConfigPromise: Promise<RuntimeConfig> | undefined;
 
 const loadRuntimeConfig = async (): Promise<RuntimeConfig> => {
+  if (typeof window === "undefined") {
+    const backendUrl = (process.env.BACKEND_URL || "").trim();
+    const regionDefaultId = (process.env.PUBLIC_REGION_DEFAULT_ID || "").trim();
+    const siteUrl = (process.env.SITE_URL || "").trim();
+    const gtag = (process.env.PUBLIC_GTAG || "").trim();
+
+    return {
+      backendUrl: getRequiredRuntimeConfigField({ backendUrl }, "backendUrl"),
+      regionDefaultId: getRequiredRuntimeConfigField(
+        { regionDefaultId },
+        "regionDefaultId",
+      ),
+      siteUrl: normalizeSiteUrl(
+        getRequiredRuntimeConfigField({ siteUrl }, "siteUrl"),
+      ),
+      gtag: getRequiredRuntimeConfigField({ gtag }, "gtag"),
+    };
+  }
+
   const response = await fetch("/runtime-config.json", {
     cache: "no-store",
   });
