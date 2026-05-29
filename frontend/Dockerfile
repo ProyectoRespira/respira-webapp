@@ -3,8 +3,8 @@ ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 WORKDIR /app
 
-# Pin pnpm to 11.3.0 (latest stable) for lockfile v9.0 support and config mismatch fixes.
-RUN corepack enable && corepack prepare pnpm@11.3.0 --activate
+# Pin pnpm to 11.4.0 for lockfile v9.0 support and consistent CI/local behavior.
+RUN corepack enable && corepack prepare pnpm@11.4.0 --activate
 
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -15,12 +15,10 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
 
 FROM deps AS build
-ARG PUBLIC_BACKEND_URL
 ARG PUBLIC_REGION_DEFAULT_ID
 ARG SITE_URL
 ARG PUBLIC_GTAG
 
-ENV PUBLIC_BACKEND_URL=$PUBLIC_BACKEND_URL
 ENV PUBLIC_REGION_DEFAULT_ID=$PUBLIC_REGION_DEFAULT_ID
 ENV SITE_URL=$SITE_URL
 ENV PUBLIC_GTAG=$PUBLIC_GTAG
