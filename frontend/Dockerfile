@@ -1,40 +1,41 @@
-FROM node:24-bookworm-slim AS base
+FROM node:24 AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
+
+ARG PUBLIC_BACKEND_URL
+ARG PUBLIC_REGION_DEFAULT_ID
+ARG SITE_URL
+ARG SMTP_KEY
+ARG SMTP_SENDER
+ARG PUBLIC_GTAG
+
+RUN corepack enable
+COPY . /app
 WORKDIR /app
-
-# Pin pnpm to 11.4.0 for lockfile v9.0 support and consistent CI/local behavior.
-RUN corepack enable && corepack prepare pnpm@11.4.0 --activate
-
-FROM base AS deps
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 FROM base AS prod-deps
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
 
-FROM deps AS build
-COPY . .
+FROM base AS build
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store  pnpm install --frozen-lockfile
+RUN echo SITE_URL=$SITE_URL >> .env
+RUN echo PUBLIC_BACKEND_URL=$PUBLIC_BACKEND_URL >> .env
+RUN echo PUBLIC_REGION_DEFAULT_ID=$PUBLIC_REGION_DEFAULT_ID >> .env
+RUN echo SMTP_KEY=$SMTP_KEY >> .env
+RUN echo SMTP_SENDER=$SMTP_SENDER >> .env
+RUN echo PUBLIC_GTAG=$PUBLIC_GTAG >> .env
+
 RUN pnpm run build
 
-FROM node:24-bookworm-slim AS runtime
-WORKDIR /app
+FROM base
+COPY --from=prod-deps /app/node_modules /app/node_modules
 
-RUN apt-get update \
-	&& apt-get install -y --no-install-recommends curl \
-	&& rm -rf /var/lib/apt/lists/*
-
-RUN groupadd --system --gid 1001 nodejs \
-	&& useradd --system --uid 1001 --gid nodejs app
-
+FROM base AS runtime
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 
-RUN chown -R app:nodejs /app
-
 ENV HOST=0.0.0.0
-USER app
+ENV PORT=${FRONTEND_PORT}
 
-EXPOSE 4321
-CMD ["sh", "-c", "PORT=${FRONTEND_PORT:?Missing runtime FRONTEND_PORT} node ./dist/server/entry.mjs"]
+EXPOSE ${FRONTEND_PORT}
+CMD export PORT=${FRONTEND_PORT} && node ./dist/server/entry.mjs

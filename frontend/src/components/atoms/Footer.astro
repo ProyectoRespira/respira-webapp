@@ -6,12 +6,13 @@ import { FOOTER_IMAGES, SOCIAL_MEDIA_IMAGES } from "../../data/images";
 import Typography from "./Typography.astro";
 import { CONTACT_MAIL } from "../../data/constants";
 import { FOOTER_MENU, type MenuItem } from "../../data/menu";
+import { BASE_URL } from "../../data/constants";
 
 const getRoute = (route: string | MenuItem[]): string => {
   if (typeof route !== "string") {
     return "";
   }
-  return route.includes("https://") ? route : route;
+  return route.includes("https://") ? route : BASE_URL + route;
 };
 ---
 

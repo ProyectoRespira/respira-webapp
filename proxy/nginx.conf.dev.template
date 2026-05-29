@@ -16,12 +16,12 @@ http {
             autoindex on;
             access_log off;
         }
-
+        
         location /.well-known/acme-challenge/ {
             root /var/www/certbot;
         }
         return 301 https://$SERVER_HOST$request_uri;
-
+        
     }
     server {
         listen 443 default_server ssl ;

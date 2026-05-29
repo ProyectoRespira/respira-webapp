@@ -1,8 +1,0 @@
-# Django collectstatic output
-staticfiles/
-
-# User-uploaded media files
-media/
-
-# Local python environment for backend checks
-.venv/
