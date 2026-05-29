@@ -29,11 +29,12 @@ These tell nginx where to route backend and frontend traffic.
 
 ## TLS
 
-Required when using the `production` or `development` build targets. Not needed for `local`.
+Required when using the `production` build target.
+Not needed for `local` or the currently wired `development` target.
 
 | Variable | Required | Default | Where used | Notes |
 |---|---|---|---|---|
-| `CERT_NAME` | Yes (TLS targets) | — | `proxy/entrypoint.sh`, `nginx.conf.template`, `nginx.conf.dev.template` | Directory name under `/etc/nginx/ssl/live/` where `fullchain.pem` and `privkey.pem` live. |
+| `CERT_NAME` | Yes (`production`) | — | `proxy/entrypoint.sh`, `nginx.conf.template`, `nginx.conf.dev.template` | Directory name under `/etc/nginx/ssl/live/` where `fullchain.pem` and `privkey.pem` live. |
 
 ---
 
@@ -69,4 +70,5 @@ Used by docker-compose for host-level proxy behavior. Not read by the proxy cont
 ## Notes
 
 - The proxy Dockerfile contains no `ARG` or `ENV` declarations for app config. All substitution is done exclusively by `envsubst` in `entrypoint.sh` at container start.
+- The current `development` stage copies `nginx.conf.local.template`, so it behaves like `local` (HTTP, no TLS). To require TLS in development, wire `nginx.conf.dev.template` in `proxy/Dockerfile`.
 - In docker-compose, `BACKEND_HOST` and `FRONTEND_HOST` are hardcoded to the compose service names (`backend` and `frontend`). They are only configurable when running the proxy standalone.
