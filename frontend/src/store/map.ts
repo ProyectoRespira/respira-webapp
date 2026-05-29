@@ -1,6 +1,7 @@
 import { atom, computed, task, type Task } from "nanostores";
 import { isBackendAvailable } from "./store";
-import { BACKEND_URL, EXCLUDED_STATIONS } from "../data/constants";
+import { EXCLUDED_STATIONS } from "../data/constants";
+import { getBackendUrl, getRegionDefaultId } from "./runtime-config";
 
 export type FORECAST = {
   value: number;
@@ -28,9 +29,10 @@ export const loadingRegion = atom<boolean>(false);
 export const fetchRegion = async () => {
   loadingRegion.set(true);
   try {
+    const backendUrl = await getBackendUrl();
+    const regionDefaultId = await getRegionDefaultId();
     const response = await fetch(
-      BACKEND_URL +
-        `/map?entity=region&id=${import.meta.env.PUBLIC_REGION_DEFAULT_ID}`,
+      backendUrl + `/map?entity=region&id=${regionDefaultId}`,
     );
     loadingRegion.set(false);
     return response.json();
@@ -56,9 +58,8 @@ export const loadingStations = atom<boolean>(false);
 export const fetchStations = async () => {
   loadingStations.set(true);
   try {
-    const stationsPromise = await fetch(
-      import.meta.env.PUBLIC_BACKEND_URL + `/stations`,
-    );
+    const backendUrl = await getBackendUrl();
+    const stationsPromise = await fetch(backendUrl + `/stations`);
     const s = await stationsPromise.json();
     const availableStations = s.filter(
       (v: STATION) => v.is_station_on && !EXCLUDED_STATIONS.includes(v.id),
@@ -87,7 +88,8 @@ export const stations = computed(
 
 export const fetchForecast = async (id: number) => {
   try {
-    const forecast = await fetch(BACKEND_URL + `/map?entity=station&id=${id}`);
+    const backendUrl = await getBackendUrl();
+    const forecast = await fetch(backendUrl + `/map?entity=station&id=${id}`);
     if (forecast.status !== 200) {
       return undefined;
     }

@@ -16,7 +16,6 @@ import {
   CloseIcon,
 } from "astro-navbar";
 import { menu } from "../data/menu";
-import { BASE_URL } from "../data/constants";
 ---
 
 <div
@@ -24,7 +23,7 @@ import { BASE_URL } from "../data/constants";
 >
   <Astronav closeOnClick>
     <div class="flex lg:w-auto justify-between items-center">
-      <a href={BASE_URL}>
+      <a href="/">
         <Image
           class="h-16 w-auto"
           alt="Respira"
@@ -57,7 +56,7 @@ import { BASE_URL } from "../data/constants";
       </ul>
     </MenuItems>
     <div class="hidden lg:block min-w-30 content-center">
-      <a href={BASE_URL}>
+      <a href="/">
         <Button text="MAPA" variant="void" />
       </a>
     </div>

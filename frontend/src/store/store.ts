@@ -1,9 +1,14 @@
 import { atom, task, onMount } from "nanostores";
-import { BACKEND_URL } from "../data/constants";
+import { getBackendUrl } from "./runtime-config";
 
 export const backendHealthCheck = async () => {
+  if (typeof window === "undefined") {
+    return true;
+  }
+
   try {
-    const response = await fetch(BACKEND_URL + "/health");
+    const backendUrl = await getBackendUrl();
+    const response = await fetch(backendUrl + "/health/");
     if (response.status !== 200) {
       return false;
     }

@@ -1,0 +1,140 @@
+# Pre-commit hooks configuration for respira-webapp
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+#
+# SETUP INSTRUCTIONS:
+#   1. Install pre-commit: pip install pre-commit
+#   2. Install git hooks: pre-commit install
+#   3. (Optional) Test all hooks: pre-commit run --all-files
+#
+# DEVELOPMENT DEPENDENCIES:
+# For backend development, add to backend/requirements-dev.txt:
+#   - ruff==0.15.12        # Linting, formatting, and import sorting (replaces black, flake8, isort)
+#   - mypy==1.8.0          # Type checking (optional)
+#   - bandit==1.7.5        # Security checking (optional, uncomment bandit hook below)
+#
+# SKIPPING HOOKS:
+#   SKIP=hook-id git commit -m "message"
+#   Example: SKIP=ruff-check,mypy git commit -m "WIP"
+#   Multiple: SKIP=hook1,hook2,hook3 git commit -m "message"
+
+minimum_pre_commit_version: '4.6.0'
+default_stages: [pre-commit]
+
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+        args: ['--unsafe']
+      - id: check-json
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # Docker and shell scripts
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        name: shellcheck (shell scripts)
+        files: ^(backend/entrypoint\.sh|proxy/entrypoint\.sh|.*\.sh)$
+        types: [shell]
+
+  # Backend: Python linting and formatting with ruff (latest version)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.12
+    hooks:
+      - id: ruff-check
+        name: ruff lint & import sort (backend)
+        files: ^backend/
+        args: [--fix]
+      - id: ruff-format
+        name: ruff format (backend)
+        files: ^backend/
+
+  # Backend: Type checking with mypy (managed by pre-commit)
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.2
+    hooks:
+      - id: mypy
+        name: mypy (backend type check)
+        entry: bash -c 'PYTHONPATH=backend mypy --config-file backend/mypy.ini backend/api backend/backend backend/manage.py'
+        additional_dependencies:
+          - Django==4.2.30
+          - django-stubs==4.2.7
+          - django-stubs-ext==4.2.7
+          - types-PyYAML==6.0.12.20260508
+          - types-requests==2.33.0.20260508
+        files: ^backend/
+        types: [python]
+        pass_filenames: false
+
+  # Backend: Python security checking with bandit (optional)
+  # Uncomment to enable security scanning
+  # - repo: https://github.com/PyCQA/bandit
+  #   rev: 1.7.5
+  #   hooks:
+  #     - id: bandit
+  #       name: bandit (security check - optional)
+  #       files: ^backend/
+  #       args: [-c, backend/.bandit]
+
+  # Backend: Django configuration validation
+  - repo: local
+    hooks:
+      - id: django-checks
+        name: Django configuration validation (backend)
+        entry: backend/.venv/bin/python backend/manage.py check
+        language: system
+        types: [python]
+        files: ^backend/
+        pass_filenames: false
+        always_run: false
+
+  # Frontend: Prettier formatting check
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint (frontend lint)
+        entry: pnpm --dir frontend exec eslint src/
+        language: system
+        files: ^frontend/.*\.[jt]sx?$
+        pass_filenames: false
+
+      - id: prettier-markdown
+        name: prettier check (markdown)
+        entry: pnpm --dir frontend exec prettier --check .
+        language: system
+        files: \.md$
+        pass_filenames: false
+        always_run: false
+
+      - id: prettier-local
+        name: prettier check (frontend)
+        entry: pnpm --dir frontend format:check
+        language: system
+        files: ^frontend/
+        pass_filenames: false
+        always_run: false
+
+  # Frontend: Astro type checks
+  - repo: local
+    hooks:
+      - id: astro-typecheck-build
+        name: Astro type checking (frontend)
+        entry: bash -c 'ASTRO_TELEMETRY_DISABLED=1 pnpm --dir frontend lint:astro'
+        language: system
+        files: ^frontend/(src/|astro\.config\.mjs|tsconfig\.json|package\.json|pnpm-lock\.yaml|env\.d\.ts|vite-env\.d\.ts)
+        pass_filenames: false
+        always_run: false
+
+  # Meta hooks for checking pre-commit configuration itself
+  - repo: meta
+    hooks:
+      - id: check-hooks-apply
+      - id: check-useless-excludes

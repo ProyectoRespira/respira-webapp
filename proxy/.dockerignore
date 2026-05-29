@@ -1,0 +1,15 @@
+.git
+.gitignore
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+*.log
+.cache
+coverage
+.env
+.env.*
+!.env.example
+README.md

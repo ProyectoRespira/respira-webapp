@@ -2,10 +2,32 @@ services:
   backend:
     build: ./backend
     restart: always
-    env_file:
-      - ./backend/.env
     environment:
-      BACKEND_PORT: ${BACKEND_PORT}
+      # Core
+      BACKEND_SECRET_KEY: ${BACKEND_SECRET_KEY}
+      BACKEND_DEBUG: ${BACKEND_DEBUG:-false}
+      BACKEND_PORT: ${BACKEND_PORT:-8000}
+      BACKEND_RUN_MIGRATIONS: ${BACKEND_RUN_MIGRATIONS:-true}
+      BACKEND_CORS_ALLOWED_ORIGINS: ${BACKEND_CORS_ALLOWED_ORIGINS:-}
+      # Database
+      BACKEND_POSTGRES_DB: ${BACKEND_POSTGRES_DB}
+      BACKEND_POSTGRES_USER: ${BACKEND_POSTGRES_USER}
+      BACKEND_POSTGRES_PASSWORD: ${BACKEND_POSTGRES_PASSWORD}
+      BACKEND_POSTGRES_HOST: ${BACKEND_POSTGRES_HOST}
+      BACKEND_POSTGRES_PORT: ${BACKEND_POSTGRES_PORT:-5432}
+      BACKEND_POSTGRES_SCHEMA: ${BACKEND_POSTGRES_SCHEMA:-respira_gold}
+      # Database SSL (optional)
+      BACKEND_POSTGRES_SSLMODE: ${BACKEND_POSTGRES_SSLMODE:-}
+      BACKEND_POSTGRES_SSLROOTCERT: ${BACKEND_POSTGRES_SSLROOTCERT:-}
+      BACKEND_POSTGRES_SSLCERT: ${BACKEND_POSTGRES_SSLCERT:-}
+      BACKEND_POSTGRES_SSLKEY: ${BACKEND_POSTGRES_SSLKEY:-}
+      # Process (optional)
+      BACKEND_APP_USER: ${BACKEND_APP_USER:-}
+      BACKEND_APP_GROUP: ${BACKEND_APP_GROUP:-}
+      # Model column overrides (optional)
+      BACKEND_STATION_READINGS_DATE_COLUMN: ${BACKEND_STATION_READINGS_DATE_COLUMN:-}
+      BACKEND_INFERENCE_RESULTS_6H_COLUMN: ${BACKEND_INFERENCE_RESULTS_6H_COLUMN:-}
+      BACKEND_INFERENCE_RESULTS_12H_COLUMN: ${BACKEND_INFERENCE_RESULTS_12H_COLUMN:-}
     networks:
       - proxy_nw
     volumes:
@@ -16,23 +38,17 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-  frontend: 
+  frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        -  PUBLIC_REGION_DEFAULT_ID=8495471280173798472
-        -  PUBLIC_BACKEND_URL=${BACKEND_URL}
-        -  SITE_URL=${SITE_URL}
-        -  SMTP_SENDER=${SMTP_SENDER}
-        -  SMTP_KEY=${SMTP_KEY}
-        -  PUBLIC_GTAG=${PUBLIC_GTAG}
     restart: always
     environment:
-      PUBLIC_REGION_DEFAULT_ID: 8495471280173798472
-      PUBLIC_BACKEND_URL: ${BACKEND_URL}
+      PUBLIC_REGION_DEFAULT_ID: ${PUBLIC_REGION_DEFAULT_ID}
+      BACKEND_URL: ${BACKEND_URL}
       FRONTEND_PORT: ${FRONTEND_PORT}
       SITE_URL: ${SITE_URL}
+      PUBLIC_GTAG: ${PUBLIC_GTAG}
       SMTP_SENDER: ${SMTP_SENDER}
       SMTP_KEY: ${SMTP_KEY}
     networks:
@@ -43,9 +59,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s  
+      start_period: 10s
   proxy:
-    build: 
+    build:
       context: ./proxy
       target: ${ENVIRONMENT}
     restart: always
@@ -63,19 +79,19 @@ services:
       - proxy_nw
     volumes:
       - static_volume:/static
-      - ./certbot/www:/var/www/certbot/
-      - ./certbot/conf/:/etc/nginx/ssl/:ro
+      - ${HOST_WORKSPACE_FOLDER:-.}/certbot/www:/var/www/certbot/
+      - ${HOST_WORKSPACE_FOLDER:-.}/certbot/conf/:/etc/nginx/ssl/:ro
     depends_on:
       backend:
         condition: service_healthy
       frontend:
         condition: service_healthy
-  
+
   certbot:
     image: certbot/certbot:latest
     volumes:
-      - ./certbot/www/:/var/www/certbot/:rw
-      - ./certbot/conf/:/etc/letsencrypt/:rw
+      - ${HOST_WORKSPACE_FOLDER:-.}/certbot/www/:/var/www/certbot/:rw
+      - ${HOST_WORKSPACE_FOLDER:-.}/certbot/conf/:/etc/letsencrypt/:rw
 volumes:
   static_volume:
 
