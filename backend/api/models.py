@@ -5,6 +5,10 @@ from django.db import models
 from django.utils import timezone
 
 
+def _column_env_or_default(key: str, default: str) -> str:
+    return (os.getenv(key) or "").strip() or default
+
+
 class Regions(models.Model):
     name = models.CharField(max_length=255)
     region_code = models.CharField(max_length=255)
@@ -59,7 +63,9 @@ class StationReadingsGold(models.Model):
     date_utc = models.DateTimeField(
         blank=True,
         null=True,
-        db_column=os.getenv("BACKEND_STATION_READINGS_DATE_COLUMN", "date_localtime"),
+        db_column=_column_env_or_default(
+            "BACKEND_STATION_READINGS_DATE_COLUMN", "date_localtime"
+        ),
     )
     pm_calibrated = models.BooleanField(blank=True, null=True)
     pm1 = models.FloatField(blank=True, null=True)
@@ -121,12 +127,16 @@ class InferenceResults(models.Model):
     forecasts_6h = models.JSONField(
         blank=True,
         null=True,
-        db_column=os.getenv("BACKEND_INFERENCE_RESULTS_6H_COLUMN", "forecast_6h"),
+        db_column=_column_env_or_default(
+            "BACKEND_INFERENCE_RESULTS_6H_COLUMN", "forecast_6h"
+        ),
     )
     forecasts_12h = models.JSONField(
         blank=True,
         null=True,
-        db_column=os.getenv("BACKEND_INFERENCE_RESULTS_12H_COLUMN", "forecast_12h"),
+        db_column=_column_env_or_default(
+            "BACKEND_INFERENCE_RESULTS_12H_COLUMN", "forecast_12h"
+        ),
     )
     aqi_input = models.JSONField(blank=True, null=True)
 
