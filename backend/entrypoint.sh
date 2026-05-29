@@ -1,5 +1,8 @@
-#!/bin/bash
+#!/bin/sh
 set -e
+
+APP_USER="${BACKEND_APP_USER:-appuser}"
+APP_GROUP="${BACKEND_APP_GROUP:-appgroup}"
 
 python manage.py collectstatic --noinput;
 
@@ -12,12 +15,10 @@ fi
 
 chmod -R o+r /static;
 chmod -R o+x /static;
-chown -R www-data:www-data /static;
+if [ "$(id -u)" -eq 0 ]; then
+  chown -R "${APP_USER}:${APP_GROUP}" /static;
+  exec gosu "${APP_USER}:${APP_GROUP}" \
+    gunicorn --bind :"${BACKEND_PORT:-8000}" --workers 4 backend.wsgi:application
+fi
 
-gunicorn \
-  --bind :${BACKEND_PORT:-8000} \
-  --workers ${BACKEND_GUNICORN_WORKERS:-2} \
-  --timeout ${BACKEND_GUNICORN_TIMEOUT:-90} \
-  --max-requests ${BACKEND_GUNICORN_MAX_REQUESTS:-1000} \
-  --max-requests-jitter ${BACKEND_GUNICORN_MAX_REQUESTS_JITTER:-100} \
-  backend.wsgi:application
+exec gunicorn --bind :"${BACKEND_PORT:-8000}" --workers 4 backend.wsgi:application

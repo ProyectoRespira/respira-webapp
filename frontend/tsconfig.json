@@ -1,5 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
+  "include": ["src", "env.d.ts", "vite-env.d.ts", "astro.config.mjs"],
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
@@ -16,5 +17,5 @@
     "jsx": "preserve",
     "strict": true
   },
-  "exclude": ["node_modules", "dist", "build", ".astro", "coverage"]
+  "exclude": ["dist", "node_modules", ".astro"]
 }
