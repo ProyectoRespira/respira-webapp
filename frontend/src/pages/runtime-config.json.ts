@@ -6,26 +6,29 @@ const CACHE_HEADERS = {
   Expires: "0",
 };
 
+const errorResponse = (message: string) =>
+  new Response(JSON.stringify({ error: message }), {
+    status: 500,
+    headers: { "Content-Type": "application/json", ...CACHE_HEADERS },
+  });
+
 export const GET: APIRoute = () => {
   const backendUrl = (process.env.BACKEND_URL || "").trim();
+  const regionDefaultId = (process.env.PUBLIC_REGION_DEFAULT_ID || "").trim();
 
   if (!backendUrl) {
-    return new Response(
-      JSON.stringify({
-        error:
-          "Missing runtime backend URL. Set BACKEND_URL in the frontend container.",
-      }),
-      {
-        status: 500,
-        headers: {
-          "Content-Type": "application/json",
-          ...CACHE_HEADERS,
-        },
-      },
+    return errorResponse(
+      "Missing runtime backend URL. Set BACKEND_URL in the frontend container.",
     );
   }
 
-  return new Response(JSON.stringify({ backendUrl }), {
+  if (!regionDefaultId) {
+    return errorResponse(
+      "Missing runtime region default id. Set PUBLIC_REGION_DEFAULT_ID in the frontend container.",
+    );
+  }
+
+  return new Response(JSON.stringify({ backendUrl, regionDefaultId }), {
     status: 200,
     headers: {
       "Content-Type": "application/json",

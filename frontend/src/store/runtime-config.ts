@@ -1,5 +1,6 @@
 type RuntimeConfig = {
   backendUrl: string;
+  regionDefaultId: string;
 };
 
 let runtimeConfigPromise: Promise<RuntimeConfig> | undefined;
@@ -19,9 +20,15 @@ const loadRuntimeConfig = async (): Promise<RuntimeConfig> => {
   if (!json.backendUrl || typeof json.backendUrl !== "string") {
     throw new Error("Runtime config is missing required field 'backendUrl'.");
   }
+  if (!json.regionDefaultId || typeof json.regionDefaultId !== "string") {
+    throw new Error(
+      "Runtime config is missing required field 'regionDefaultId'.",
+    );
+  }
 
   return {
     backendUrl: json.backendUrl,
+    regionDefaultId: json.regionDefaultId,
   };
 };
 
@@ -40,4 +47,9 @@ export const getRuntimeConfig = async (): Promise<RuntimeConfig> => {
 export const getBackendUrl = async (): Promise<string> => {
   const config = await getRuntimeConfig();
   return config.backendUrl;
+};
+
+export const getRegionDefaultId = async (): Promise<string> => {
+  const config = await getRuntimeConfig();
+  return config.regionDefaultId;
 };

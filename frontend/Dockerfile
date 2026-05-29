@@ -15,11 +15,9 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
 
 FROM deps AS build
-ARG PUBLIC_REGION_DEFAULT_ID
 ARG SITE_URL
 ARG PUBLIC_GTAG
 
-ENV PUBLIC_REGION_DEFAULT_ID=$PUBLIC_REGION_DEFAULT_ID
 ENV SITE_URL=$SITE_URL
 ENV PUBLIC_GTAG=$PUBLIC_GTAG
 
