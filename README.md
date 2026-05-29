@@ -86,6 +86,12 @@ docker compose up -d
 
 The stack uses an external Postgres database. Configure connection variables in `backend/.env`.
 
+Environment variable references:
+
+- [Backend environment variables](docs/backend-env-vars.md)
+- [Frontend environment variables](docs/frontend-env-vars.md)
+- [Proxy environment variables](docs/proxy-env-vars.md)
+
 ## Nginx and SSL
 
 Proxy templates live in `proxy/nginx.conf*.template` and are selected with `ENVIRONMENT`.
