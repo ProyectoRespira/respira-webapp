@@ -21,7 +21,6 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        -  PUBLIC_REGION_DEFAULT_ID=8495471280173798472
         -  SITE_URL=${SITE_URL}
         -  PUBLIC_GTAG=${PUBLIC_GTAG}
     restart: always

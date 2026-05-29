@@ -95,7 +95,6 @@ jobs:
           provenance: true
           sbom: true
           build-args: |
-            PUBLIC_REGION_DEFAULT_ID=8495471280173798472
             SITE_URL=${{ vars.SITE_URL }}
             PUBLIC_GTAG=${{ vars.PUBLIC_GTAG }}
 

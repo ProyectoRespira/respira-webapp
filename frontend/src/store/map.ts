@@ -1,7 +1,7 @@
 import { atom, computed, task, type Task } from "nanostores";
 import { isBackendAvailable } from "./store";
 import { EXCLUDED_STATIONS } from "../data/constants";
-import { getBackendUrl } from "./runtime-config";
+import { getBackendUrl, getRegionDefaultId } from "./runtime-config";
 
 export type FORECAST = {
   value: number;
@@ -30,9 +30,9 @@ export const fetchRegion = async () => {
   loadingRegion.set(true);
   try {
     const backendUrl = await getBackendUrl();
+    const regionDefaultId = await getRegionDefaultId();
     const response = await fetch(
-      backendUrl +
-        `/map?entity=region&id=${import.meta.env.PUBLIC_REGION_DEFAULT_ID}`,
+      backendUrl + `/map?entity=region&id=${regionDefaultId}`,
     );
     loadingRegion.set(false);
     return response.json();
