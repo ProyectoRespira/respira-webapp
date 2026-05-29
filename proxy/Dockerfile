@@ -8,7 +8,7 @@ COPY nginx.conf.local.template /etc/nginx/nginx.conf.template
 EXPOSE 80
 
 FROM base AS development
-COPY nginx.conf.local.template /etc/nginx/nginx.conf.template
+COPY nginx.conf.dev.template /etc/nginx/nginx.conf.template
 EXPOSE 80
 
 FROM base AS production
