@@ -38,6 +38,7 @@ export const loadingHistoricForecast = atom<boolean>(false);
 
 export const fetchHistoricForecast = async (stationId: number) => {
   loadingHistoricForecast.set(true);
+  errorHistoricForecast.set(undefined);
   try {
     const response = await fetch(
       BACKEND_URL + `/stations/${stationId}/forecast`,
@@ -72,6 +73,7 @@ export const loadingBoxplotWeek = atom<boolean>(false);
 
 export const fetchBoxplotWeek = async (stationId: number) => {
   loadingBoxplotWeek.set(true);
+  errorBoxplotWeek.set(undefined);
   try {
     const response = await fetch(
       BACKEND_URL + `/stations/${stationId}/boxplot/?period=7d`,
@@ -103,6 +105,7 @@ export const errorBoxplotMonth = atom<string | undefined>(undefined);
 export const loadingBoxplotMonth = atom<boolean>(false);
 
 export const fetchBoxplotMonth = async (stationId: number) => {
+  errorBoxplotMonth.set(undefined);
   loadingBoxplotMonth.set(true);
   try {
     const response = await fetch(
@@ -135,6 +138,7 @@ export const errorBoxplotYear = atom<string | undefined>(undefined);
 export const loadingBoxplotYear = atom<boolean>(false);
 
 export const fetchBoxplotYear = async (stationId: number) => {
+  errorBoxplotYear.set(undefined);
   loadingBoxplotYear.set(true);
   try {
     const response = await fetch(
