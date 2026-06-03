@@ -19,6 +19,7 @@ import { getColorRange } from "../../utils";
 import { MapTooltip } from "./MapTooltip";
 
 import { BASE_URL } from "../../data/constants";
+import { useClientTranslations } from "../../i18n/client";
 
 function debounce(fn: () => void, ms: number) {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -32,6 +33,7 @@ function debounce(fn: () => void, ms: number) {
 }
 
 const MapComponent = () => {
+  const t = useClientTranslations();
   const data = useStore(stations);
   const isLoading = useStore(loadingStations);
 
@@ -136,7 +138,7 @@ const MapComponent = () => {
             />
             <path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
           </svg>
-          Cargando mapa…
+          {t("map.loading")}
         </div>
       )}
       <Map
@@ -169,12 +171,12 @@ const MapComponent = () => {
           >
             <div className="flex flex-col">
               <p className="font-bold text-[16px] text-white">
-                Estación {popupInfo.id}
+                {t("stats.station")} {popupInfo.id}
               </p>
               <p className="font-bold font-xs text-white">{popupInfo.name}</p>
               <a href={BASE_URL + `/datos/${popupInfo.id}`}>
                 <p className="text-green font-bold underline">
-                  Ver estadisticas
+                  {t("map.viewStats")}
                 </p>
               </a>
             </div>

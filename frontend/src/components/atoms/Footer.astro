@@ -7,6 +7,11 @@ import Typography from "./Typography.astro";
 import { CONTACT_MAIL } from "../../data/constants";
 import { FOOTER_MENU, type MenuItem } from "../../data/menu";
 import { BASE_URL } from "../../data/constants";
+import { getLangFromLocals, useTranslations } from "../../i18n/utils";
+import type { UIKey } from "../../i18n/ui";
+
+const lang = getLangFromLocals(Astro.locals);
+const t = useTranslations(lang);
 
 const getRoute = (route: string | MenuItem[]): string => {
   if (typeof route !== "string") {
@@ -14,13 +19,29 @@ const getRoute = (route: string | MenuItem[]): string => {
   }
   return route.includes("https://") ? route : BASE_URL + route;
 };
+
+// Maps footer menu item ids to their translation keys.
+const FOOTER_KEYS: Record<string, UIKey> = {
+  "resource-menu": "footer.resources",
+  "project-menu": "footer.project",
+  map: "footer.resources.map",
+  research: "footer.resources.research",
+  github: "footer.resources.github",
+  us: "footer.project.about",
+  contact: "footer.project.contact",
+};
+
+const footerLabel = (id: string, fallback: string): string =>
+  FOOTER_KEYS[id] ? t(FOOTER_KEYS[id]) : fallback;
 ---
 
 <div
   class="bg-black h-auto w-full flex md:flex-row flex-col-reverse md:p-20 lg:p-36 p-12"
 >
   <div class="flex flex-col w-full lg:mr-44 md:mr-16">
-    <p class="text-white text-xl font-bold font-serif">Una colaboración de</p>
+    <p class="text-white text-xl font-bold font-serif">
+      {t("footer.collaboration")}
+    </p>
     <div class="grid md:divide-x text-white md:grid-cols-4 md:mt-8 max-w-sm">
       {
         FOOTER_IMAGES.map((image) => (
@@ -31,14 +52,15 @@ const getRoute = (route: string | MenuItem[]): string => {
       }
     </div>
     <p class="text-white md:mt-4 mt-8">
-      Escribinos a <a
+      {t("footer.writeUs")}
+      <a
         href=`https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=${CONTACT_MAIL}`
         target="_blank"><b class="text-lg"><u>{CONTACT_MAIL}</u></b></a
       >
     </p>
 
     <div class="flex flex-row gap-1 text-center md:align-middle md:mt-4">
-      <p class="text-white text-center">Seguinos en</p>
+      <p class="text-white text-center">{t("footer.followUs")}</p>
       {
         SOCIAL_MEDIA_IMAGES.map((img) => (
           <a href={img.link} target="_blank">
@@ -61,11 +83,13 @@ const getRoute = (route: string | MenuItem[]): string => {
                 variant="h4"
                 customClass="text-white opacity-70 text-xl"
               >
-                {item.title}
+                {footerLabel(item.id, item.title)}
               </Typography>
               {item.route.map((i) => (
                 <a href={getRoute(i.route)}>
-                  <p class="text-white font-sans text-lg pt-6">{i.title}</p>
+                  <p class="text-white font-sans text-lg pt-6">
+                    {footerLabel(i.id, i.title)}
+                  </p>
                 </a>
               ))}
             </div>
