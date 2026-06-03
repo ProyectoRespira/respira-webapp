@@ -1,5 +1,6 @@
 {
   "name": "Air quality asuncion",
+  "packageManager": "pnpm@11.0.9",
   "type": "module",
   "version": "0.0.1",
   "scripts": {
@@ -93,6 +94,12 @@
     ]
   },
   "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "es5-ext",
+      "msw"
+    ],
     "overrides": {
       "cross-spawn": ">=7.0.5",
       "devalue": ">=5.3.2",
@@ -105,7 +112,10 @@
       "vite>rollup": ">=4.59.0",
       "@rollup/pluginutils>picomatch": ">=4.0.4",
       "micromatch>picomatch": ">=4.0.4",
-      "anymatch>picomatch": ">=4.0.4"
+      "anymatch>picomatch": ">=4.0.4",
+      "fast-uri": "3.1.2",
+      "postcss": "8.5.15",
+      "@babel/plugin-transform-modules-systemjs": "7.27.1"
     }
   }
 }

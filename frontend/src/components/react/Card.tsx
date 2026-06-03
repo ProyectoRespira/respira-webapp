@@ -3,6 +3,7 @@ import * as React from "react";
 import { useStore } from "@nanostores/react";
 import {
   loadingRegion,
+  loadingStations,
   region,
   selectedStationError,
   selectedStationId,
@@ -32,7 +33,11 @@ export const Card = (props: CardProps) => {
   const stationId = useStore(selectedStationId);
   const data = useStore(region);
   const loadingMean = useStore(loadingRegion);
+  const loadingStns = useStore(loadingStations);
   const stationError = useStore(selectedStationError);
+
+  // Check if we're in the middle of loading anything
+  const isLoadingData = loadingMean || loadingStns;
 
   const dataAvailable = React.useMemo(() => {
     if (stationId && station && !stationError) {
@@ -45,17 +50,18 @@ export const Card = (props: CardProps) => {
   }, [station, stationId, data, loadingMean, stationError]);
 
   const loading = React.useMemo(() => {
+    // Don't show error while loading
+    if (isLoadingData) {
+      return true;
+    }
     if (stationError) {
       return false;
-    }
-    if (loadingMean) {
-      return true;
     }
     if (stationId && !station && !stationError) {
       return true;
     }
     return false;
-  }, [station, stationId, stationError, loadingMean]);
+  }, [station, stationId, stationError, isLoadingData]);
 
   const handleSharing = async () => {
     if (navigator.share) {

@@ -36,7 +36,7 @@ docker compose up -d
 
 The webapp stack no longer includes the ETL pipeline or a local Postgres service. Configure the external database connection in `backend/.env`; the backend expects the Postgres tables it reads to already exist and be populated by an external process.
 
-## Nginx configuration 
+## Nginx configuration
 The proxy configuration is done by the `/proxy` docker container. There are three `nginx.conf[environment].template` that have the specific configuration for all the environments ('local', 'development', 'production').
 This can be configured by the `ENVIRONMENT` env variable.
 
@@ -53,7 +53,7 @@ By default the dev and prod example redirect to use SSL for the server meaning a
 > This example uses `domain.net` as the default domain to create the certs for, REPLACE WITH THE CORRECT DOMAIN BEFORE RUNNING THE STEPS BELOW!
 
 
-1. Replace the `nginx.conf[environment].template` relevant to the environment you are deploying to with the following content. At this moment we want to serve the acme challenge url so the certbot can resolve the certificate. 
+1. Replace the `nginx.conf[environment].template` relevant to the environment you are deploying to with the following content. At this moment we want to serve the acme challenge url so the certbot can resolve the certificate.
 
 ```
 worker_processes 8;
@@ -74,10 +74,10 @@ http {
             autoindex on;
             access_log off;
         }
-        
+
         location /.well-known/acme-challenge/ {
             root /var/www/certbot;
-        }        
+        }
     }
 }
 ```
@@ -94,7 +94,7 @@ docker compose run --rm  certbot certonly --webroot --webroot-path /var/www/cert
 ```
 docker compose run --rm  certbot certonly --webroot --webroot-path /var/www/certbot/ -d domain.net
 ```
-4. Restore `nginx.conf[environment].template` to default values and run 
+4. Restore `nginx.conf[environment].template` to default values and run
 
 ```
 docker compose build
@@ -102,7 +102,7 @@ docker compose up -d
 ```
 **Certificate renewal**
 
-To renew the certifcate run 
+To renew the certifcate run
 
 ```
 docker compose run --rm certbot renew

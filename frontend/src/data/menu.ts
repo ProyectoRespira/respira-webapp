@@ -1,12 +1,7 @@
-import { loadingStations, stations } from "../store/map";
 import { GITHUB_URL } from "./constants";
 
-export type DynamicMenuItem = {
-  store: unknown;
-  loading: unknown;
+export type StationDropdownRoute = {
   baseRoute: string;
-  titleKey: string;
-  subtitleKey: string;
 };
 
 export type MenuItem = {
@@ -20,7 +15,7 @@ export type MenuItem = {
 export type MenuItemDropdown = {
   title: string;
   subtitle?: string;
-  route: DynamicMenuItem;
+  route: StationDropdownRoute;
   id: string;
   type?: "dropdown";
 };
@@ -32,13 +27,7 @@ export const menu: (MenuItem | MenuItemDropdown)[] = [
   { title: "Recursos", route: "/recursos", id: "research" },
   {
     title: "Datos",
-    route: {
-      store: stations,
-      loading: loadingStations,
-      baseRoute: "/datos",
-      titleKey: "id",
-      subtitleKey: "name",
-    },
+    route: { baseRoute: "/datos" },
     id: "data",
     type: "dropdown",
   },
