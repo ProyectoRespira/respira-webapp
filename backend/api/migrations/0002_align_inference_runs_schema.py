@@ -72,7 +72,11 @@ def _sync_inference_runs_columns(apps, schema_editor):
         schema_editor.add_field(model, add_field)
 
         if not field.null:
-            default_value = field.get_default() if field.has_default() else _default_value_for_field(field_name)
+            default_value = (
+                field.get_default()
+                if field.has_default()
+                else _default_value_for_field(field_name)
+            )
             if default_value is not None:
                 quoted_table = connection.ops.quote_name(table_name)
                 quoted_column = connection.ops.quote_name(field.column)
