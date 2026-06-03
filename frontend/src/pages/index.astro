@@ -54,7 +54,10 @@ const t = useTranslations(getLangFromLocals(Astro.locals));
           text={t("home.aqi.source")}
         />
       </p>
-      <div class="flex flex-col space-y-3 h-full pt-8">
+      <a class="modal cursor-pointer block text-right pt-8">
+        <p class="font-bold text-md">Recomendaciones por nivel</p>
+      </a>
+      <div class="flex flex-col space-y-3 h-full pt-4">
         {AQI.map((aqi) => <AQICard card={aqi} variant="full" />)}
       </div>
     </div>
