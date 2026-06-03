@@ -16,7 +16,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-  frontend: 
+  frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -43,9 +43,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s  
+      start_period: 10s
   proxy:
-    build: 
+    build:
       context: ./proxy
       target: ${ENVIRONMENT}
     restart: always
@@ -70,7 +70,7 @@ services:
         condition: service_healthy
       frontend:
         condition: service_healthy
-  
+
   certbot:
     image: certbot/certbot:latest
     volumes:

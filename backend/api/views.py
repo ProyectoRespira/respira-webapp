@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import timedelta
+from math import asin, cos, radians, sin, sqrt
 from statistics import median, quantiles
 
 from django.db.models.functions import TruncDate, TruncMonth, TruncWeek
@@ -53,18 +54,12 @@ def _successful_inference_runs():
 
 
 def _latest_region_forecasts(region_id):
-    station_ids = list(
-        Stations.objects.filter(region_id=region_id, is_station_on=True).values_list(
-            "id", flat=True
-        )
-    )
-
-    if not station_ids:
-        return None, [], []
-
     candidate_runs = (
         _successful_inference_runs()
-        .filter(inferenceresults__station_id__in=station_ids)
+        .filter(
+            inferenceresults__station__region_id=region_id,
+            inferenceresults__station__is_station_on=True,
+        )
         .distinct()
         .order_by("-run_date", "-created_at")
     )
@@ -72,7 +67,8 @@ def _latest_region_forecasts(region_id):
     for inference_run in candidate_runs:
         run_results = InferenceResults.objects.filter(
             inference_run=inference_run,
-            station_id__in=station_ids,
+            station__region_id=region_id,
+            station__is_station_on=True,
         )
         forecast_6h = _mean_forecast_by_timestamp(
             run_results.values_list("forecasts_6h", flat=True)
@@ -82,7 +78,7 @@ def _latest_region_forecasts(region_id):
         )
 
         if forecast_6h and forecast_12h:
-            return None, forecast_6h, forecast_12h
+            return inference_run, forecast_6h, forecast_12h
 
     return None, [], []
 
@@ -113,6 +109,68 @@ def _latest_station_forecasts(station_id):
     return None, [], []
 
 
+def _parse_lat_lon(request):
+    lat_raw = request.query_params.get("lat")
+    lon_raw = request.query_params.get("lon")
+    if lat_raw is None or lon_raw is None:
+        return (
+            None,
+            None,
+            Response(
+                {"error": "Both 'lat' and 'lon' query parameters are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            ),
+        )
+    try:
+        lat = float(lat_raw)
+        lon = float(lon_raw)
+    except ValueError:
+        return (
+            None,
+            None,
+            Response(
+                {"error": "'lat' and 'lon' must be valid numbers."},
+                status=status.HTTP_400_BAD_REQUEST,
+            ),
+        )
+    if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lon <= 180.0):
+        return (
+            None,
+            None,
+            Response(
+                {"error": "'lat' must be in [-90,90] and 'lon' in [-180,180]."},
+                status=status.HTTP_400_BAD_REQUEST,
+            ),
+        )
+    return lat, lon, None
+
+
+def _haversine_km(lat1, lon1, lat2, lon2):
+    r = 6371.0
+    p1, p2 = radians(lat1), radians(lat2)
+    dphi = radians(lat2 - lat1)
+    dlam = radians(lon2 - lon1)
+    a = sin(dphi / 2) ** 2 + cos(p1) * cos(p2) * sin(dlam / 2) ** 2
+    return 2 * r * asin(sqrt(a))
+
+
+def _nearest_active_station(lat, lon):
+    candidates = Stations.objects.filter(
+        is_station_on=True,
+        is_pattern_station=False,
+        latitude__isnull=False,
+        longitude__isnull=False,
+    )
+    nearest = None
+    nearest_distance = None
+    for station in candidates:
+        distance = _haversine_km(lat, lon, station.latitude, station.longitude)
+        if nearest_distance is None or distance < nearest_distance:
+            nearest = station
+            nearest_distance = distance
+    return nearest, nearest_distance
+
+
 def _latest_station_inference_result(station_id):
     candidate_results = (
         InferenceResults.objects.filter(
@@ -120,7 +178,7 @@ def _latest_station_inference_result(station_id):
             inference_run__status=InferenceRuns.Status.SUCCESS,
         )
         .select_related("inference_run")
-        .order_by("-inference_run__run_date", "-inference_run__created_at")
+        .order_by("-inference_run__run_date", "-inference_run__created_at")[:50]
     )
 
     for inference_result in candidate_results:
@@ -253,6 +311,78 @@ class MapViewset(generics.GenericAPIView):
         )
 
 
+def _region_aqi_payload(region_id):
+    latest_region_reading = (
+        RegionReadings.objects.filter(region_id=region_id).order_by("-date_utc").first()
+    )
+    if latest_region_reading is None:
+        return None, Response(
+            {"error": "No readings found for this region."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    _, forecast_6h, forecast_12h = _latest_region_forecasts(region_id)
+    if not forecast_6h or not forecast_12h:
+        return None, Response(
+            {"error": "No forecast data available for this region."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    return {
+        "aqi": latest_region_reading.aqi_region_avg,
+        "forecast_6h": forecast_6h,
+        "forecast_12h": forecast_12h,
+    }, None
+
+
+class NearestRegionView(generics.GenericAPIView):
+    serializer_class = MapSerializer
+    http_method_names = ["get"]
+
+    def get(self, request, *args, **kwargs):
+        lat, lon, err = _parse_lat_lon(request)
+        if err is not None:
+            return err
+
+        nearest_station, _ = _nearest_active_station(lat, lon)
+        if nearest_station is None or nearest_station.region_id is None:
+            return Response(
+                {"error": "No region could be resolved for these coordinates."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        payload, err = _region_aqi_payload(nearest_station.region_id)
+        if err is not None:
+            return err
+
+        payload["region_id"] = nearest_station.region_id
+        return Response(payload, status=status.HTTP_200_OK)
+
+
+class NearestStationView(generics.GenericAPIView):
+    http_method_names = ["get"]
+
+    def get(self, request, *args, **kwargs):
+        lat, lon, err = _parse_lat_lon(request)
+        if err is not None:
+            return err
+
+        nearest_station, distance_km = _nearest_active_station(lat, lon)
+        if nearest_station is None:
+            return Response(
+                {"error": "No active station available."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(
+            {
+                "id": nearest_station.id,
+                "distance_km": distance_km,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
 class RegionViewset(ModelViewSet):
     queryset = Regions.objects.all()
     serializer_class = RegionSerializer
@@ -260,7 +390,7 @@ class RegionViewset(ModelViewSet):
 
 
 class StationViewset(ModelViewSet):
-    queryset = Stations.objects.all()
+    queryset = Stations.objects.all().order_by("id")
     serializer_class = StationSerializer
     http_method_names = ["get"]
 

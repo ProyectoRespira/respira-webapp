@@ -37,6 +37,8 @@ default_allowed_hosts = ",".join(
     [
         "127.0.0.1",
         "localhost",
+        "testserver",
+        "159.65.227.146",
         "proyectorespira.net",
         ".proyectorespira.net",
         "backend",

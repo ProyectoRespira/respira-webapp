@@ -16,3 +16,7 @@
 .maplibregl-popup-close-button {
   visibility: hidden !important;
 }
+
+.nav-dropdown-list::-webkit-scrollbar {
+  display: none;
+}

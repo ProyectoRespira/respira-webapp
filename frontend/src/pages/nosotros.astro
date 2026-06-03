@@ -157,17 +157,17 @@ import { GITHUB_URL } from "../data/constants";
     >
       {
         TEAM.map((team) => (
-          <div class="drop-shadow-md flex flex-col w-full h-full">
-            <div class="bg-lightgray w-full h-full overflow-clip rounded-t-md">
+          <div class="drop-shadow-md flex flex-col w-full h-full overflow-hidden rounded-md">
+            <div class="bg-lightgray w-full h-72 overflow-hidden rounded-t-md">
               <Picture
                 src={team.image.path}
                 alt={team.name}
-                class="object-contain"
+                class={`object-cover h-full w-full ${team.imageClass ?? ""}`}
                 widths={[240, 540, 720, team.image.path.width]}
                 sizes={`(max-width: 360px) 240px, (max-width: 720px) 400px, (max-width: 1600px) 600px, ${team.image.path.width}px`}
               />
             </div>
-            <div class="bg-white md:h-[5rem] w-full md:min-h-[5rem] max-h-1/3 min-w-32 rounded-b-md p-2">
+            <div class="bg-white w-full min-h-[5rem] rounded-b-md p-3">
               <Typography variant="h6">{team.name}</Typography>
               <Typography variant="p-sm">{team.title}</Typography>
             </div>
@@ -178,12 +178,10 @@ import { GITHUB_URL } from "../data/constants";
   </section>
   <section class="flex flex-col py-8 px-8 md:px-16">
     <Typography variant="h2" customClass="pt-2">Organizaciones</Typography>
-    <div
-      class="grid md:divide-x text-black md:grid-cols-4 sm:grid-cols-1 mt-12 md:py-12 md:max-w-fit w-full md:items-center"
-    >
+    <div class="flex flex-wrap items-center gap-10 mt-12 md:py-12 w-full">
       {
         ORGANIZATIONS.map((org) => (
-          <div class="first:pl-0 md:last:pl-8 md:even:col-span-2 md:first:justify-start justify-center flex w-full md:mx-10 md:my-0 my-6">
+          <div class="flex items-center justify-center">
             <Image alt={org.alt} src={org.path} class={org.class} />
           </div>
         ))
