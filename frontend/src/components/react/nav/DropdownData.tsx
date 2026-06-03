@@ -2,14 +2,19 @@ import React from "react";
 import { useStore } from "@nanostores/react";
 
 import { loadingStations, stations } from "../../../store/map";
-import type { DynamicMenuItem } from "../../../data/menu";
 import type { STATION } from "../../../store/map";
+
+type DropdownDataProps = {
+  baseRoute: string;
+  titleKey: keyof STATION;
+  subtitleKey: keyof STATION;
+};
 
 const DropdownData = ({
   baseRoute,
   titleKey,
   subtitleKey,
-}: DynamicMenuItem) => {
+}: DropdownDataProps) => {
   const data = useStore(stations);
   const loading = useStore(loadingStations);
 
