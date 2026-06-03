@@ -1,0 +1,4 @@
+dist/**
+build/**
+.astro/**
+node_modules/**
