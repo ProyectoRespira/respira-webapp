@@ -145,7 +145,7 @@ const t = useTranslations(getLangFromLocals(Astro.locals));
     >
       {
         ORGANIZATIONS.map((org) => (
-          <div class="first:pl-0 md:last:pl-8 md:even:col-span-2 md:first:justify-start justify-center flex w-full md:mx-10 md:my-0 my-6">
+          <div class="flex items-center justify-center">
             <Image alt={org.alt} src={org.path} class={org.class} />
           </div>
         ))

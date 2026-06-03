@@ -142,7 +142,7 @@ export const BoxPlotChart = ({ period }: { period: "7d" | "30d" | "1y" }) => {
           <span className="sr-only">{t("stats.loading")}</span>
         </div>
       )}
-      {!loading && (!data || data.length === 0) && (
+      {!loading && error && (
         <div className="grid min-h-[140px] h-full w-full place-items-center overflow-x-scroll rounded-lg p-6 lg:overflow-visible">
           <p>{t("stats.chartError")}</p>
         </div>

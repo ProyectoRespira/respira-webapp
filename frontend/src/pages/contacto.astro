@@ -14,11 +14,20 @@ const t = useTranslations(getLangFromLocals(Astro.locals));
 <script>
   import { actions } from "astro:actions";
 
-  const form = document.querySelector("form");
+  const form = document.querySelector<HTMLFormElement>("form");
+  const submitBtn = document.querySelector<HTMLButtonElement>("#form-button");
+  const successMsg = document.querySelector<HTMLElement>("#form-success");
+  const errorMsg = document.querySelector<HTMLElement>("#form-error");
+
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (submitBtn) submitBtn.disabled = true;
+    successMsg?.classList.add("hidden");
+    errorMsg?.classList.add("hidden");
+
     const formData = new FormData(form);
-    const { error, data } = await actions.sendMail(formData);
+    const { error } = await actions.sendMail(formData);
+
     if (error) {
       window.alert(form.dataset.errorMsg ?? "Error");
       return console.error({ error });
@@ -79,7 +88,7 @@ const t = useTranslations(getLangFromLocals(Astro.locals));
           <input
             class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
             id="email"
-            type="text"
+            type="email"
             name="email"
             placeholder={t("contact.emailPlaceholder")}
             required
@@ -132,6 +141,18 @@ const t = useTranslations(getLangFromLocals(Astro.locals));
             rows="8"></textarea>
           <p class="text-[#FF18DA] text-xs">
             {t("contact.maxChars")}
+          </p>
+          <p
+            id="form-success"
+            class="hidden text-green-600 text-sm font-medium mt-2"
+          >
+            ¡Mensaje enviado! Nos pondremos en contacto pronto.
+          </p>
+          <p
+            id="form-error"
+            class="hidden text-red-600 text-sm font-medium mt-2"
+          >
+            Hubo un error al enviar el mensaje. Por favor intentá de nuevo.
           </p>
           <div class="w-full mt-4">
             <Button

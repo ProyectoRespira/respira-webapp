@@ -45,8 +45,8 @@ const footerLabel = (id: string, fallback: string): string =>
     <div class="grid md:divide-x text-white md:grid-cols-4 md:mt-8 max-w-sm">
       {
         FOOTER_IMAGES.map((image) => (
-          <div class="first:pl-0 md:px-4 even:col-span-2 md:py-0 py-4 first:justify-start md:justify-center flex">
-            <Image alt={image.alt} src={image.path} />
+          <div class="flex items-center justify-center">
+            <Image alt={image.alt} src={image.path} class={image.class} />
           </div>
         ))
       }
