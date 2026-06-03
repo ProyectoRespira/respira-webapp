@@ -10,7 +10,7 @@ import {
   Text,
 } from "@react-email/components";
 import type { EmailInput } from "../../actions/index";
-import { BASE_URL } from "../../data/constants.ts";
+import { BASE_URL } from "../../data/constants";
 
 export function Email(props: EmailInput) {
   const { name, lastname, motive, message, email } = props;
@@ -23,8 +23,8 @@ export function Email(props: EmailInput) {
         <Container style={container}>
           <Img
             src={`${BASE_URL}/favicon.png`}
-            width="40"
-            height="33"
+            width="120"
+            height="99"
             alt="Respira"
           />
           <Section>
