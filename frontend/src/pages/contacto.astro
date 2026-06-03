@@ -18,13 +18,13 @@ const t = useTranslations(getLangFromLocals(Astro.locals));
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(form);
-    const { error, data } = await actions.sendMail(formData);
+    const { error, data: responseData } = await actions.sendMail(formData);
     if (error) {
       window.alert(form.dataset.errorMsg ?? "Error");
-      return console.error({ error });
+      return console.error(error);
     }
     window.alert(form.dataset.successMsg ?? "Sent");
-    console.log({ data });
+    console.log(responseData);
   });
 </script>
 
