@@ -10,6 +10,7 @@ import { Image } from "astro:assets";
 import { HOME_IMAGES } from "../data/images";
 import BackTop from "../components/atoms/BackTop.astro";
 import Typography from "../components/atoms/Typography.astro";
+import AppDownload from "../components/AppDownload.astro";
 ---
 
 <script>
@@ -64,14 +65,15 @@ import Typography from "../components/atoms/Typography.astro";
           text="Via fuente"
         />
       </p>
-      <div class="flex flex-col space-y-3 h-full pt-8">
+      <a class="modal cursor-pointer block text-right pt-8">
+        <p class="font-bold text-md">Recomendaciones por nivel</p>
+      </a>
+      <div class="flex flex-col space-y-3 h-full pt-4">
         {AQI.map((aqi) => <AQICard card={aqi} variant="full" />)}
       </div>
     </div>
   </div>
-  <a class="modal">
-    <p class="font-bold text-md pl-10">Recomendaciones por nivel</p>
-  </a>
+  <AppDownload />
   <BackTop />
   <Footer />
 </BaseLayout>

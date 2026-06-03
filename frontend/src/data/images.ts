@@ -17,6 +17,9 @@ import FiunaBlack from "../assets/logos/fiuna_black.svg";
 import MozillaBlack from "../assets/logos/mozilla_black.svg";
 import GirlsCodeBlack from "../assets/logos/girls_code_black.svg";
 
+import MadesBlanco from "../assets/logos/logo_mades_blanco.png";
+import MadesNegro from "../assets/logos/logo_mades_negroo.png";
+
 import Epa from "../assets/logos/epa.svg";
 import Pho from "../assets/logos/pho.svg";
 import Who from "../assets/logos/who.svg";
@@ -78,6 +81,11 @@ export const FOOTER_IMAGES: Image[] = [
     alt: "Girls code logo",
     path: GirlsCode,
   },
+  {
+    alt: "MADES logo",
+    path: MadesBlanco,
+    class: "max-h-40 w-auto",
+  },
 ];
 
 export const ORGANIZATIONS: Image[] = [
@@ -93,6 +101,11 @@ export const ORGANIZATIONS: Image[] = [
   {
     alt: "Girls code logo",
     path: GirlsCodeBlack,
+  },
+  {
+    alt: "MADES logo",
+    path: MadesNegro,
+    class: "max-h-40 w-auto",
   },
 ];
 
