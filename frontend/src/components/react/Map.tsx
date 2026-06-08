@@ -17,6 +17,7 @@ import Pin from "./Pin";
 
 import { getColorRange } from "../../utils";
 import { MapTooltip } from "./MapTooltip";
+import { getPixelOffsets } from "../../utils/markerOffset";
 
 import { BASE_URL } from "../../data/constants";
 
@@ -58,32 +59,36 @@ const MapComponent = () => {
     undefined,
   );
 
-  const pins = React.useMemo(
-    () =>
-      data
-        ? data.map((station, index) => (
-            <Marker
-              key={`marker-${index}`}
-              longitude={station.coordinates[1]}
-              latitude={station.coordinates[0]}
-              anchor="center"
-              onClick={(e) => {
-                // If we let the click event propagates to the map, it will immediately close the popup
-                // with `closeOnClick: true`
-                e.originalEvent.stopPropagation();
-                setPopupInfo(station);
-                setSelectedStation(station.id);
-              }}
-            >
-              <Pin
-                fill={getColorRange(station?.aqi_pm2_5 ?? 0)}
-                value={station?.aqi_pm2_5 ?? -1}
-              />
-            </Marker>
-          ))
-        : [],
-    [data],
-  );
+  const pins = React.useMemo(() => {
+    if (!data) return [];
+    const offsets = getPixelOffsets(data);
+    return data.map((station, index) => {
+      const offset = offsets[index];
+      return (
+        <Marker
+          key={`marker-${index}`}
+          longitude={station.coordinates[1]}
+          latitude={station.coordinates[0]}
+          anchor="center"
+          onClick={(e) => {
+            // If we let the click event propagates to the map, it will immediately close the popup
+            // with `closeOnClick: true`
+            e.originalEvent.stopPropagation();
+            setPopupInfo(station);
+            setSelectedStation(station.id);
+          }}
+        >
+          {/* Constant pixel offset keeps co-located sensors separated at any zoom */}
+          <div style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}>
+            <Pin
+              fill={getColorRange(station?.aqi_pm2_5 ?? 0)}
+              value={station?.aqi_pm2_5 ?? -1}
+            />
+          </div>
+        </Marker>
+      );
+    });
+  }, [data]);
 
   return (
     <div
