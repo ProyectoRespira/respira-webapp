@@ -1,15 +1,13 @@
-
 export interface PixelOffset {
   x: number;
   y: number;
 }
 
-const GRID_PRECISION = 1000; 
-const PIN_SPACING_PX = 46; 
-
+const GRID_PRECISION = 1000;
+const PIN_SPACING_PX = 46;
 
 export function getPixelOffsets<T extends { coordinates: number[] }>(
-  markers: T[]
+  markers: T[],
 ): PixelOffset[] {
   const offsets: PixelOffset[] = markers.map(() => ({ x: 0, y: 0 }));
   const groups = new Map<string, number[]>();
@@ -24,10 +22,16 @@ export function getPixelOffsets<T extends { coordinates: number[] }>(
   groups.forEach((indices) => {
     const n = indices.length;
     if (n <= 1) return;
-    const radius = Math.max(PIN_SPACING_PX / 2, PIN_SPACING_PX / 2 / Math.sin(Math.PI / n));
+    const radius = Math.max(
+      PIN_SPACING_PX / 2,
+      PIN_SPACING_PX / 2 / Math.sin(Math.PI / n),
+    );
     indices.forEach((idx, i) => {
       const angle = (2 * Math.PI * i) / n - Math.PI / 2;
-      offsets[idx] = { x: radius * Math.cos(angle), y: radius * Math.sin(angle) };
+      offsets[idx] = {
+        x: radius * Math.cos(angle),
+        y: radius * Math.sin(angle),
+      };
     });
   });
 
