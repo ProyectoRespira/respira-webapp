@@ -29,6 +29,16 @@ export const AQI_COLORS: string[] = [
 
 export const EXCLUDED_STATIONS: number[] = [101];
 
+export const MAP_FALLBACK = {
+  center: { longitude: -57.65, latitude: -25.28 },
+  zoom: 10.5,
+  minZoom: 5.5,
+  maxBounds: [
+    [-67.0435297482847, -28.42576579802394],
+    [-45.05865460568049, -17.608237804262302],
+  ] as [[number, number], [number, number]],
+};
+
 export const BACKEND_URL = import.meta.env.PUBLIC_BACKEND_URL;
 
 export const BASE_URL = import.meta.env.SITE;
