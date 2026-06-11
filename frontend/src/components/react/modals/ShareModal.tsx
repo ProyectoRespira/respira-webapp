@@ -13,14 +13,16 @@ import {
   TELEGRAM_SHARE,
   TWITTER_SHARE,
 } from "../../../data/constants";
+import { useClientTranslations } from "../../../i18n/client";
 
 const ShareModal = () => {
   const isOpen = useStore(isShareModalOpen);
+  const t = useClientTranslations();
   return (
     <Modal
       showModal={isOpen}
       toggleModal={toggleShareModal}
-      title="Comparti el link"
+      title={t("share.title")}
     >
       <div className="flex flex-col pt-0 p-6 ">
         <div className="w-full px-2 border-[0.5px] mb-4"></div>
@@ -46,7 +48,7 @@ const ShareModal = () => {
           </a>
         </div>
         <h5 className="text-md uppercase font-semibold font-sans mt-6 mb-2">
-          Link de la página
+          {t("share.linkLabel")}
         </h5>
         <div className="bg-white rounded-lg border-lightgray border-2 p-3 flex flex-row items-center w-98">
           <p className="text-lightgray font-sans flex-grow max-w-2/3 text-ellipsis">

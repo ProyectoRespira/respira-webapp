@@ -11,6 +11,9 @@ import PlaceHolderMap from "../../components/react/PlaceholderMap";
 import BackTop from "../../components/atoms/BackTop.astro";
 import { CharacteristicsStation } from "../../components/react/statistics/Characteristics";
 import { HeaderStatistics } from "../../components/react/statistics/Header";
+import { getLangFromLocals, useTranslations } from "../../i18n/utils";
+
+const t = useTranslations(getLangFromLocals(Astro.locals));
 
 const { slug } = Astro.params;
 statisticsStationId.set(undefined);
@@ -32,41 +35,37 @@ statisticsStationId.set(stationId);
     </div>
   </section>
   <section class="flex flex-col md:px-20 px-8 pt-12">
-    <Typography variant="h2">Estadísticas</Typography>
+    <Typography variant="h2">{t("stats.title")}</Typography>
     <Typography variant="h3" customClass="pt-10"
-      >Mediciones históricas de calidad de aire (AQI)</Typography
+      >{t("stats.historic.title")}</Typography
     >
-    <Typography variant="p"
-      >Mediciones de calidad de aire grabadas por los sensores y predicciones de
-      las próximas 6 y 12 horas.</Typography
-    >
+    <Typography variant="p">{t("stats.historic.subtitle")}</Typography>
     <div class="flex overflow-x-auto">
       <div class="h-[450px] w-full min-w-[60rem]">
         <HistoricLineChart client:only="react" />
       </div>
     </div>
     <Typography variant="h3" customClass="pt-10"
-      >Histórico: Índice de calidad del aire</Typography
+      >{t("stats.boxplot.title")}</Typography
     >
-    <Typography variant="p">Historial de mediciones de los sensores.</Typography
-    >
+    <Typography variant="p">{t("stats.boxplot.subtitle")}</Typography>
     <div
       class="grid md:grid-cols-2 grid-cols-1 mt-12 md:space-x-4 sm:space-x-2 space-y-4"
     >
       <div class="col-span-1">
-        <Typography variant="h6">Última semana</Typography>
+        <Typography variant="h6">{t("stats.boxplot.lastWeek")}</Typography>
         <div class="h-[450px] w-full">
           <BoxPlotChart client:only="react" period="7d" />
         </div>
       </div>
       <div class="col-span-1">
-        <Typography variant="h6">Último mes</Typography>
+        <Typography variant="h6">{t("stats.boxplot.lastMonth")}</Typography>
         <div class="h-[450px] w-full">
           <BoxPlotChart client:only="react" period="30d" />
         </div>
       </div>
       <div class="col-span-1 md:col-span-2">
-        <Typography variant="h6">Último año</Typography>
+        <Typography variant="h6">{t("stats.boxplot.lastYear")}</Typography>
         <div class="flex overflow-x-auto md:hidden">
           <div class="h-[450px] w-full min-w-[40rem]">
             <BoxPlotChart client:only="react" period="1y" />

@@ -1,6 +1,7 @@
 import { useStore } from "@nanostores/react";
 
 import { loadingStations, stations, type STATION } from "../../../store/map";
+import { useClientTranslations } from "../../../i18n/client";
 
 type StationListProps = {
   baseRoute: string;
@@ -20,16 +21,19 @@ const StationListItem = ({
 }: {
   station: STATION;
   baseRoute: string;
-}) => (
-  <li className="py-2">
-    <a href={`${baseRoute}/${station.id}`}>
-      <p className="font-serif font-bold text-[1rem] text-black">
-        Estación {station.id}
-      </p>
-      <p className="font-sans text-[0.75rem] text-black">{station.name}</p>
-    </a>
-  </li>
-);
+}) => {
+  const t = useClientTranslations();
+  return (
+    <li className="py-2">
+      <a href={`${baseRoute}/${station.id}`}>
+        <p className="font-serif font-bold text-[1rem] text-black">
+          {t("stats.station")} {station.id}
+        </p>
+        <p className="font-sans text-[0.75rem] text-black">{station.name}</p>
+      </a>
+    </li>
+  );
+};
 
 const StationList = ({ baseRoute }: StationListProps) => {
   const data = useStore(stations);

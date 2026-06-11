@@ -14,6 +14,7 @@ import {
   loadingBoxplotWeek,
   loadingBoxplotYear,
 } from "../../../store/statistics";
+import { getClientLang, useClientTranslations } from "../../../i18n/client";
 
 const quantiles = [0, 0.25, 0.5, 0.75, 1];
 type Formatter = (date: string, context: { index?: number }) => string;
@@ -27,16 +28,22 @@ type BoxplotApiData = {
   upperfence: number[];
 };
 
-const formatterWeek: Formatter = (date) => {
-  const parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd", { locale: "es" });
-  return parsedDate.weekdayShort + "-" + parsedDate.day;
-};
+// Date labels are localized with the active language (Luxon locale codes match
+// our language codes: es / en / pt).
+const makeFormatterWeek =
+  (locale: string): Formatter =>
+  (date) => {
+    const parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd", { locale });
+    return parsedDate.weekdayShort + "-" + parsedDate.day;
+  };
 const formatterMonth: Formatter = (_, { index }) =>
   index !== undefined ? index + 1 + "W" : "";
-const formatterYear: Formatter = (date) => {
-  const parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd", { locale: "es" });
-  return parsedDate.monthShort + "-" + parsedDate.toFormat("yy");
-};
+const makeFormatterYear =
+  (locale: string): Formatter =>
+  (date) => {
+    const parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd", { locale });
+    return parsedDate.monthShort + "-" + parsedDate.toFormat("yy");
+  };
 
 type ProcessedBoxPlotDatum = {
   group: string;
@@ -75,6 +82,8 @@ const processData = (
 };
 
 export const BoxPlotChart = ({ period }: { period: "7d" | "30d" | "1y" }) => {
+  const t = useClientTranslations();
+  const locale = getClientLang();
   const weekLoading = useStore(loadingBoxplotWeek);
   const monthLoading = useStore(loadingBoxplotMonth);
   const yearLoading = useStore(loadingBoxplotYear);
@@ -100,7 +109,7 @@ export const BoxPlotChart = ({ period }: { period: "7d" | "30d" | "1y" }) => {
   if (period === "7d") {
     loading = weekLoading;
     error = weekError;
-    data = processData(weekData, formatterWeek);
+    data = processData(weekData, makeFormatterWeek(locale));
   } else if (period === "30d") {
     loading = monthLoading;
     error = monthError;
@@ -108,7 +117,7 @@ export const BoxPlotChart = ({ period }: { period: "7d" | "30d" | "1y" }) => {
   } else {
     loading = yearLoading;
     error = yearError;
-    data = processData(yearData, formatterYear);
+    data = processData(yearData, makeFormatterYear(locale));
   }
   return (
     <>
@@ -130,12 +139,12 @@ export const BoxPlotChart = ({ period }: { period: "7d" | "30d" | "1y" }) => {
               fill="currentFill"
             />
           </svg>
-          <span className="sr-only">Cargando...</span>
+          <span className="sr-only">{t("stats.loading")}</span>
         </div>
       )}
       {!loading && error && (
         <div className="grid min-h-[140px] h-full w-full place-items-center overflow-x-scroll rounded-lg p-6 lg:overflow-visible">
-          <p>Error cargando el gráfico</p>
+          <p>{t("stats.chartError")}</p>
         </div>
       )}
       {data && !loading && (
@@ -151,11 +160,11 @@ export const BoxPlotChart = ({ period }: { period: "7d" | "30d" | "1y" }) => {
           theme={{
             translation: {
               n: "n",
-              Summary: "Resumen",
-              mean: "Media",
+              Summary: t("stats.boxplot.summary"),
+              mean: t("stats.boxplot.mean"),
               min: "min",
               max: "max",
-              Quantiles: "Cuantiles",
+              Quantiles: t("stats.boxplot.quantiles"),
             },
           }}
         />

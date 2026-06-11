@@ -3,11 +3,17 @@ import { Image } from "astro:assets";
 import type { AQICard } from "../../data/cards";
 import { getTextColor } from "../../utils";
 import Typography from "../atoms/Typography.astro";
+import { getLangFromLocals, useTranslations } from "../../i18n/utils";
+import type { UIKey } from "../../i18n/ui";
 interface Props {
   card: AQICard;
   variant?: "full" | "abrev" | "other";
 }
 const { card, variant } = Astro.props;
+
+const t = useTranslations(getLangFromLocals(Astro.locals));
+const title = t(`aqi.${card.id}.title` as UIKey);
+const description = t(`aqi.${card.id}.description` as UIKey);
 ---
 
 <div class=`bg-${card.color} w-full  rounded-xl p-10`>
@@ -22,14 +28,14 @@ const { card, variant } = Astro.props;
           color={getTextColor(card.color)}
           customClass={variant && variant === "full"
             ? " uppercase grow"
-            : "grow"}>{card.title}</Typography
+            : "grow"}>{title}</Typography
         >
         <Typography variant="h5" color={getTextColor(card.color)}
           >{card.range[0]}-{card.range[1]}</Typography
         >
       </div>
       <Typography variant="p" color={getTextColor(card.color)}
-        >{card.description}</Typography
+        >{description}</Typography
       >
     </div>
   </div>
