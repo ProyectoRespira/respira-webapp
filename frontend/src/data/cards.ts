@@ -79,7 +79,7 @@ export const AQI: AQICard[] = [
     recommendations: [
       "Grupos sensibles: usá tapabocas y llevá medicamentos si es necesario salir.",
       "Evitá esfuerzos prolongados al aire libre.",
-      "Evitá esfuerzos prolongados al aire libre.",
+      "Preferí actividades en espacios cerrados y ventilados.",
     ],
   },
   {
