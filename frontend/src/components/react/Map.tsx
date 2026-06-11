@@ -21,7 +21,7 @@ import { getColorRange, parseBbox, expandBounds } from "../../utils";
 import { MapTooltip } from "./MapTooltip";
 import { getPixelOffsets } from "../../utils/markerOffset";
 
-import { BASE_URL } from "../../data/constants";
+import { BASE_URL, MAP_FALLBACK } from "../../data/constants";
 import { useClientTranslations } from "../../i18n/client";
 
 function debounce(fn: () => void, ms: number) {
