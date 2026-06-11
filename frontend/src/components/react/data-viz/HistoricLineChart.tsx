@@ -10,6 +10,7 @@ import { useAnimatedPath } from "@nivo/core";
 import { type LegendProps } from "@nivo/legends";
 
 import { animated } from "@react-spring/web";
+import { useClientTranslations } from "../../../i18n/client";
 type SymbolProps =
   Exclude<
     LegendProps["symbolShape"],
@@ -18,7 +19,17 @@ type SymbolProps =
     ? P & { opacity?: number }
     : never;
 
-const SymbolLine = ({ x, y, size, fill, id }: SymbolProps) => {
+// `solidId` is the legend id rendered solid (the actual measurement); every
+// other series renders dashed. Passed via closure so it stays in sync with the
+// translated label.
+const SymbolLine = ({
+  x,
+  y,
+  size,
+  fill,
+  id,
+  solidId,
+}: SymbolProps & { solidId?: string }) => {
   return (
     <g transform={`translate(${x},${y})`}>
       <line
@@ -26,7 +37,7 @@ const SymbolLine = ({ x, y, size, fill, id }: SymbolProps) => {
         y1="5"
         x2={size}
         y2="5"
-        strokeDasharray={id === "Medición real" ? "" : "4"}
+        strokeDasharray={id === solidId ? "" : "4"}
         style={{
           stroke: fill,
           strokeWidth: 4,
@@ -83,6 +94,8 @@ export const HistoricLineChart = () => {
   const data = useStore(historicForecastData);
   const error = useStore(errorHistoricForecast);
   const loading = useStore(loadingHistoricForecast);
+  const t = useClientTranslations();
+  const realLabel = t("stats.chart.realMeasurement");
   const formattedData = React.useMemo(() => {
     if (!data) {
       return undefined;
@@ -91,7 +104,7 @@ export const HistoricLineChart = () => {
     return [
       {
         color: "hsla(43, 84%, 49%)",
-        id: "Medición real",
+        id: realLabel,
         data: data.aqi_level.map((d) => ({
           x: d.timestamp,
           y: d.value,
@@ -100,20 +113,20 @@ export const HistoricLineChart = () => {
       },
       {
         color: "hsla(126, 72%, 45%)",
-        id: "Predicción 6 horas",
+        id: t("stats.chart.forecast6h"),
         data: [{ x: filler.timestamp, y: filler.value }].concat(
           data.forecast_6h.map((d) => ({ x: d.timestamp, y: d.value })),
         ),
       },
       {
         color: "hsla(194, 62%, 53%)",
-        id: "Predicción 12 horas",
+        id: t("stats.chart.forecast12h"),
         data: [{ x: filler.timestamp, y: filler.value }].concat(
           data.forecast_12h.map((d) => ({ x: d.timestamp, y: d.value })),
         ),
       },
     ];
-  }, [data]);
+  }, [data, t, realLabel]);
 
   return (
     <>
@@ -135,12 +148,12 @@ export const HistoricLineChart = () => {
               fill="currentFill"
             />
           </svg>
-          <span className="sr-only">Cargando...</span>
+          <span className="sr-only">{t("stats.loading")}</span>
         </div>
       )}
       {!loading && !data && error && (
         <div className="grid min-h-[140px] h-full w-full place-items-center overflow-x-scroll rounded-lg p-6 lg:overflow-visible">
-          <p>Error cargando el gráfico</p>
+          <p>{t("stats.chartError")}</p>
         </div>
       )}
       {formattedData && (
@@ -218,7 +231,9 @@ export const HistoricLineChart = () => {
               itemHeight: 20,
               itemOpacity: 0.75,
               symbolSize: 12,
-              symbolShape: SymbolLine,
+              symbolShape: (props) => (
+                <SymbolLine {...props} solidId={realLabel} />
+              ),
               symbolBorderColor: "rgba(0, 0, 0, .5)",
               effects: [
                 {

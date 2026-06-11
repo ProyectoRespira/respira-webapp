@@ -28,5 +28,8 @@
     // Allow JSX files (or files that are internally considered JSX, like Astro files) to be imported inside `.js` and `.ts` files.
     "jsx": "preserve",
     "strict": true
-  }
+  },
+  // Build artifacts must not be type-checked (the minified bundles in dist/
+  // otherwise exhaust the type-checker's memory).
+  "exclude": ["dist", "build", "coverage", "node_modules"]
 }
