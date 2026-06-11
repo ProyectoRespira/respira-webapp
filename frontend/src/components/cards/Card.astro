@@ -2,31 +2,34 @@
 import Typography from "../atoms/Typography.astro";
 import Button from "../atoms/Button.astro";
 import { Card as ReactCard } from "../react/Card";
+import { getLangFromLocals, useTranslations } from "../../i18n/utils";
+
+const t = useTranslations(getLangFromLocals(Astro.locals));
 ---
 
 <ReactCard client:only="react">
   <div slot="header">
     <Typography variant="h4" customClass="w-auto text-center"
-      >¿Cómo está el aire ahora?</Typography
+      >{t("card.howIsAir")}</Typography
     >
   </div>
   <div slot="header_forecast_six">
     <Typography variant="h4" customClass="w-auto text-center mt-4">
-      Pronóstico
+      {t("card.forecast")}
     </Typography>
     <Typography variant="h5-2" color="gray" customClass="mt-2"
-      >Próximas 6 hs</Typography
+      >{t("card.next6h")}</Typography
     >
   </div>
   <div slot="header_forecast_twelve">
     <Typography variant="h5-2" color="gray" customClass="mt-2"
-      >Próximas 12 hs</Typography
+      >{t("card.next12h")}</Typography
     >
   </div>
   <div slot="action" class="mt-8">
     <Button
       variant="color"
-      text="Recomendaciones por Nivel"
+      text={t("home.recommendations")}
       customClass="modal"
     />
   </div>

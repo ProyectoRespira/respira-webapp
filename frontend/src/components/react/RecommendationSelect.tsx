@@ -2,9 +2,12 @@ import { AQI } from "../../data/cards";
 import { AQICard } from "./AQICardReactive";
 import React, { useMemo } from "react";
 import { Select, Option } from "@material-tailwind/react";
+import { useClientTranslations } from "../../i18n/client";
+import { type UIKey } from "../../i18n/ui";
 
 export function RecommendationSelect() {
   const data = AQI;
+  const t = useClientTranslations();
   const [selectedCard, setSelectedCard] = React.useState<string>(data[0].color);
   const card = useMemo(() => {
     return AQI.find((val) => val.color === selectedCard);
@@ -12,8 +15,8 @@ export function RecommendationSelect() {
   return (
     <>
       <Select
-        placeholder={"Seleccionar nivel"}
-        label="Seleccionar nivel"
+        placeholder={t("recommendations.selectLevel")}
+        label={t("recommendations.selectLevel")}
         value={card?.color}
         size="lg"
         labelProps={{ className: "font-bold md:hidden " }}
@@ -22,7 +25,7 @@ export function RecommendationSelect() {
       >
         {data.map((d) => (
           <Option key={d.color} value={d.color}>
-            {d.title}
+            {t(`aqi.${d.id}.title` as UIKey)}
           </Option>
         ))}
       </Select>
