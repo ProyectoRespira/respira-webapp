@@ -50,6 +50,43 @@ export const region = computed(isBackendAvailable, (backendAvailable) =>
   }),
 );
 
+export type REGION_META = {
+  id: number;
+  name: string;
+  region_code: string;
+  bbox: string | null;
+};
+
+export const errorRegionMeta = atom<string | undefined>(undefined);
+export const loadingRegionMeta = atom<boolean>(false);
+
+export const fetchRegionMeta = async (): Promise<REGION_META | undefined> => {
+  loadingRegionMeta.set(true);
+  try {
+    const response = await fetch(BACKEND_URL + `/regions/`);
+    const regions: REGION_META[] = await response.json();
+    loadingRegionMeta.set(false);
+    if (!Array.isArray(regions) || regions.length === 0) {
+      return undefined;
+    }
+    const defaultId = Number(import.meta.env.PUBLIC_REGION_DEFAULT_ID);
+    return regions.find((r) => r.id === defaultId) ?? regions[0];
+  } catch {
+    loadingRegionMeta.set(false);
+    errorRegionMeta.set("There has been an error getting the region metadata.");
+    return undefined;
+  }
+};
+
+export const regionMeta = computed(isBackendAvailable, (backendAvailable) =>
+  task(async () => {
+    if (!backendAvailable) {
+      return undefined;
+    }
+    return fetchRegionMeta();
+  }),
+);
+
 export const errorStations = atom<string | undefined>(undefined);
 export const loadingStations = atom<boolean>(false);
 

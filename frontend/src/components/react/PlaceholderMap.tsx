@@ -4,11 +4,17 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useStore } from "@nanostores/react";
 import Pin from "./Pin";
 
-import { getColorRange } from "../../utils";
+import { getColorRange, parseBbox, expandBounds } from "../../utils";
 import { statisticsSelectedStation } from "../../store/statistics";
+import { regionMeta } from "../../store/map";
+import { MAP_FALLBACK } from "../../data/constants";
 
 const PlaceHolderMap = () => {
   const data = useStore(statisticsSelectedStation);
+  const region = useStore(regionMeta);
+
+  const bounds = parseBbox(region?.bbox);
+  const maxBounds = bounds ? expandBounds(bounds, 4) : MAP_FALLBACK.maxBounds;
 
   const [dimensions] = React.useState({
     height: 300,
@@ -20,21 +26,18 @@ const PlaceHolderMap = () => {
       {data ? (
         <Map
           initialViewState={{
-            longitude: data?.coordinates[1] || -57.65,
-            latitude: data?.coordinates[0] || -25.28,
+            longitude: data?.coordinates[1] || MAP_FALLBACK.center.longitude,
+            latitude: data?.coordinates[0] || MAP_FALLBACK.center.latitude,
             zoom: 15,
           }}
           dragRotate={false}
           touchPitch={false}
           touchZoomRotate={true}
-          minZoom={5.5}
+          minZoom={MAP_FALLBACK.minZoom}
           attributionControl={false}
           style={{ ...dimensions }}
           interactive={false}
-          maxBounds={[
-            [-67.0435297482847, -28.42576579802394],
-            [-45.05865460568049, -17.608237804262302],
-          ]}
+          maxBounds={maxBounds}
           mapStyle="https://api.maptiler.com/maps/442672a8-7228-4ab4-9780-83a9932987b5/style.json?key=NKY3xmA1haxXwc5Jm48B"
         >
           <Marker
