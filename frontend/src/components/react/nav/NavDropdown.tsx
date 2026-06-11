@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "@nanostores/react";
 import { loadingStations, stations, type STATION } from "../../../store/map";
+import { useClientTranslations } from "../../../i18n/client";
 
 type NavDropdownProps = {
   title: string;
@@ -19,6 +20,7 @@ const NavDropdown = ({ title, baseRoute }: NavDropdownProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const data = useStore(stations);
   const loading = useStore(loadingStations);
+  const t = useClientTranslations();
 
   useEffect(() => {
     if (!open) return;
@@ -86,7 +88,7 @@ const NavDropdown = ({ title, baseRoute }: NavDropdownProps) => {
                     className="block hover:opacity-70 transition-opacity"
                   >
                     <p className="font-serif font-bold text-[1rem] text-black">
-                      Estación {station.id}
+                      {t("stats.station")} {station.id}
                     </p>
                     <p className="font-sans text-[0.75rem] text-black">
                       {station.name}

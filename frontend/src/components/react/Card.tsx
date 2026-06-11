@@ -20,6 +20,7 @@ import {
   toggleShareModal,
 } from "../../store/modals";
 import { BASE_URL } from "../../data/constants";
+import { useClientTranslations } from "../../i18n/client";
 
 type CardProps = {
   header?: React.ReactNode;
@@ -28,6 +29,7 @@ type CardProps = {
 };
 
 export const Card = (props: CardProps) => {
+  const t = useClientTranslations();
   const backendAvailable = useStore(isBackendAvailable);
   const station = useStore(selectedStation);
   const stationId = useStore(selectedStationId);
@@ -93,7 +95,7 @@ export const Card = (props: CardProps) => {
       {!backendAvailable && backendAvailable !== undefined && (
         <div className="w-full h-full content-center justify-center m-auto">
           <p className="font-bold text-lg text-center">
-            ⚠️ Error conectándose al backend
+            ⚠️ {t("card.backendError")}
           </p>
         </div>
       )}
@@ -118,13 +120,13 @@ export const Card = (props: CardProps) => {
               fill="currentFill"
             />
           </svg>
-          <span className="sr-only">Loading...</span>
+          <span className="sr-only">{t("stats.loading")}</span>
         </div>
       )}
       {!dataAvailable && !loading && backendAvailable && (
         <div className="w-full h-full content-center justify-center m-auto">
           <p className="font-bold text-lg text-center">
-            ⚠️ Error cargando los datos.
+            ⚠️ {t("card.dataError")}
           </p>
         </div>
       )}
@@ -132,7 +134,7 @@ export const Card = (props: CardProps) => {
         <>
           {props.header}
           <h6 className="text-lg font-bold w-auto text-center font-serif">
-            {!station ? "Media General" : station.name}
+            {!station ? t("card.generalMean") : station.name}
           </h6>
           <div>
             <Slider value={station ? station.aqi : data.aqi} />
@@ -166,14 +168,16 @@ export const Card = (props: CardProps) => {
             }
             onClick={() => toggleRecommendationsModal(true)}
           >
-            <p className="font-serif uppercase">Recomendaciones por nivel</p>
+            <p className="font-serif uppercase">{t("home.recommendations")}</p>
           </button>
           <button
             className="share w-full text-center mt-4"
             id="share"
             onClick={() => handleSharing()}
           >
-            <p className="text-green text-center font-bold">Compartir</p>
+            <p className="text-green text-center font-bold">
+              {t("card.share")}
+            </p>
           </button>
         </>
       )}

@@ -8,9 +8,12 @@ import {
 import { AQI } from "../../data/cards";
 import { getTextColor } from "../../utils";
 import { AQICard } from "./AQICardReactive";
+import { useClientTranslations } from "../../i18n/client";
+import { type UIKey } from "../../i18n/ui";
 
 export function RecommendationTabs() {
   const data = AQI;
+  const t = useClientTranslations();
 
   return (
     <Tabs value={AQI[0].color} className="hidden md:block">
@@ -21,14 +24,14 @@ export function RecommendationTabs() {
           className: "border-2 bg-transparent text-black first:rounded-l-xl",
         }}
       >
-        {data.map(({ slug, color }) => (
+        {data.map(({ id, color }) => (
           <Tab
             key={color}
             value={color}
             placeholder={""}
             className={`bg-${color} min-h-16 text-${getTextColor(color)} font-semibold first:rounded-l-xl last:rounded-r-xl `}
           >
-            {slug}
+            {t(`aqi.${id}.title` as UIKey)}
           </Tab>
         ))}
       </TabsHeader>
