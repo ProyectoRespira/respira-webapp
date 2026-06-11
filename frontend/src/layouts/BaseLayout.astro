@@ -15,11 +15,13 @@ import "@fontsource-variable/inter";
 
 import "../../main.css";
 import { BASE_URL } from "../data/constants";
+import { getLangFromLocals } from "../i18n/utils";
 
 const GTAG = import.meta.env.PUBLIC_GTAG;
+const lang = getLangFromLocals(Astro.locals);
 ---
 
-<html lang="en" class="md:overflow-hidden">
+<html lang={lang} class="md:overflow-hidden">
   <head>
     <!-- Google tag (gtag.js) -->
     <script async src=`https://www.googletagmanager.com/gtag/js?id=${GTAG}`

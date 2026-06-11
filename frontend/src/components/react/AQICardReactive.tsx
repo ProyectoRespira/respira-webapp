@@ -1,6 +1,8 @@
 import * as React from "react";
 import { getTextColor } from "../../utils";
 import type { AQICard as CardType } from "../../data/cards";
+import { getClientLang, useClientTranslations } from "../../i18n/client";
+import { aqiRecommendations, type UIKey } from "../../i18n/ui";
 
 export const AQICard = ({
   card,
@@ -9,6 +11,10 @@ export const AQICard = ({
   card: CardType;
   variant?: "normal" | "recommendations";
 }) => {
+  const t = useClientTranslations();
+  const title = t(`aqi.${card.id}.title` as UIKey);
+  const description = t(`aqi.${card.id}.description` as UIKey);
+  const recommendations = aqiRecommendations[getClientLang()][card.id];
   return (
     <div className={`bg-${card.color} w-full  rounded-xl p-10`}>
       <div className="flex flex-row w-full min-h-20">
@@ -27,7 +33,7 @@ export const AQICard = ({
                 getTextColor(card.color) || "black"
               }  grow`}
             >
-              {card.title}
+              {title}
             </h5>
             <h5
               className={`font-sans font-bold text-[1.25rem] text-${
@@ -43,13 +49,13 @@ export const AQICard = ({
                 getTextColor(card.color) || "black"
               } `}
             >
-              {card.description}
+              {description}
             </p>
           ) : (
             <ul
               className={`list-disc pl-4 text-${getTextColor(card.color) || "black"} font-normal font-sans`}
             >
-              {card.recommendations.map((item, key) => (
+              {recommendations.map((item, key) => (
                 <li key={key}>{item}</li>
               ))}
             </ul>

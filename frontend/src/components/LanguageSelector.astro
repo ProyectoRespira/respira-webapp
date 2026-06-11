@@ -1,0 +1,53 @@
+---
+export const prerender = false;
+
+import { languages, LANG_COOKIE, LANG_COOKIE_MAX_AGE } from "../i18n/config";
+import { getLangFromLocals } from "../i18n/utils";
+
+const lang = getLangFromLocals(Astro.locals);
+---
+
+<label class="relative inline-flex items-center" aria-label="Language selector">
+  <select
+    class="language-selector appearance-none cursor-pointer bg-transparent border border-gray-300 rounded-md py-2 pl-3 pr-8 text-sm font-sans font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-green"
+    data-cookie={LANG_COOKIE}
+    data-max-age={LANG_COOKIE_MAX_AGE}
+  >
+    {
+      Object.entries(languages).map(([code, label]) => (
+        <option value={code} selected={code === lang}>
+          {label}
+        </option>
+      ))
+    }
+  </select>
+  <svg
+    class="pointer-events-none absolute right-2 h-4 w-4 fill-current text-gray-700"
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 20 20"
+  >
+    <path
+      d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"
+    ></path>
+  </svg>
+</label>
+
+<script>
+  // There can be more than one selector on the page (e.g. desktop + mobile menu).
+  const selects = document.querySelectorAll<HTMLSelectElement>(
+    "select.language-selector",
+  );
+
+  selects.forEach((select) => {
+    const cookieName = select.dataset.cookie ?? "respira-lang";
+    const maxAge = select.dataset.maxAge ?? "31536000";
+
+    select.addEventListener("change", () => {
+      const value = select.value;
+      // Persist the choice so it survives navigation and refresh.
+      document.cookie = `${cookieName}=${value}; path=/; max-age=${maxAge}; SameSite=Lax`;
+      // Reload so the server re-renders the page in the selected language.
+      window.location.reload();
+    });
+  });
+</script>
