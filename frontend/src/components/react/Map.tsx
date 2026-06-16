@@ -17,7 +17,7 @@ import {
 } from "../../store/map";
 import Pin from "./Pin";
 
-import { getColorRange, parseBbox, expandBounds } from "../../utils";
+import { getColorRange, parseBbox } from "../../utils";
 import { MapTooltip } from "./MapTooltip";
 import { getPixelOffsets } from "../../utils/markerOffset";
 
@@ -44,7 +44,6 @@ const MapComponent = () => {
   const mapRef = React.useRef<MapRef>(null);
 
   const bounds = React.useMemo(() => parseBbox(region?.bbox), [region?.bbox]);
-  const maxBounds = bounds ? expandBounds(bounds, 4) : MAP_FALLBACK.maxBounds;
 
   React.useEffect(() => {
     if (bounds && mapRef.current) {
@@ -173,7 +172,6 @@ const MapComponent = () => {
         minZoom={MAP_FALLBACK.minZoom}
         attributionControl={false}
         style={{ width: "100%", height: dimensions.height * 0.75 }}
-        maxBounds={maxBounds}
         onClick={() => setSelectedStation(undefined)}
         mapStyle="https://api.maptiler.com/maps/442672a8-7228-4ab4-9780-83a9932987b5/style.json?key=NKY3xmA1haxXwc5Jm48B"
       >
