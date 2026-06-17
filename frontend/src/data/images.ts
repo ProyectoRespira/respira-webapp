@@ -39,7 +39,6 @@ import {
   TELEGRAM_URL,
   SLACK_URL,
 } from "./constants";
-import type { UIKey } from "../i18n/ui";
 
 export type Image = {
   alt: string;
