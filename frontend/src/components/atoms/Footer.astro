@@ -42,7 +42,7 @@ const footerLabel = (id: string, fallback: string): string =>
     <p class="text-white text-xl font-bold font-serif">
       {t("footer.collaboration")}
     </p>
-    <div class="grid md:divide-x text-white md:grid-cols-4 md:mt-8 max-w-sm">
+    <div class="flex flex-wrap items-center gap-6 md:mt-8">
       {
         FOOTER_IMAGES.map((image) => (
           <div class="flex items-center justify-center">
