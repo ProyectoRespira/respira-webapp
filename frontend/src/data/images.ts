@@ -8,6 +8,7 @@ import Medicine from "../assets/icons/medicine_icon.svg";
 import Facebook from "../assets/icons/facebook_icon.svg";
 import Instagram from "../assets/icons/instagram_icon.svg";
 import Telegram from "../assets/icons/telegram_icon.svg";
+import Slack from "../assets/icons/slack_icon.svg";
 
 import Fiuna from "../assets/logos/fiuna.svg";
 import Mozilla from "../assets/logos/mozilla.svg";
@@ -32,7 +33,13 @@ import Kids from "../assets/recommendations/kids.svg";
 import LungDisease from "../assets/recommendations/lung_disease.svg";
 import Older from "../assets/recommendations/older.svg";
 
-import { INSTAGRAM_URL, FACEBOOK_URL, TELEGRAM_URL } from "./constants";
+import {
+  INSTAGRAM_URL,
+  FACEBOOK_URL,
+  TELEGRAM_URL,
+  SLACK_URL,
+} from "./constants";
+
 import type { UIKey } from "../i18n/ui";
 
 export type Image = {
@@ -157,6 +164,11 @@ export const SOCIAL_MEDIA_IMAGES: Omit<Image & Link, "text">[] = [
     alt: "Facebook Icon",
     path: Facebook,
     link: FACEBOOK_URL,
+  },
+  {
+    alt: "Slack Icon",
+    path: Slack,
+    link: SLACK_URL,
   },
 ];
 
