@@ -151,6 +151,12 @@ const es = {
   "map.viewStats": "Ver estadísticas",
   "recommendations.sensitiveQuestion": "¿Quiénes son las personas sensibles?",
   "recommendations.selectLevel": "Seleccionar nivel",
+  "recommendations.group.older": "Adultos mayores",
+  "recommendations.group.heartCondition": "Personas con enfermedades cardíacas",
+  "recommendations.group.kids": "Niños y niñas",
+  "recommendations.group.lungDisease": "Personas con enfermedades pulmonares",
+  "recommendations.group.babies": "Bebés y embarazadas",
+  "recommendations.group.diabetes": "Personas con diabetes",
   "share.title": "Compartí el link",
   "share.linkLabel": "Link de la página",
 
@@ -182,6 +188,16 @@ const es = {
   "aqi.hazardous.title": "Peligroso",
   "aqi.hazardous.description":
     "Todos debemos evitar las actividades al aire libre innecesarias por completo. Permanezca adentro y mantenga un nivel de actividad bajo.",
+
+  // Common
+  "common.backToTop": "Volver arriba",
+
+  // App download banner
+  "app.download.appStoreLabel": "Descargá en la",
+  "app.download.playStoreLabel": "Disponible en",
+  "app.download.title": "Descargá la app de Proyecto Respira",
+  "app.download.description":
+    "Consultá la calidad del aire desde tu celular y agregá el widget para ver el AQI al instante desde tu pantalla principal, sin abrir la app.",
 } as const;
 
 export type UIKey = keyof typeof es;
@@ -322,6 +338,12 @@ const en: Dictionary = {
   "map.viewStats": "View statistics",
   "recommendations.sensitiveQuestion": "Who are the sensitive groups?",
   "recommendations.selectLevel": "Select level",
+  "recommendations.group.older": "Older adults",
+  "recommendations.group.heartCondition": "People with heart disease",
+  "recommendations.group.kids": "Children",
+  "recommendations.group.lungDisease": "People with lung disease",
+  "recommendations.group.babies": "Infants and pregnant people",
+  "recommendations.group.diabetes": "People with diabetes",
   "share.title": "Share the link",
   "share.linkLabel": "Page link",
 
@@ -350,6 +372,14 @@ const en: Dictionary = {
   "aqi.hazardous.title": "Hazardous",
   "aqi.hazardous.description":
     "Everyone should completely avoid unnecessary outdoor activities. Stay indoors and keep activity levels low.",
+
+  "common.backToTop": "Back to top",
+
+  "app.download.appStoreLabel": "Download on the",
+  "app.download.playStoreLabel": "Available on",
+  "app.download.title": "Download the Proyecto Respira app",
+  "app.download.description":
+    "Check air quality from your phone and add the widget to see the AQI instantly from your home screen, without opening the app.",
 };
 
 const pt: Dictionary = {
@@ -488,6 +518,12 @@ const pt: Dictionary = {
   "map.viewStats": "Ver estatísticas",
   "recommendations.sensitiveQuestion": "Quem são as pessoas sensíveis?",
   "recommendations.selectLevel": "Selecionar nível",
+  "recommendations.group.older": "Idosos",
+  "recommendations.group.heartCondition": "Pessoas com doenças cardíacas",
+  "recommendations.group.kids": "Crianças",
+  "recommendations.group.lungDisease": "Pessoas com doenças pulmonares",
+  "recommendations.group.babies": "Bebês e gestantes",
+  "recommendations.group.diabetes": "Pessoas com diabetes",
   "share.title": "Compartilhe o link",
   "share.linkLabel": "Link da página",
 
@@ -516,6 +552,14 @@ const pt: Dictionary = {
   "aqi.hazardous.title": "Perigoso",
   "aqi.hazardous.description":
     "Todos devemos evitar completamente atividades ao ar livre desnecessárias. Permaneça em ambientes fechados e mantenha um nível baixo de atividade.",
+
+  "common.backToTop": "Voltar ao topo",
+
+  "app.download.appStoreLabel": "Baixe na",
+  "app.download.playStoreLabel": "Disponível no",
+  "app.download.title": "Baixe o app do Proyecto Respira",
+  "app.download.description":
+    "Confira a qualidade do ar pelo celular e adicione o widget para ver o AQI instantaneamente na tela inicial, sem abrir o app.",
 };
 
 export const ui: Record<Lang, Dictionary> = { es, en, pt };

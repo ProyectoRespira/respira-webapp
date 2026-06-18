@@ -33,11 +33,16 @@ import LungDisease from "../assets/recommendations/lung_disease.svg";
 import Older from "../assets/recommendations/older.svg";
 
 import { INSTAGRAM_URL, FACEBOOK_URL, TELEGRAM_URL } from "./constants";
+import type { UIKey } from "../i18n/ui";
 
 export type Image = {
   alt: string;
   path: ImageMetadata;
   class?: string;
+};
+
+export type LabeledImage = Image & {
+  labelKey: UIKey;
 };
 
 export type Link = {
@@ -155,29 +160,35 @@ export const SOCIAL_MEDIA_IMAGES: Omit<Image & Link, "text">[] = [
   },
 ];
 
-export const RECOMMENDATIONS_IMAGES: Image[] = [
+export const RECOMMENDATIONS_IMAGES: LabeledImage[] = [
   {
-    alt: "recommendations",
+    alt: "Older adults",
     path: Older,
+    labelKey: "recommendations.group.older",
   },
   {
-    alt: "recommendations",
+    alt: "People with heart conditions",
     path: HeartCondition,
+    labelKey: "recommendations.group.heartCondition",
   },
   {
-    alt: "recommendations",
+    alt: "Kids",
     path: Kids,
+    labelKey: "recommendations.group.kids",
   },
   {
-    alt: "recommendations",
+    alt: "People with lung disease",
     path: LungDisease,
+    labelKey: "recommendations.group.lungDisease",
   },
   {
-    alt: "recommendations",
+    alt: "Babies and pregnant people",
     path: Babies,
+    labelKey: "recommendations.group.babies",
   },
   {
-    alt: "recommendations",
+    alt: "People with diabetes",
     path: Diabetes,
+    labelKey: "recommendations.group.diabetes",
   },
 ];

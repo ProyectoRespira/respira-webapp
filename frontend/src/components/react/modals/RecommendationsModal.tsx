@@ -27,16 +27,22 @@ const RecommendationsModal = () => {
         <h3 className="font-sans font-semibold text-[1.875rem]  text-gray text-center">
           {t("recommendations.sensitiveQuestion")}
         </h3>
-        <div className="grid md:grid-flow-col md:grid-cols-none grid-cols-2  gap-2 pt-6 justify-items-center">
+        <div className="grid md:grid-flow-col md:grid-cols-none grid-cols-2 gap-2 pt-6 justify-items-center">
           {RECOMMENDATIONS_IMAGES.map((image, key) => (
-            <img
+            <div
               key={key}
-              alt={image.alt}
-              src={image.path.src}
-              height={100}
-              width={100}
-              className="col-span-1"
-            />
+              className="col-span-1 flex flex-col items-center gap-2"
+            >
+              <img
+                alt={t(image.labelKey)}
+                src={image.path.src}
+                height={100}
+                width={100}
+              />
+              <p className="font-sans text-sm text-center text-gray">
+                {t(image.labelKey)}
+              </p>
+            </div>
           ))}
         </div>
       </div>
