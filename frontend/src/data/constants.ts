@@ -4,6 +4,8 @@ export const FACEBOOK_URL = "https://www.facebook.com/proyectorespirapy";
 export const INSTAGRAM_URL = "https://www.instagram.com/proyectorespirapy";
 export const CONTACT_MAIL = "proyectorespirapy@gmail.com";
 export const GITHUB_URL = "https://github.com/ProyectoRespira";
+export const SLACK_URL =
+  "https://join.slack.com/t/proyecto-respira/shared_invite/zt-3zk63yu79-A4q_61CL8~E0vy~RHPZ3~Q";
 
 export const APP_STORE_URL =
   "https://apps.apple.com/py/app/proyecto-respira/id6758864671?l=en-GB";

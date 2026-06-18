@@ -4,9 +4,10 @@ export const prerender = false;
 import { Image } from "astro:assets";
 import { FOOTER_IMAGES, SOCIAL_MEDIA_IMAGES } from "../../data/images";
 import Typography from "./Typography.astro";
-import { CONTACT_MAIL } from "../../data/constants";
+import { CONTACT_MAIL, SLACK_URL } from "../../data/constants";
 import { FOOTER_MENU, type MenuItem } from "../../data/menu";
 import { BASE_URL } from "../../data/constants";
+import SlackIcon from "../../assets/icons/slack_icon.svg";
 import { getLangFromLocals, useTranslations } from "../../i18n/utils";
 import type { UIKey } from "../../i18n/ui";
 
@@ -69,6 +70,16 @@ const footerLabel = (id: string, fallback: string): string =>
         ))
       }
     </div>
+
+    <a
+      href={SLACK_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      class="flex items-center gap-3 bg-green hover:bg-light_green transition-colors text-black rounded-xl px-5 py-3 w-fit mt-6"
+    >
+      <Image alt="Slack" src={SlackIcon} class="h-6 w-auto" />
+      <span class="font-sans font-semibold">{t("footer.joinSlack")}</span>
+    </a>
   </div>
   <div class="grid w-full md:grid-cols-2 py-8 lg:gap-4 gap-3">
     {
