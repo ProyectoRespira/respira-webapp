@@ -46,6 +46,10 @@ export type Image = {
   class?: string;
 };
 
+export type LabeledImage = Image & {
+  labelKey: UIKey;
+};
+
 export type Link = {
   text: string;
   link: string;
@@ -166,29 +170,35 @@ export const SOCIAL_MEDIA_IMAGES: Omit<Image & Link, "text">[] = [
   },
 ];
 
-export const RECOMMENDATIONS_IMAGES: Image[] = [
+export const RECOMMENDATIONS_IMAGES: LabeledImage[] = [
   {
-    alt: "recommendations",
+    alt: "Older adults",
     path: Older,
+    labelKey: "recommendations.group.older",
   },
   {
-    alt: "recommendations",
+    alt: "People with heart conditions",
     path: HeartCondition,
+    labelKey: "recommendations.group.heartCondition",
   },
   {
-    alt: "recommendations",
+    alt: "Kids",
     path: Kids,
+    labelKey: "recommendations.group.kids",
   },
   {
-    alt: "recommendations",
+    alt: "People with lung disease",
     path: LungDisease,
+    labelKey: "recommendations.group.lungDisease",
   },
   {
-    alt: "recommendations",
+    alt: "Babies and pregnant people",
     path: Babies,
+    labelKey: "recommendations.group.babies",
   },
   {
-    alt: "recommendations",
+    alt: "People with diabetes",
     path: Diabetes,
+    labelKey: "recommendations.group.diabetes",
   },
 ];

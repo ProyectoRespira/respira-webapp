@@ -150,13 +150,13 @@ const t = useTranslations(getLangFromLocals(Astro.locals));
             id="form-success"
             class="hidden text-green-600 text-sm font-medium mt-2"
           >
-            ¡Mensaje enviado! Nos pondremos en contacto pronto.
+            {t("contact.successAlert")}
           </p>
           <p
             id="form-error"
             class="hidden text-red-600 text-sm font-medium mt-2"
           >
-            Hubo un error al enviar el mensaje. Por favor intentá de nuevo.
+            {t("contact.errorAlert")}
           </p>
           <div class="w-full mt-4">
             <Button
