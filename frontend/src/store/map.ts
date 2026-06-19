@@ -22,15 +22,28 @@ export type STATION_FORECAST = {
   forecast_6h: FORECAST[];
   forecast_12h: FORECAST[];
 };
+// Region ids exceed Number.MAX_SAFE_INTEGER, so they must stay strings
+// end-to-end — `Number(id)` rounds them and breaks the backend lookups.
+export const DEFAULT_REGION_ID = String(
+  import.meta.env.PUBLIC_REGION_DEFAULT_ID,
+);
+
+// Currently selected region. Defaults to the configured region and may be
+// updated by geolocation detection or a manual change.
+export const selectedRegionId = atom<string>(DEFAULT_REGION_ID);
+
+export const setSelectedRegion = (id: string) => {
+  selectedRegionId.set(id);
+};
+
 export const errorRegion = atom<string | undefined>(undefined);
 export const loadingRegion = atom<boolean>(false);
 
-export const fetchRegion = async () => {
+export const fetchRegion = async (regionId: string) => {
   loadingRegion.set(true);
   try {
     const response = await fetch(
-      BACKEND_URL +
-        `/map?entity=region&id=${import.meta.env.PUBLIC_REGION_DEFAULT_ID}`,
+      BACKEND_URL + `/map?entity=region&id=${regionId}`,
     );
     loadingRegion.set(false);
     return response.json();
@@ -41,36 +54,84 @@ export const fetchRegion = async () => {
   }
 };
 
-export const region = computed(isBackendAvailable, (backendAvailable) =>
-  task(async () => {
-    if (!backendAvailable) {
-      return undefined;
-    }
-    return fetchRegion();
-  }),
+export const region = computed(
+  [isBackendAvailable, selectedRegionId],
+  (backendAvailable, regionId) =>
+    task(async () => {
+      if (!backendAvailable) {
+        return undefined;
+      }
+      return fetchRegion(regionId);
+    }),
 );
 
 export type REGION_META = {
-  id: number;
+  id: string;
   name: string;
   region_code: string;
   bbox: string | null;
 };
 
+// Fetches all regions, keeping `id` as a string. JSON.parse would round the
+// huge ids, so they are quoted before parsing.
+export const fetchRegions = async (): Promise<REGION_META[]> => {
+  const response = await fetch(BACKEND_URL + `/regions/`);
+  const text = await response.text();
+  const safe = text.replace(/("id":\s*)(\d+)/g, '$1"$2"');
+  const regions = JSON.parse(safe);
+  return Array.isArray(regions) ? regions : [];
+};
+
+// All regions, loaded once — used to resolve which region a point belongs to.
+export const allRegions = computed(isBackendAvailable, (backendAvailable) =>
+  task(async (): Promise<REGION_META[]> => {
+    if (!backendAvailable) {
+      return [];
+    }
+    try {
+      return await fetchRegions();
+    } catch {
+      return [];
+    }
+  }),
+);
+
+// bbox is "minLon,minLat,maxLon,maxLat".
+const isInsideBbox = (
+  bbox: string | null,
+  lon: number,
+  lat: number,
+): boolean => {
+  if (!bbox) return false;
+  const parts = bbox.split(",").map((p) => Number(p.trim()));
+  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n))) return false;
+  const [minLon, minLat, maxLon, maxLat] = parts;
+  return lon >= minLon && lon <= maxLon && lat >= minLat && lat <= maxLat;
+};
+
+// Returns the region whose bbox contains the point, or undefined when the
+// point falls outside every region.
+export const regionForCoords = (
+  regions: REGION_META[],
+  lon: number,
+  lat: number,
+): REGION_META | undefined =>
+  regions.find((r) => isInsideBbox(r.bbox, lon, lat));
+
 export const errorRegionMeta = atom<string | undefined>(undefined);
 export const loadingRegionMeta = atom<boolean>(false);
 
-export const fetchRegionMeta = async (): Promise<REGION_META | undefined> => {
+export const fetchRegionMeta = async (
+  regionId: string,
+): Promise<REGION_META | undefined> => {
   loadingRegionMeta.set(true);
   try {
-    const response = await fetch(BACKEND_URL + `/regions/`);
-    const regions: REGION_META[] = await response.json();
+    const regions = await fetchRegions();
     loadingRegionMeta.set(false);
-    if (!Array.isArray(regions) || regions.length === 0) {
+    if (regions.length === 0) {
       return undefined;
     }
-    const defaultId = Number(import.meta.env.PUBLIC_REGION_DEFAULT_ID);
-    return regions.find((r) => r.id === defaultId) ?? regions[0];
+    return regions.find((r) => r.id === regionId) ?? regions[0];
   } catch {
     loadingRegionMeta.set(false);
     errorRegionMeta.set("There has been an error getting the region metadata.");
@@ -78,13 +139,15 @@ export const fetchRegionMeta = async (): Promise<REGION_META | undefined> => {
   }
 };
 
-export const regionMeta = computed(isBackendAvailable, (backendAvailable) =>
-  task(async () => {
-    if (!backendAvailable) {
-      return undefined;
-    }
-    return fetchRegionMeta();
-  }),
+export const regionMeta = computed(
+  [isBackendAvailable, selectedRegionId],
+  (backendAvailable, regionId) =>
+    task(async () => {
+      if (!backendAvailable) {
+        return undefined;
+      }
+      return fetchRegionMeta(regionId);
+    }),
 );
 
 export const errorStations = atom<string | undefined>(undefined);

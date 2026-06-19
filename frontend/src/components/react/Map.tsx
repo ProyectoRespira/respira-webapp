@@ -12,9 +12,14 @@ import {
   stations,
   loadingStations,
   regionMeta,
+  allRegions,
+  regionForCoords,
+  selectedRegionId,
+  setSelectedRegion,
   setSelectedStation,
   type STATION,
 } from "../../store/map";
+import { initRegionDetection } from "../../store/geolocation";
 import Pin from "./Pin";
 
 import { getColorRange, parseBbox } from "../../utils";
@@ -43,13 +48,51 @@ const MapComponent = () => {
 
   const mapRef = React.useRef<MapRef>(null);
 
+  // Auto-select the user's nearest region from their location. Keeps watching
+  // the permission, so granting access after load (without a reload) still
+  // moves to their region. Falls back silently when unavailable or denied.
+  React.useEffect(() => {
+    return initRegionDetection();
+  }, []);
+
   const bounds = React.useMemo(() => parseBbox(region?.bbox), [region?.bbox]);
 
+  // The first fit (default region) is instant; later changes — e.g. the region
+  // resolved from the user's location — glide so the camera doesn't snap.
+  const hasFitInitial = React.useRef(false);
+  // Set when the region changed because the user panned the map: the card data
+  // updates but the camera stays where the user left it (no re-fit).
+  const skipNextFit = React.useRef(false);
+
   React.useEffect(() => {
-    if (bounds && mapRef.current) {
+    if (!bounds || !mapRef.current) return;
+    if (!hasFitInitial.current) {
       mapRef.current.fitBounds(bounds, { padding: 40, duration: 0 });
+      hasFitInitial.current = true;
+    } else if (skipNextFit.current) {
+      skipNextFit.current = false;
+    } else {
+      mapRef.current.fitBounds(bounds, {
+        padding: 40,
+        duration: 1600,
+        essential: true,
+      });
     }
   }, [bounds]);
+
+  // When the user pans/zooms, switch the region shown in the card to whichever
+  // region's bbox contains the new map center.
+  const regions = useStore(allRegions);
+
+  const handleMoveEnd = React.useCallback(() => {
+    if (!mapRef.current || !regions || regions.length === 0) return;
+    const center = mapRef.current.getCenter();
+    const match = regionForCoords(regions, center.lng, center.lat);
+    if (match && match.id !== selectedRegionId.get()) {
+      skipNextFit.current = true;
+      setSelectedRegion(match.id);
+    }
+  }, [regions]);
 
   const [dimensions, setDimensions] = React.useState({
     height: window.innerHeight,
@@ -173,6 +216,7 @@ const MapComponent = () => {
         attributionControl={false}
         style={{ width: "100%", height: dimensions.height * 0.75 }}
         onClick={() => setSelectedStation(undefined)}
+        onMoveEnd={handleMoveEnd}
         mapStyle="https://api.maptiler.com/maps/442672a8-7228-4ab4-9780-83a9932987b5/style.json?key=NKY3xmA1haxXwc5Jm48B"
       >
         {data && pins}
