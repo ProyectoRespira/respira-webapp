@@ -3,8 +3,8 @@ ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 WORKDIR /app
 
-# Pin pnpm to 11.4.0 for lockfile v9.0 support and consistent CI/local behavior.
-RUN corepack enable && corepack prepare pnpm@11.4.0 --activate
+# Pin pnpm to 11.8.0 for lockfile v9.0 support and consistent CI/local behavior.
+RUN corepack enable && corepack prepare pnpm@11.8.0 --activate
 
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./

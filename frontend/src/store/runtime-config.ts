@@ -1,11 +1,12 @@
-import { normalizeSiteUrl } from "../runtime-env";
+import {
+  getFrontendRuntimeConfig,
+  normalizeSiteUrl,
+  type FrontendRuntimeConfig,
+  type PublicFrontendRuntimeConfig,
+} from "../runtime-env";
 
-type RuntimeConfig = {
-  backendUrl: string;
-  regionDefaultId: string;
-  siteUrl: string;
-  gtag: string;
-};
+type RuntimeConfig = FrontendRuntimeConfig;
+type PublicRuntimeConfig = PublicFrontendRuntimeConfig;
 
 const getRequiredRuntimeConfigField = (
   config: Partial<RuntimeConfig>,
@@ -22,22 +23,7 @@ let runtimeConfigPromise: Promise<RuntimeConfig> | undefined;
 
 const loadRuntimeConfig = async (): Promise<RuntimeConfig> => {
   if (typeof window === "undefined") {
-    const backendUrl = (process.env.BACKEND_URL || "").trim();
-    const regionDefaultId = (process.env.PUBLIC_REGION_DEFAULT_ID || "").trim();
-    const siteUrl = (process.env.SITE_URL || "").trim();
-    const gtag = (process.env.PUBLIC_GTAG || "").trim();
-
-    return {
-      backendUrl: getRequiredRuntimeConfigField({ backendUrl }, "backendUrl"),
-      regionDefaultId: getRequiredRuntimeConfigField(
-        { regionDefaultId },
-        "regionDefaultId",
-      ),
-      siteUrl: normalizeSiteUrl(
-        getRequiredRuntimeConfigField({ siteUrl }, "siteUrl"),
-      ),
-      gtag: getRequiredRuntimeConfigField({ gtag }, "gtag"),
-    };
+    return getFrontendRuntimeConfig();
   }
 
   const response = await fetch("/runtime-config.json", {
@@ -50,7 +36,7 @@ const loadRuntimeConfig = async (): Promise<RuntimeConfig> => {
     );
   }
 
-  const json = (await response.json()) as Partial<RuntimeConfig>;
+  const json = (await response.json()) as Partial<PublicRuntimeConfig>;
   const backendUrl = getRequiredRuntimeConfigField(json, "backendUrl");
   const regionDefaultId = getRequiredRuntimeConfigField(
     json,
@@ -64,6 +50,23 @@ const loadRuntimeConfig = async (): Promise<RuntimeConfig> => {
     regionDefaultId,
     siteUrl: normalizeSiteUrl(siteUrl),
     gtag,
+    contactMail: "",
+    twitterUrl: "",
+    twitterHandle: "",
+    telegramChannel: "",
+    telegramUrl: "",
+    facebookPage: "",
+    facebookUrl: "",
+    instagramHandle: "",
+    instagramUrl: "",
+    githubPath: "",
+    githubUrl: "",
+    slackInvitePath: "",
+    slackUrl: "",
+    appStorePath: "",
+    appStoreUrl: "",
+    playStoreAppId: "",
+    playStoreUrl: "",
   };
 };
 

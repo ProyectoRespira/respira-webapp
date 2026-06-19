@@ -29,8 +29,8 @@ These tell nginx where to route backend and frontend traffic.
 
 ## TLS
 
-Required when using the `production` build target.
-Not needed for `local` or the currently wired `development` target.
+Required when using the `production` or `development` build targets.
+Not needed for `local`.
 
 | Variable | Required | Default | Where used | Notes |
 |---|---|---|---|---|
@@ -61,8 +61,8 @@ Used by docker-compose for host-level proxy behavior. Not read by the proxy cont
 
 | Template | Used by stage | TLS | Notes |
 |---|---|---|---|
-| `nginx.conf.local.template` | `local`, `development` | No | Plain HTTP only. `server_name _` catch-all. |
-| `nginx.conf.dev.template` | — (not wired in Dockerfile) | Yes | TLS with redirect; `SERVER_HOST`-matched. |
+| `nginx.conf.local.template` | `local` | No | Plain HTTP only. `server_name _` catch-all. |
+| `nginx.conf.dev.template` | `development` | Yes | TLS with redirect; `SERVER_HOST`-matched. |
 | `nginx.conf.template` | `production` | Yes | Full TLS with HSTS-style redirect and `www` handling. |
 
 ---
@@ -70,5 +70,5 @@ Used by docker-compose for host-level proxy behavior. Not read by the proxy cont
 ## Notes
 
 - The proxy Dockerfile contains no `ARG` or `ENV` declarations for app config. All substitution is done exclusively by `envsubst` in `entrypoint.sh` at container start.
-- The current `development` stage copies `nginx.conf.local.template`, so it behaves like `local` (HTTP, no TLS). To require TLS in development, wire `nginx.conf.dev.template` in `proxy/Dockerfile`.
+- The `development` stage copies `nginx.conf.dev.template`, so it enables TLS and HTTP→HTTPS redirect behavior for `SERVER_HOST`.
 - In docker-compose, `BACKEND_HOST` and `FRONTEND_HOST` are hardcoded to the compose service names (`backend` and `frontend`). They are only configurable when running the proxy standalone.

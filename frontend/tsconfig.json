@@ -17,7 +17,5 @@
     "jsx": "preserve",
     "strict": true
   },
-  // Build artifacts must not be type-checked (the minified bundles in dist/
-  // otherwise exhaust the type-checker's memory).
   "exclude": ["dist", "build", "coverage", "node_modules", ".astro"]
 }

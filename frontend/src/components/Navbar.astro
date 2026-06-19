@@ -16,13 +16,14 @@ import {
   CloseIcon,
 } from "astro-navbar";
 import { menu } from "../data/menu";
-import { BASE_URL } from "../data/constants";
 import LanguageSelector from "./LanguageSelector.astro";
 import { getLangFromLocals, useTranslations } from "../i18n/utils";
 import type { UIKey } from "../i18n/ui";
+import { getSiteUrl } from "../store/runtime-config";
 
 const lang = getLangFromLocals(Astro.locals);
 const t = useTranslations(lang);
+const baseUrl = await getSiteUrl();
 ---
 
 <div
@@ -67,7 +68,7 @@ const t = useTranslations(lang);
     </MenuItems>
     <div class="hidden lg:flex min-w-30 content-center items-center gap-4">
       <LanguageSelector />
-      <a href={BASE_URL}>
+      <a href={baseUrl}>
         <Button text={t("nav.map")} variant="void" />
       </a>
     </div>

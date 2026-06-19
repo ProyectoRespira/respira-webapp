@@ -21,7 +21,7 @@ See [`.env.example`](../.env.example) for the docker-compose reference and [`bac
 | `BACKEND_DEBUG` | No | `false` | `backend/backend/settings.py` | Django debug mode. Must be `false` in production. |
 | `BACKEND_PORT` | No | `8000` | `backend/entrypoint.sh`, `docker-compose.yml` | Port gunicorn binds to inside the container. |
 | `BACKEND_RUN_MIGRATIONS` | No | `true` | `backend/entrypoint.sh` | Set to `false` to skip automatic migrations on container start. |
-| `BACKEND_CORS_ALLOWED_ORIGINS` | No | `""` (empty) | `backend/backend/settings.py` | Comma-separated list of origins allowed to make cross-site requests. |
+| `BACKEND_CORS_ALLOWED_ORIGINS` | No | `""` (empty) | `backend/backend/settings.py` | Comma-separated list of origins allowed to make cross-site requests. In docker-compose, set to `http://frontend:4321` if frontend SSR makes direct backend calls. For local dev: `http://localhost:8000,http://127.0.0.1:8000`. The variable name `BACKEND_CORS_ALLOWED_ORIGINS` is required — `CORS_ALLOWED_ORIGINS` alone will be ignored. |
 
 ---
 

@@ -30,10 +30,11 @@ const analyticsTag = getRequiredRuntimeEnv("PUBLIC_GTAG");
   <head>
     <!-- Google tag (gtag.js) -->
     <script
+      is:inline
       async
       src=`https://www.googletagmanager.com/gtag/js?id=${analyticsTag}`
     ></script>
-    <script define:vars={{ analyticsTag }}>
+    <script is:inline define:vars={{ analyticsTag }}>
       window.dataLayer = window.dataLayer || [];
       function gtag(...args) {
         dataLayer.push(args);
@@ -53,6 +54,7 @@ const analyticsTag = getRequiredRuntimeEnv("PUBLIC_GTAG");
     />
   </head><div id="fb-root"></div>
   <script
+    is:inline
     async
     defer
     crossorigin="anonymous"

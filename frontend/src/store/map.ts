@@ -78,7 +78,8 @@ export type REGION_META = {
 // Fetches all regions, keeping `id` as a string. JSON.parse would round the
 // huge ids, so they are quoted before parsing.
 export const fetchRegions = async (): Promise<REGION_META[]> => {
-  const response = await fetch(BACKEND_URL + `/regions/`);
+  const backendUrl = await getBackendUrl();
+  const response = await fetch(backendUrl + `/regions/`);
   const text = await response.text();
   const safe = text.replace(/("id":\s*)(\d+)/g, '$1"$2"');
   const regions = JSON.parse(safe);

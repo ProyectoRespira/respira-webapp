@@ -1,11 +1,11 @@
 import { defineAction } from "astro:actions";
 import { z } from "astro:schema";
 import { Resend } from "resend";
-import { CONTACT_MAIL } from "../data/constants";
 import { Email } from "../components/react/ContactEmail";
 import { getRequiredRuntimeEnv, normalizeSiteUrl } from "../runtime-env";
 
 const resend = new Resend(getRequiredRuntimeEnv("SMTP_KEY"));
+const CONTACT_MAIL = getRequiredRuntimeEnv("CONTACT_MAIL");
 
 const getSiteUrl = (): string => {
   const siteUrl = normalizeSiteUrl(getRequiredRuntimeEnv("SITE_URL"));
@@ -29,12 +29,13 @@ export type EmailInput = z.infer<typeof formInput>;
 
 const sendMail = async (values: EmailInput) => {
   const smtpSender = getRequiredRuntimeEnv("SMTP_SENDER");
+  const siteUrl = getSiteUrl();
 
   const { data, error } = await resend.emails.send({
     from: smtpSender,
     to: [CONTACT_MAIL],
     subject: `[Respira] ${values.motive}`,
-    react: Email(values),
+    react: Email({ ...values, siteUrl }),
   });
   if (error) throw new Error(error.message);
   return data;
@@ -43,6 +44,6 @@ export const server = {
   sendMail: defineAction({
     accept: "form",
     input: formInput,
-    handler: async (values) => sendMail(values),
+    handler: async (values: EmailInput) => sendMail(values),
   }),
 };
