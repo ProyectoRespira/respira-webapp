@@ -13,7 +13,9 @@ import { useClientTranslations } from "../../../i18n/client";
 
 const ShareModal = () => {
   const isOpen = useStore(isShareModalOpen);
-  const [siteUrl, setSiteUrl] = React.useState<string>("");
+  const [siteUrl, setSiteUrl] = React.useState<string>(() =>
+    typeof window !== "undefined" ? window.location.origin : "",
+  );
 
   React.useEffect(() => {
     getSiteUrl()

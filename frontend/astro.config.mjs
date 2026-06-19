@@ -10,6 +10,7 @@ import requestNanostores from "@inox-tools/request-nanostores";
 
 import { loadEnv } from "vite";
 const { SITE_URL } = loadEnv(process.env.NODE_ENV, process.cwd(), "");
+const OUTPUT_MODE = "server";
 
 // https://astro.build/config
 export default defineConfig({
@@ -47,7 +48,7 @@ export default defineConfig({
   // See https://docs.astro.build/en/guides/integrations-guide/sitemap/
   site: SITE_URL || "http://localhost:4321",
   base: "",
-  output: "server",
+  output: OUTPUT_MODE,
   trailingSlash: "ignore",
   srcDir: "./src",
   integrations: (() => {
@@ -61,7 +62,7 @@ export default defineConfig({
     // Only enable sitemap for non-SSR/static output builds. Enabling the
     // integration in `server` mode can cause the integration to receive
     // incomplete route information and crash during `astro build`.
-    if ("server" !== "server") {
+    if (OUTPUT_MODE !== "server") {
       list.push(sitemap());
     }
     return list;

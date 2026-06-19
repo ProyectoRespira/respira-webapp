@@ -37,7 +37,9 @@ export const Card = (props: CardProps) => {
   const loadingMean = useStore(loadingRegion);
   const loadingStns = useStore(loadingStations);
   const stationError = useStore(selectedStationError);
-  const [siteUrl, setSiteUrl] = React.useState<string>("");
+  const [siteUrl, setSiteUrl] = React.useState<string>(() =>
+    typeof window !== "undefined" ? window.location.origin : "",
+  );
 
   React.useEffect(() => {
     getSiteUrl()
