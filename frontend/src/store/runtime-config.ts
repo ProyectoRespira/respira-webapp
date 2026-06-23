@@ -23,7 +23,13 @@ let runtimeConfigPromise: Promise<RuntimeConfig> | undefined;
 
 const loadRuntimeConfig = async (): Promise<RuntimeConfig> => {
   if (typeof window === "undefined") {
-    return getFrontendRuntimeConfig();
+    // Server-side rendering: use internal backend URL
+    const config = getFrontendRuntimeConfig();
+    const internalBackendUrl = process.env.BACKEND_URL_INTERNAL;
+    if (internalBackendUrl) {
+      config.backendUrl = internalBackendUrl;
+    }
+    return config;
   }
 
   const response = await fetch("/runtime-config.json", {
