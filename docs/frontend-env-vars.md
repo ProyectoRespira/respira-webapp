@@ -19,6 +19,7 @@ Only public values required by browser code are exposed here.
 | `SITE_URL` | Yes | — | `frontend/src/runtime-env.ts`, `frontend/src/pages/runtime-config.json.ts`, `frontend/src/actions/index.ts` | Public canonical URL of the site. No trailing slash. Trailing slashes are stripped automatically. |
 | `PUBLIC_GTAG` | Yes | — | `frontend/src/runtime-env.ts`, `frontend/src/layouts/BaseLayout.astro` | Google Analytics measurement ID. |
 
+| `BACKEND_URL_INTERNAL` | No | — | `frontend/src/store/runtime-config.ts` | Backend URL for server-side rendering (Node.js). Must be absolute URL. Only used during SSR; not exposed to browser. In docker-compose: `http://backend:8000/api`. |
 ---
 
 ## White-Label / Branding Config
@@ -57,6 +58,8 @@ Read server-side in `frontend/src/actions/index.ts`. These values are never sent
 | `FRONTEND_PORT` | Yes | — | `frontend/Dockerfile` (`CMD`), `docker-compose.yml` | Port the Node.js SSR server listens on. Container startup fails explicitly if unset. |
 | `HOST` | No | `0.0.0.0` | `frontend/Dockerfile` (`ENV HOST`) | Network interface the server binds to. Set as a Dockerfile default; override only when needed. |
 
+| `BACKEND_URL_INTERNAL` | No | — | `frontend/src/store/runtime-config.ts` | Backend URL for server-side rendering. Only in `.env` or docker-compose; served via `/runtime-config.json` to browser. For docker-compose: `http://backend:8000/api`. |
+| `FRONTEND_PORT` | Yes | — | `frontend/Dockerfile` (`CMD`), `docker-compose.yml` | Port the Node.js SSR server listens on. Container startup fails explicitly if unset. |
 ---
 
 ## Build-Time Variables
@@ -72,6 +75,7 @@ Read server-side in `frontend/src/actions/index.ts`. These values are never sent
 | Variable | Root `.env.example` | `frontend/.env.example` |
 |---|---|---|
 | `BACKEND_URL` | ✓ | ✓ |
+| `BACKEND_URL_INTERNAL` | ✓ | — |
 | `PUBLIC_REGION_DEFAULT_ID` | ✓ | ✓ |
 | `SITE_URL` | ✓ | ✓ |
 | `PUBLIC_GTAG` | ✓ | ✓ |

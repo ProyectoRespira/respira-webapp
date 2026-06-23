@@ -81,7 +81,8 @@ MIDDLEWARE = [
 
 CORS_ORIGIN_ALLOW_ALL = False
 
-CORS_ORIGIN_WHITELIST = ["http://proyectorespira.net", "http://dev.proyectorespira.net"]
+# Use the environment variable instead of hardcoded whitelist
+# cors_allowed_origins is already defined above
 
 ROOT_URLCONF = "backend.urls"
 
