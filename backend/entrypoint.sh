@@ -18,7 +18,19 @@ chmod -R o+x /static;
 if [ "$(id -u)" -eq 0 ]; then
   chown -R "${APP_USER}:${APP_GROUP}" /static;
   exec gosu "${APP_USER}:${APP_GROUP}" \
-    gunicorn --bind :"${BACKEND_PORT:-8000}" --workers 4 backend.wsgi:application
+    gunicorn \
+      --bind :"${BACKEND_PORT:-8000}" \
+      --workers "${BACKEND_GUNICORN_WORKERS:-4}" \
+      --timeout "${BACKEND_GUNICORN_TIMEOUT:-30}" \
+      --max-requests "${BACKEND_GUNICORN_MAX_REQUESTS:-1000}" \
+      --max-requests-jitter "${BACKEND_GUNICORN_MAX_REQUESTS_JITTER:-100}" \
+      backend.wsgi:application
 fi
 
-exec gunicorn --bind :"${BACKEND_PORT:-8000}" --workers 4 backend.wsgi:application
+exec gunicorn \
+  --bind :"${BACKEND_PORT:-8000}" \
+  --workers "${BACKEND_GUNICORN_WORKERS:-4}" \
+  --timeout "${BACKEND_GUNICORN_TIMEOUT:-30}" \
+  --max-requests "${BACKEND_GUNICORN_MAX_REQUESTS:-1000}" \
+  --max-requests-jitter "${BACKEND_GUNICORN_MAX_REQUESTS_JITTER:-100}" \
+  backend.wsgi:application
