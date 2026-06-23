@@ -4,21 +4,22 @@ import Typography from "./atoms/Typography.astro";
 import AppleIcon from "../assets/icons/apple_icon.svg";
 import GooglePlayIcon from "../assets/icons/google_play_icon.svg";
 import AppPromo from "../assets/mk_respira.png";
-import { APP_STORE_URL, PLAY_STORE_URL } from "../data/constants";
 import { getLangFromLocals, useTranslations } from "../i18n/utils";
+import { getRuntimeConfig } from "../store/runtime-config";
 
 const t = useTranslations(getLangFromLocals(Astro.locals));
+const { appStoreUrl, playStoreUrl } = await getRuntimeConfig();
 
 const stores = [
   {
-    href: APP_STORE_URL,
+    href: appStoreUrl,
     icon: AppleIcon,
     alt: "Apple logo",
     label: t("app.download.appStoreLabel"),
     name: "App Store",
   },
   {
-    href: PLAY_STORE_URL,
+    href: playStoreUrl,
     icon: GooglePlayIcon,
     alt: "Google Play logo",
     label: t("app.download.playStoreLabel"),

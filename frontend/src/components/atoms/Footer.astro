@@ -4,22 +4,47 @@ export const prerender = false;
 import { Image } from "astro:assets";
 import { FOOTER_IMAGES, SOCIAL_MEDIA_IMAGES } from "../../data/images";
 import Typography from "./Typography.astro";
-import { CONTACT_MAIL, SLACK_URL } from "../../data/constants";
 import { FOOTER_MENU, type MenuItem } from "../../data/menu";
-import { BASE_URL } from "../../data/constants";
 import SlackIcon from "../../assets/icons/slack_icon.svg";
 import { getLangFromLocals, useTranslations } from "../../i18n/utils";
 import type { UIKey } from "../../i18n/ui";
+import { getRuntimeConfig } from "../../store/runtime-config";
 
 const lang = getLangFromLocals(Astro.locals);
 const t = useTranslations(lang);
+const {
+  siteUrl,
+  contactMail,
+  githubUrl,
+  slackUrl,
+  telegramUrl,
+  instagramUrl,
+  facebookUrl,
+} = await getRuntimeConfig();
 
-const getRoute = (route: string | MenuItem[]): string => {
+const getRoute = (route: string | MenuItem[], id?: string): string => {
   if (typeof route !== "string") {
     return "";
   }
-  return route.includes("https://") ? route : BASE_URL + route;
+  if (id === "github") {
+    return githubUrl;
+  }
+  return route.includes("https://") ? route : siteUrl + route;
 };
+
+const socialMediaImages = SOCIAL_MEDIA_IMAGES.map((image) => {
+  const links: Record<string, string> = {
+    "Telegram Icon": telegramUrl,
+    "Instagram Icon": instagramUrl,
+    "Facebook Icon": facebookUrl,
+    "Slack Icon": slackUrl,
+  };
+
+  return {
+    ...image,
+    link: links[image.alt],
+  };
+});
 
 // Maps footer menu item ids to their translation keys.
 const FOOTER_KEYS: Record<string, UIKey> = {
@@ -55,15 +80,15 @@ const footerLabel = (id: string, fallback: string): string =>
     <p class="text-white md:mt-4 mt-8">
       {t("footer.writeUs")}
       <a
-        href=`https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=${CONTACT_MAIL}`
-        target="_blank"><b class="text-lg"><u>{CONTACT_MAIL}</u></b></a
+        href=`https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=${contactMail}`
+        target="_blank"><b class="text-lg"><u>{contactMail}</u></b></a
       >
     </p>
 
     <div class="flex flex-row gap-1 text-center md:align-middle md:mt-4">
       <p class="text-white text-center">{t("footer.followUs")}</p>
       {
-        SOCIAL_MEDIA_IMAGES.map((img) => (
+        socialMediaImages.map((img) => (
           <a href={img.link} target="_blank">
             <Image alt={img.alt} src={img.path} class={img.class} />
           </a>
@@ -72,7 +97,7 @@ const footerLabel = (id: string, fallback: string): string =>
     </div>
 
     <a
-      href={SLACK_URL}
+      href={slackUrl}
       target="_blank"
       rel="noopener noreferrer"
       class="flex items-center gap-3 bg-green hover:bg-light_green transition-colors text-black rounded-xl px-5 py-3 w-fit mt-6"
@@ -97,7 +122,7 @@ const footerLabel = (id: string, fallback: string): string =>
                 {footerLabel(item.id, item.title)}
               </Typography>
               {item.route.map((i) => (
-                <a href={getRoute(i.route)}>
+                <a href={getRoute(i.route, i.id)}>
                   <p class="text-white font-sans text-lg pt-6">
                     {footerLabel(i.id, i.title)}
                   </p>
@@ -106,7 +131,7 @@ const footerLabel = (id: string, fallback: string): string =>
             </div>
           );
         } else {
-          <a href={getRoute(item.route)}>
+          <a href={getRoute(item.route, item.id)}>
             <p class="text-white font-sans text-lg pt-6">{item.title}</p>
           </a>;
         }
