@@ -21,14 +21,34 @@ const getRequiredRuntimeConfigField = (
 
 let runtimeConfigPromise: Promise<RuntimeConfig> | undefined;
 
+const removeTrailingSlashes = (value: string): string =>
+  value.replace(/\/+$/, "");
+
+const isAbsoluteHttpUrl = (value: string): boolean =>
+  /^https?:\/\//i.test(value);
+
+const resolveSsrBackendUrl = (backendUrl: string): string => {
+  const internalBackendUrl = (process.env.BACKEND_URL_INTERNAL || "").trim();
+  if (internalBackendUrl) {
+    return removeTrailingSlashes(internalBackendUrl);
+  }
+
+  if (isAbsoluteHttpUrl(backendUrl)) {
+    return removeTrailingSlashes(backendUrl);
+  }
+
+  const backendPort = (process.env.BACKEND_PORT || "8000").trim() || "8000";
+  const backendPath = backendUrl.startsWith("/")
+    ? backendUrl
+    : `/${backendUrl}`;
+  return removeTrailingSlashes(`http://backend:${backendPort}${backendPath}`);
+};
+
 const loadRuntimeConfig = async (): Promise<RuntimeConfig> => {
   if (typeof window === "undefined") {
-    // Server-side rendering: use internal backend URL
+    // Server-side rendering requires an absolute backend URL.
     const config = getFrontendRuntimeConfig();
-    const internalBackendUrl = process.env.BACKEND_URL_INTERNAL;
-    if (internalBackendUrl) {
-      config.backendUrl = internalBackendUrl;
-    }
+    config.backendUrl = resolveSsrBackendUrl(config.backendUrl);
     return config;
   }
 
