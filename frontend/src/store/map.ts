@@ -25,13 +25,26 @@ export type STATION_FORECAST = {
 };
 // Region ids exceed Number.MAX_SAFE_INTEGER, so they must stay strings
 // end-to-end — `Number(id)` rounds them and breaks the backend lookups.
-export const DEFAULT_REGION_ID = String(
-  import.meta.env.PUBLIC_REGION_DEFAULT_ID,
-);
+const buildDefaultRegionId = import.meta.env.PUBLIC_REGION_DEFAULT_ID;
+export const DEFAULT_REGION_ID =
+  typeof buildDefaultRegionId === "string" ? buildDefaultRegionId.trim() : "";
 
 // Currently selected region. Defaults to the configured region and may be
 // updated by geolocation detection or a manual change.
 export const selectedRegionId = atom<string>(DEFAULT_REGION_ID);
+
+export const getDefaultRegionId = async (): Promise<string> =>
+  DEFAULT_REGION_ID || (await getRegionDefaultId());
+
+const getActiveRegionId = async (regionId: string): Promise<string> => {
+  if (regionId.trim()) return regionId;
+
+  const defaultRegionId = await getDefaultRegionId();
+  if (!selectedRegionId.get().trim()) {
+    selectedRegionId.set(defaultRegionId);
+  }
+  return defaultRegionId;
+};
 
 export const setSelectedRegion = (id: string) => {
   selectedRegionId.set(id);
@@ -44,9 +57,9 @@ export const fetchRegion = async (regionId: string) => {
   loadingRegion.set(true);
   try {
     const backendUrl = await getBackendUrl();
-    const regionDefaultId = await getRegionDefaultId();
+    const activeRegionId = await getActiveRegionId(regionId);
     const response = await fetch(
-      backendUrl + `/map?entity=region&id=${regionDefaultId}`,
+      backendUrl + `/map?entity=region&id=${activeRegionId}`,
     );
     loadingRegion.set(false);
     return response.json();
@@ -130,12 +143,13 @@ export const fetchRegionMeta = async (
 ): Promise<REGION_META | undefined> => {
   loadingRegionMeta.set(true);
   try {
+    const activeRegionId = await getActiveRegionId(regionId);
     const regions = await fetchRegions();
     loadingRegionMeta.set(false);
     if (regions.length === 0) {
       return undefined;
     }
-    return regions.find((r) => r.id === regionId) ?? regions[0];
+    return regions.find((r) => r.id === activeRegionId) ?? regions[0];
   } catch {
     loadingRegionMeta.set(false);
     errorRegionMeta.set("There has been an error getting the region metadata.");

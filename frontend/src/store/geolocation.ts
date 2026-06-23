@@ -1,7 +1,7 @@
 import { atom } from "nanostores";
 import {
-  DEFAULT_REGION_ID,
   fetchRegions,
+  getDefaultRegionId,
   regionForCoords,
   selectedRegionId,
   setSelectedRegion,
@@ -50,7 +50,7 @@ export const detectNearestRegion = async (): Promise<void> => {
     const regions = await fetchRegions();
     const match = regionForCoords(regions, longitude, latitude);
 
-    const nextId = match?.id ?? DEFAULT_REGION_ID;
+    const nextId = match?.id ?? (await getDefaultRegionId());
     if (nextId !== selectedRegionId.get()) {
       setSelectedRegion(nextId);
     }
