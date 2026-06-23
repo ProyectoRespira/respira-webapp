@@ -31,6 +31,7 @@ export const menu: (MenuItem | MenuItemDropdown)[] = [
     id: "data",
     type: "dropdown",
   },
+  { title: "Únete a la red", route: "/unete", id: "join" },
 ];
 
 export const FOOTER_MENU: MenuItem[] = [
