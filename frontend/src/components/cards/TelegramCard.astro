@@ -3,20 +3,20 @@ import Typography from "../atoms/Typography.astro";
 import QR from "../../assets/logos/telegram_qr.svg";
 import Copy from "../../assets/icons/copy_icon.svg";
 import { Image } from "astro:assets";
-import { TELEGRAM_URL } from "../../data/constants";
 import { getLangFromLocals, useTranslations } from "../../i18n/utils";
+import { getRuntimeConfig } from "../../store/runtime-config";
 
 const t = useTranslations(getLangFromLocals(Astro.locals));
+const { telegramUrl } = await getRuntimeConfig();
 ---
 
-<script>
-  import { TELEGRAM_URL } from "../../data/constants";
+<script is:inline define:vars={{ telegramUrl }}>
   const buttons = document.querySelectorAll("button.copy");
 
   // Handle clicks on each button.
   buttons.forEach((button) => {
     button.addEventListener("click", () => {
-      navigator.clipboard.writeText(TELEGRAM_URL);
+      navigator.clipboard.writeText(telegramUrl);
     });
   });
 </script>
@@ -31,7 +31,7 @@ const t = useTranslations(getLangFromLocals(Astro.locals));
       class="bg-white rounded-lg border-lightgray border-2 p-3 flex flex-grow flex-row items-center"
     >
       <p class="text-lightgray font-sans flex-grow text-ellipsis">
-        {TELEGRAM_URL}
+        {telegramUrl}
       </p>
       <button class="copy">
         <Image src={Copy} alt="Copy icon" class="h-4" />

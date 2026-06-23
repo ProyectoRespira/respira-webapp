@@ -3,10 +3,11 @@ import Button from "../atoms/Button.astro";
 import Typography from "../atoms/Typography.astro";
 import X from "../../assets/logos/x.svg";
 import { Image } from "astro:assets";
-import { TWITTER_URL } from "../../data/constants";
 import { getLangFromLocals, useTranslations } from "../../i18n/utils";
+import { getRuntimeConfig } from "../../store/runtime-config";
 
 const t = useTranslations(getLangFromLocals(Astro.locals));
+const { twitterUrl, twitterHandle } = await getRuntimeConfig();
 ---
 
 <div
@@ -16,13 +17,13 @@ const t = useTranslations(getLangFromLocals(Astro.locals));
     <Typography variant="h3">{t("twitter.title")}</Typography>
     <Typography variant="p"
       >{t("twitter.descBefore")}
-      <b>@proyectorespirapy</b>
+      <b>{`@${twitterHandle}`}</b>
       {t("twitter.descAfter")}</Typography
     >
     <Button
       text={t("twitter.cta")}
       variant="void"
-      onclick=`window.open("${TWITTER_URL}","_blank","","")`
+      onclick=`window.open("${twitterUrl}","_blank","","")`
     />
   </div>
   <Image src={X} alt="X" class="p-8 w-40" />

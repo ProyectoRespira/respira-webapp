@@ -13,10 +13,11 @@ import GithubIcon from "../assets/logos/github_icon.svg";
 import Github from "../assets/logos/github.svg";
 import { TEAM } from "../data/team";
 import { ORGANIZATIONS } from "../data/images";
-import { GITHUB_URL } from "../data/constants";
 import { getLangFromLocals, useTranslations } from "../i18n/utils";
+import { getRuntimeConfig } from "../store/runtime-config";
 
 const t = useTranslations(getLangFromLocals(Astro.locals));
+const { githubUrl } = await getRuntimeConfig();
 ---
 
 <BaseLayout>
@@ -100,7 +101,7 @@ const t = useTranslations(getLangFromLocals(Astro.locals));
       <Button
         variant="color"
         text={t("about.openSource.cta")}
-        onclick=`window.open("${GITHUB_URL}","_blank","","")`
+        onclick=`window.open("${githubUrl}","_blank","","")`
         customClass="max-w-64"
       />
     </div>

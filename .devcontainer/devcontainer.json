@@ -1,0 +1,113 @@
+{
+	"name": "respirawebapp-devcontainer",
+	"image": "mcr.microsoft.com/devcontainers/base:noble",
+	"features": {
+		"ghcr.io/devcontainers/features/common-utils:2": {
+			"installZsh": true,
+			"configureZshAsDefaultShell": true,
+			"installOhMyZsh": true,
+			"installOhMyZshConfig": true,
+			"upgradePackages": true,
+			"installSsl": true,
+			"username": "respira",
+			"userUid": "automatic",
+			"userGid": "automatic"
+		},
+		"ghcr.io/devcontainers/features/copilot-cli:1": {
+			"version": "latest"
+		},
+		"ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+			"moby": true,
+			"installDockerBuildx": true,
+			"installDockerComposeSwitch": true,
+			"version": "latest",
+			"dockerDashComposeVersion": "latest"
+		},
+		"ghcr.io/devcontainers/features/github-cli:1": {
+			"installDirectlyFromGitHubRelease": true,
+			"version": "latest"
+		},
+		"ghcr.io/devcontainers/features/python:1": {
+			"installTools": true,
+			"version": "os-provided"
+		},
+		"ghcr.io/devcontainers-extra/features/corepack:1": {
+			"version": "latest"
+		},
+		"ghcr.io/devcontainers-extra/features/claude-code:2": {
+			"version": "latest"
+		},
+		"ghcr.io/devcontainers-extra/features/pre-commit:2": {
+			"version": "latest"
+		},
+		"ghcr.io/devcontainers-extra/features/uv:1": {
+			"version": "latest"
+		},
+		"ghcr.io/devcontainers-extra/features/zsh-plugins:0": {
+			"plugins": "ssh-agent npm",
+			"omzPlugins": "https://github.com/zsh-users/zsh-autosuggestions",
+			"username": "respira"
+		},
+		"ghcr.io/devcontainers-extra/features/ripgrep:1": {
+			"version": "latest"
+		},
+		"ghcr.io/devcontainers-extra/features/actionlint:1": {
+			"version": "latest"
+		}
+	},
+	"remoteUser": "respira",
+	"postCreateCommand": "(cd frontend && corepack install) && pre-commit install --install-hooks",
+	"postStartCommand": "cd frontend && corepack install",
+	"containerEnv": {
+		"HOST_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
+	},
+
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"editor.experimental.treeSitterTelemetry": false,
+				"telemetry.editStats.details.enabled": false,
+				"telemetry.editStats.enabled": false,
+				"telemetry.editStats.showDecorations": false,
+				"telemetry.editStats.showStatusBar": false,
+				"telemetry.feedback.enabled": false,
+				"docker.lsp.telemetry": "off",
+				"redhat.telemetry.enabled": false,
+				"editor.experimental.preferTreeSitter.css": false,
+				"editor.experimental.preferTreeSitter.ini": false,
+				"editor.experimental.preferTreeSitter.regex": false,
+				"editor.experimental.preferTreeSitter.typescript": false,
+				"terminal.integrated.defaultProfile.linux": "zsh",
+				"terminal.integrated.profiles.linux": {
+					"zsh": {
+						"path": "/usr/bin/zsh"
+					}
+				}
+			},
+			"extensions": [
+				"dbaeumer.vscode-eslint",
+				"docker.docker",
+				"esbenp.prettier-vscode",
+				"github.copilot",
+				"github.remotehub",
+				"github.vscode-github-actions",
+				"ms-azuretools.vscode-containers",
+				"ms-azuretools.vscode-docker",
+				"ms-vscode-remote.remote-containers",
+				"ms-vscode.remote-repositories",
+				"redhat.vscode-yaml",
+				"mikestead.dotenv",
+				"dotenv.dotenvx-vscode",
+				"opentofu.vscode-opentofu",
+				"EditorConfig.EditorConfig",
+				"gitguardian-secret-security.gitguardian",
+				"ms-ossdata.vscode-pgsql",
+				"TimHeuer.awesome-copilot",
+				"charliermarsh.ruff",
+				"xabikos.JavaScriptSnippets",
+				"Orta.vscode-jest",
+				"christian-kohler.npm-intellisense"
+			]
+		}
+	}
+}

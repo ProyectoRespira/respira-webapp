@@ -33,13 +33,6 @@ import Kids from "../assets/recommendations/kids.svg";
 import LungDisease from "../assets/recommendations/lung_disease.svg";
 import Older from "../assets/recommendations/older.svg";
 
-import {
-  INSTAGRAM_URL,
-  FACEBOOK_URL,
-  TELEGRAM_URL,
-  SLACK_URL,
-} from "./constants";
-
 import type { UIKey } from "../i18n/ui";
 
 export type Image = {
@@ -149,26 +142,22 @@ export const EXTERNAL_RESOURCES_IMAGES: (Image & Link)[] = [
   },
 ];
 
-export const SOCIAL_MEDIA_IMAGES: Omit<Image & Link, "text">[] = [
+export const SOCIAL_MEDIA_IMAGES: Image[] = [
   {
     alt: "Telegram Icon",
     path: Telegram,
-    link: TELEGRAM_URL,
   },
   {
     alt: "Instagram Icon",
     path: Instagram,
-    link: INSTAGRAM_URL,
   },
   {
     alt: "Facebook Icon",
     path: Facebook,
-    link: FACEBOOK_URL,
   },
   {
     alt: "Slack Icon",
     path: Slack,
-    link: SLACK_URL,
   },
 ];
 

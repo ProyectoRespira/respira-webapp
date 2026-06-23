@@ -43,6 +43,20 @@ python manage.py migrate api --fake-initial
 python manage.py runserver 0.0.0.0:8000
 ```
 
+## Quality checks
+
+From repository root:
+
+```bash
+pre-commit run mypy --all-files
+pre-commit run django-checks --all-files
+```
+
+Notes:
+
+- The `django-checks` hook uses `backend/.venv/bin/python`.
+- Typing dependencies for `mypy` are managed by pre-commit, not by `backend/requirements.txt`.
+
 ## Build and Deploy using Docker
 
 Without custom cert files:
