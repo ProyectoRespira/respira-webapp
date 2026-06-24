@@ -1,9 +1,11 @@
 ## 📌 Title
+
 **[Essential]**
 
 ---
 
 ## 🔍 Description
+
 **[Essential]**
 
 - Problem this solves:
@@ -17,6 +19,7 @@
 ---
 
 ## 🛠️ Changes Made
+
 **[Essential]**
 
 - [ ] New feature
@@ -27,11 +30,10 @@
 
 ### Details:
 
--
-
----
+- ***
 
 ## 🔗 Related Tickets
+
 **[Good to have]**
 
 Closes:
@@ -41,6 +43,7 @@ Related to:
 ---
 
 ## 🧪 Testing
+
 **[Optional but recommended]**
 
 ### Manual
@@ -57,11 +60,13 @@ Related to:
 ---
 
 ## 📸 Evidence (if applicable)
+
 **[Essential for frontend/UI changes]**
 
 ---
 
 ## ⚠️ Impact / Risks
+
 **[Optional]**
 
 - [ ] Breaking changes
@@ -70,9 +75,7 @@ Related to:
 
 ### Impact description:
 
--
-
----
+- ***
 
 ## 📚 Pre-Review Checklist
 
