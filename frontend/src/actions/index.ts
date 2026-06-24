@@ -1,10 +1,22 @@
 import { defineAction } from "astro:actions";
 import { z } from "astro:schema";
 import { Resend } from "resend";
-import { CONTACT_MAIL } from "../data/constants";
 import { Email } from "../components/react/ContactEmail";
 import { JoinEmail } from "../components/react/JoinNetworkEmail";
-const resend = new Resend(import.meta.env.SMTP_KEY);
+import { getRequiredRuntimeEnv, normalizeSiteUrl } from "../runtime-env";
+
+const resend = new Resend(getRequiredRuntimeEnv("SMTP_KEY"));
+const CONTACT_MAIL = getRequiredRuntimeEnv("CONTACT_MAIL");
+
+const getSiteUrl = (): string => {
+  const siteUrl = normalizeSiteUrl(getRequiredRuntimeEnv("SITE_URL"));
+
+  if (!siteUrl) {
+    throw new Error("Missing runtime SITE_URL in frontend container.");
+  }
+
+  return siteUrl;
+};
 
 const formInput = z.object({
   email: z.string().email(),
@@ -17,11 +29,14 @@ const formInput = z.object({
 export type EmailInput = z.infer<typeof formInput>;
 
 const sendMail = async (values: EmailInput) => {
+  const smtpSender = getRequiredRuntimeEnv("SMTP_SENDER");
+  const siteUrl = getSiteUrl();
+
   const { data, error } = await resend.emails.send({
-    from: import.meta.env.SMTP_SENDER,
+    from: smtpSender,
     to: [CONTACT_MAIL],
     subject: `[Respira] ${values.motive}`,
-    react: Email(values),
+    react: Email({ ...values, siteUrl }),
   });
   if (error) throw new Error(error.message);
   return data;
@@ -52,12 +67,15 @@ const joinInput = z.object({
 export type JoinInput = z.infer<typeof joinInput>;
 
 const sendJoinMail = async (values: JoinInput) => {
+  const smtpSender = getRequiredRuntimeEnv("SMTP_SENDER");
+  const siteUrl = getSiteUrl();
+
   const { data, error } = await resend.emails.send({
-    from: import.meta.env.SMTP_SENDER,
+    from: smtpSender,
     to: [CONTACT_MAIL],
     replyTo: values.email,
     subject: `[Respira] Únete a la red — ${values.name}`,
-    react: JoinEmail(values),
+    react: JoinEmail({ ...values, siteUrl }),
   });
   if (error) throw new Error(error.message);
   return data;
@@ -67,7 +85,7 @@ export const server = {
   sendMail: defineAction({
     accept: "form",
     input: formInput,
-    handler: async (values) => sendMail(values),
+    handler: async (values: EmailInput) => sendMail(values),
   }),
   joinNetwork: defineAction({
     accept: "form",

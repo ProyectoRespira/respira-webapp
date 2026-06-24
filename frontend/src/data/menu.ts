@@ -1,5 +1,3 @@
-import { GITHUB_URL } from "./constants";
-
 export type StationDropdownRoute = {
   baseRoute: string;
 };
@@ -51,7 +49,7 @@ export const FOOTER_MENU: MenuItem[] = [
       },
       {
         title: "Github",
-        route: GITHUB_URL,
+        route: "/github",
         id: "github",
       },
     ],

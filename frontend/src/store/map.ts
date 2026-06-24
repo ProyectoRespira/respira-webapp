@@ -1,6 +1,7 @@
 import { atom, computed, task, type Task } from "nanostores";
 import { isBackendAvailable } from "./store";
-import { BACKEND_URL, EXCLUDED_STATIONS } from "../data/constants";
+import { EXCLUDED_STATIONS } from "../data/constants";
+import { getBackendUrl, getRegionDefaultId } from "./runtime-config";
 
 export type FORECAST = {
   value: number;
@@ -24,13 +25,26 @@ export type STATION_FORECAST = {
 };
 // Region ids exceed Number.MAX_SAFE_INTEGER, so they must stay strings
 // end-to-end — `Number(id)` rounds them and breaks the backend lookups.
-export const DEFAULT_REGION_ID = String(
-  import.meta.env.PUBLIC_REGION_DEFAULT_ID,
-);
+const buildDefaultRegionId = import.meta.env.PUBLIC_REGION_DEFAULT_ID;
+export const DEFAULT_REGION_ID =
+  typeof buildDefaultRegionId === "string" ? buildDefaultRegionId.trim() : "";
 
 // Currently selected region. Defaults to the configured region and may be
 // updated by geolocation detection or a manual change.
 export const selectedRegionId = atom<string>(DEFAULT_REGION_ID);
+
+export const getDefaultRegionId = async (): Promise<string> =>
+  DEFAULT_REGION_ID || (await getRegionDefaultId());
+
+const getActiveRegionId = async (regionId: string): Promise<string> => {
+  if (regionId.trim()) return regionId;
+
+  const defaultRegionId = await getDefaultRegionId();
+  if (!selectedRegionId.get().trim()) {
+    selectedRegionId.set(defaultRegionId);
+  }
+  return defaultRegionId;
+};
 
 export const setSelectedRegion = (id: string) => {
   selectedRegionId.set(id);
@@ -42,8 +56,10 @@ export const loadingRegion = atom<boolean>(false);
 export const fetchRegion = async (regionId: string) => {
   loadingRegion.set(true);
   try {
+    const backendUrl = await getBackendUrl();
+    const activeRegionId = await getActiveRegionId(regionId);
     const response = await fetch(
-      BACKEND_URL + `/map?entity=region&id=${regionId}`,
+      backendUrl + `/map?entity=region&id=${activeRegionId}`,
     );
     loadingRegion.set(false);
     return response.json();
@@ -75,7 +91,8 @@ export type REGION_META = {
 // Fetches all regions, keeping `id` as a string. JSON.parse would round the
 // huge ids, so they are quoted before parsing.
 export const fetchRegions = async (): Promise<REGION_META[]> => {
-  const response = await fetch(BACKEND_URL + `/regions/`);
+  const backendUrl = await getBackendUrl();
+  const response = await fetch(backendUrl + `/regions/`);
   const text = await response.text();
   const safe = text.replace(/("id":\s*)(\d+)/g, '$1"$2"');
   const regions = JSON.parse(safe);
@@ -126,12 +143,13 @@ export const fetchRegionMeta = async (
 ): Promise<REGION_META | undefined> => {
   loadingRegionMeta.set(true);
   try {
+    const activeRegionId = await getActiveRegionId(regionId);
     const regions = await fetchRegions();
     loadingRegionMeta.set(false);
     if (regions.length === 0) {
       return undefined;
     }
-    return regions.find((r) => r.id === regionId) ?? regions[0];
+    return regions.find((r) => r.id === activeRegionId) ?? regions[0];
   } catch {
     loadingRegionMeta.set(false);
     errorRegionMeta.set("There has been an error getting the region metadata.");
@@ -156,9 +174,8 @@ export const loadingStations = atom<boolean>(false);
 export const fetchStations = async () => {
   loadingStations.set(true);
   try {
-    const stationsPromise = await fetch(
-      import.meta.env.PUBLIC_BACKEND_URL + `/stations`,
-    );
+    const backendUrl = await getBackendUrl();
+    const stationsPromise = await fetch(backendUrl + `/stations`);
     const s = await stationsPromise.json();
     const availableStations = s.filter(
       (v: STATION) => v.is_station_on && !EXCLUDED_STATIONS.includes(v.id),
@@ -187,7 +204,8 @@ export const stations = computed(
 
 export const fetchForecast = async (id: number) => {
   try {
-    const forecast = await fetch(BACKEND_URL + `/map?entity=station&id=${id}`);
+    const backendUrl = await getBackendUrl();
+    const forecast = await fetch(backendUrl + `/map?entity=station&id=${id}`);
     if (forecast.status !== 200) {
       return undefined;
     }

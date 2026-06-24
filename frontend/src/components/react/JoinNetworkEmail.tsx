@@ -12,7 +12,10 @@ import {
   Text,
 } from "@react-email/components";
 import type { JoinInput } from "../../actions/index";
-import { BASE_URL } from "../../data/constants";
+
+type JoinEmailProps = JoinInput & {
+  siteUrl: string;
+};
 
 const INTEREST_LABELS: Record<JoinInput["interestType"], string> = {
   institution: "Institución (Escuelas, Colegios, Universidades, Empresas)",
@@ -22,9 +25,17 @@ const INTEREST_LABELS: Record<JoinInput["interestType"], string> = {
   other: "Otro",
 };
 
-export function JoinEmail(props: JoinInput) {
-  const { name, email, phone, organization, city, department, interestType } =
-    props;
+export function JoinEmail(props: JoinEmailProps) {
+  const {
+    name,
+    email,
+    phone,
+    organization,
+    city,
+    department,
+    interestType,
+    siteUrl,
+  } = props;
   const message = props.message?.trim();
 
   return (
@@ -34,7 +45,7 @@ export function JoinEmail(props: JoinInput) {
       <Body style={main}>
         <Container style={container}>
           <Img
-            src={`${BASE_URL}/favicon.png`}
+            src={`${siteUrl}/favicon.png`}
             width="120"
             height="99"
             alt="Respira"

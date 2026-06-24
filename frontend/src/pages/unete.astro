@@ -4,7 +4,6 @@ import Footer from "../components/atoms/Footer.astro";
 import BackTop from "../components/atoms/BackTop.astro";
 import Typography from "../components/atoms/Typography.astro";
 import { PARAGUAY_DEPARTMENTS } from "../data/departments";
-import { BASE_URL } from "../data/constants";
 import { getLangFromLocals, useTranslations } from "../i18n/utils";
 
 const t = useTranslations(getLangFromLocals(Astro.locals));
@@ -137,7 +136,7 @@ const labelClass = "block text-sm font-semibold text-black mb-2";
   <section class="mx-auto max-w-[96rem] px-6 md:px-12 lg:px-16 py-10 md:py-16">
     <!-- Breadcrumb -->
     <nav class="text-sm mb-8" aria-label="breadcrumb">
-      <a href={BASE_URL} class="text-green underline underline-offset-2">
+      <a href="/" class="text-green underline underline-offset-2">
         {t("join.breadcrumb.home")}
       </a>
       <span class="text-lightgray mx-2">/</span>
