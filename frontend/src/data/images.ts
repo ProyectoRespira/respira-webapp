@@ -114,30 +114,32 @@ export const ORGANIZATIONS: Image[] = [
   },
 ];
 
-export const EXTERNAL_RESOURCES_IMAGES: (Image & Link)[] = [
+export const EXTERNAL_RESOURCES_IMAGES: (LabeledImage & {
+  link: string;
+})[] = [
   {
     alt: "EPA Logo",
     path: Epa,
-    text: "Guía de la calidad del aire. Agencia de Protección Ambiental de Estados Unidos",
+    labelKey: "resources.external.epa",
     link: "https://www.airnow.gov/sites/default/files/2018-05/air-quality-guide_ozone_SPA.pdf",
   },
   {
     alt: "Panamerican Health Organization Logo",
     path: Pho,
-    text: "(OPS) Organización Panamericana de la Salud",
+    labelKey: "resources.external.pho",
     link: "https://www.paho.org/es",
   },
 
   {
     alt: "World Health Organization Logo",
     path: Who,
-    text: "(OMS) Organización Mundial de la Salud",
+    labelKey: "resources.external.who",
     link: "https://www.who.int/es",
   },
   {
     alt: "Aire Libre Logo",
     path: AireLibre,
-    text: "Aire Libre",
+    labelKey: "resources.external.aireLibre",
     link: "https://airelib.re/",
   },
 ];
