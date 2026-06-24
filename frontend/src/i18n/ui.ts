@@ -105,7 +105,8 @@ const es = {
     "Los datos recolectados por esta red alimentan los datos de monitoreo y pronóstico de calidad del aire de Proyecto Respira, y han sido utilizados para realizar investigaciones de alto impacto sobre el problema de la calidad del aire en nuestra región.",
   "resources.research.title": "Investigaciones realizadas",
   "resources.external.title": "Recursos Externos",
-  "resources.external.epa": "Guía de la calidad del aire. Agencia de Protección Ambiental de Estados Unidos",
+  "resources.external.epa":
+    "Guía de la calidad del aire. Agencia de Protección Ambiental de Estados Unidos",
   "resources.external.pho": "(OPS) Organización Panamericana de la Salud",
   "resources.external.who": "(OMS) Organización Mundial de la Salud",
   "resources.external.aireLibre": "Aire Libre",
@@ -301,7 +302,8 @@ const en: Dictionary = {
     "The data collected by this network feeds the air quality monitoring and forecasting data of Proyecto Respira, and has been used to carry out high-impact research on the air quality problem in our region.",
   "resources.research.title": "Published research",
   "resources.external.title": "External Resources",
-  "resources.external.epa": "Air quality guide. United States Environmental Protection Agency",
+  "resources.external.epa":
+    "Air quality guide. United States Environmental Protection Agency",
   "resources.external.pho": "(PAHO) Pan American Health Organization",
   "resources.external.who": "(WHO) World Health Organization",
   "resources.external.aireLibre": "Aire Libre",
@@ -486,7 +488,8 @@ const pt: Dictionary = {
     "Os dados coletados por esta rede alimentam os dados de monitoramento e previsão da qualidade do ar do Proyecto Respira, e foram utilizados para realizar pesquisas de alto impacto sobre o problema da qualidade do ar em nossa região.",
   "resources.research.title": "Pesquisas realizadas",
   "resources.external.title": "Recursos Externos",
-  "resources.external.epa": "Guia da qualidade do ar. Agência de Proteção Ambiental dos Estados Unidos",
+  "resources.external.epa":
+    "Guia da qualidade do ar. Agência de Proteção Ambiental dos Estados Unidos",
   "resources.external.pho": "(OPAS) Organização Pan-Americana da Saúde",
   "resources.external.who": "(OMS) Organização Mundial da Saúde",
   "resources.external.aireLibre": "Aire Libre",
