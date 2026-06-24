@@ -198,7 +198,8 @@ const squaredDistanceToBbox = (
 ): number | undefined => {
   if (!bbox) return undefined;
   const parts = bbox.split(",").map((p) => Number(p.trim()));
-  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n))) return undefined;
+  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n)))
+    return undefined;
   const [minLon, minLat, maxLon, maxLat] = parts;
   // Closest point of the rectangle to (lon, lat); equals (lon, lat) when inside.
   const nearestLon = Math.min(Math.max(lon, minLon), maxLon);
