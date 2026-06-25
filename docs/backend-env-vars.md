@@ -62,6 +62,18 @@ All four are optional. Set only the ones your database provider requires.
 
 ---
 
+## Gunicorn Tuning (optional)
+
+| Variable | Required | Default | Where used | Notes |
+|---|---|---|---|---|
+| `BACKEND_GUNICORN_WORKERS` | No | `4` | `backend/entrypoint.sh` | Number of gunicorn worker processes. Rule of thumb: `2 × CPU cores + 1`. Reduce to `2` on low-memory servers (≤1GB RAM). |
+| `BACKEND_GUNICORN_TIMEOUT` | No | `30` | `backend/entrypoint.sh` | Seconds before a worker is killed and restarted. Increase if endpoints are slow due to remote DB latency. |
+| `BACKEND_GUNICORN_MAX_REQUESTS` | No | `1000` | `backend/entrypoint.sh` | Worker is recycled after serving this many requests, preventing memory leaks. |
+| `BACKEND_GUNICORN_MAX_REQUESTS_JITTER` | No | `100` | `backend/entrypoint.sh` | Random jitter added to `MAX_REQUESTS` so all workers don't restart simultaneously. |
+| `BACKEND_APP_GROUP` | No | `appgroup` | `backend/entrypoint.sh` | OS group gunicorn drops privileges to. Only used when container starts as root. |
+
+---
+
 ## Model Column Overrides (optional)
 
 Override these only if your database schema uses different column names than the defaults.

@@ -2,7 +2,8 @@ import { atom } from "nanostores";
 import {
   fetchRegions,
   getDefaultRegionId,
-  regionForCoords,
+  nearestRegion,
+  rememberRegionId,
   selectedRegionId,
   setSelectedRegion,
 } from "./map";
@@ -13,6 +14,7 @@ export const regionManuallySet = atom<boolean>(false);
 
 export const selectRegionManually = (id: string) => {
   regionManuallySet.set(true);
+  rememberRegionId(id);
   setSelectedRegion(id);
 };
 
@@ -48,9 +50,12 @@ export const detectNearestRegion = async (): Promise<void> => {
 
     const { latitude, longitude } = position.coords;
     const regions = await fetchRegions();
-    const match = regionForCoords(regions, longitude, latitude);
+    const match = nearestRegion(regions, longitude, latitude);
 
     const nextId = match?.id ?? (await getDefaultRegionId());
+    // Remember it so the next reload lands here directly, even when the region
+    // is unchanged this time.
+    rememberRegionId(nextId);
     if (nextId !== selectedRegionId.get()) {
       setSelectedRegion(nextId);
     }

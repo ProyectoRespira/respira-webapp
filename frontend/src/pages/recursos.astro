@@ -73,7 +73,7 @@ const t = useTranslations(getLangFromLocals(Astro.locals));
               target="_blank"
             >
               <Typography variant="label" customClass="underline">
-                {resource.text}
+                {t(resource.labelKey)}
               </Typography>
             </a>
           </>

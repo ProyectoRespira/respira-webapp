@@ -29,9 +29,54 @@ const buildDefaultRegionId = import.meta.env.PUBLIC_REGION_DEFAULT_ID;
 export const DEFAULT_REGION_ID =
   typeof buildDefaultRegionId === "string" ? buildDefaultRegionId.trim() : "";
 
-// Currently selected region. Defaults to the configured region and may be
-// updated by geolocation detection or a manual change.
-export const selectedRegionId = atom<string>(DEFAULT_REGION_ID);
+// Remembers the user's region across reloads so a returning visitor lands
+// directly on their region instead of the configured default. Only the
+// geolocation result and explicit manual choices are stored here — not map
+// panning — so the remembered region stays the user's "home" region.
+//
+// This is only a seed for the first paint, never a pin: live geolocation runs
+// on every load and overrides it (gliding to the new region and re-saving), so
+// a user who changes location is moved to the correct region. The stored value
+// only matters when geolocation is unavailable, and it expires after the TTL so
+// a long-absent visitor who may have moved doesn't open on a stale region.
+const REGION_STORAGE_KEY = "respira:last-region";
+const REGION_MEMORY_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+const getStoredRegionId = (): string => {
+  if (typeof localStorage === "undefined") return "";
+  try {
+    const raw = localStorage.getItem(REGION_STORAGE_KEY);
+    if (!raw) return "";
+    const { id, ts } = JSON.parse(raw) as { id?: unknown; ts?: unknown };
+    if (typeof id !== "string" || !id.trim()) return "";
+    if (typeof ts !== "number" || Date.now() - ts > REGION_MEMORY_TTL_MS) {
+      return "";
+    }
+    return id.trim();
+  } catch {
+    return "";
+  }
+};
+
+export const rememberRegionId = (id: string): void => {
+  if (typeof localStorage === "undefined" || !id.trim()) return;
+  try {
+    localStorage.setItem(
+      REGION_STORAGE_KEY,
+      JSON.stringify({ id, ts: Date.now() }),
+    );
+  } catch {
+    // Storage unavailable (private mode, quota) — just fall back next load.
+  }
+};
+
+// Currently selected region. Seeds from the last remembered region so a reload
+// lands on the user's region with no flash of the default; otherwise the
+// configured default. May be updated by geolocation detection or a manual
+// change.
+export const selectedRegionId = atom<string>(
+  getStoredRegionId() || DEFAULT_REGION_ID,
+);
 
 export const getDefaultRegionId = async (): Promise<string> =>
   DEFAULT_REGION_ID || (await getRegionDefaultId());
@@ -134,6 +179,58 @@ export const regionForCoords = (
   lat: number,
 ): REGION_META | undefined =>
   regions.find((r) => isInsideBbox(r.bbox, lon, lat));
+
+// A located point farther than this (in degrees, ~55 km) from every region's
+// bbox is treated as "not near any region" so the default is used. Wide enough
+// to absorb slightly miscalibrated bboxes — e.g. a city center that sits just
+// outside its own rectangle — but narrow enough that someone in another country
+// isn't pulled into a Paraguayan region.
+const MAX_NEAREST_REGION_DEGREES = 0.5;
+
+// Squared distance from a point to a bbox rectangle, 0 when inside. Longitude is
+// scaled by cos(latitude) so a degree of longitude and a degree of latitude are
+// roughly the same real distance at Paraguay's latitudes. Returns undefined for
+// an unusable bbox.
+const squaredDistanceToBbox = (
+  bbox: string | null,
+  lon: number,
+  lat: number,
+): number | undefined => {
+  if (!bbox) return undefined;
+  const parts = bbox.split(",").map((p) => Number(p.trim()));
+  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n)))
+    return undefined;
+  const [minLon, minLat, maxLon, maxLat] = parts;
+  // Closest point of the rectangle to (lon, lat); equals (lon, lat) when inside.
+  const nearestLon = Math.min(Math.max(lon, minLon), maxLon);
+  const nearestLat = Math.min(Math.max(lat, minLat), maxLat);
+  const lonScale = Math.cos((lat * Math.PI) / 180);
+  const dLon = (lon - nearestLon) * lonScale;
+  const dLat = lat - nearestLat;
+  return dLon * dLon + dLat * dLat;
+};
+
+// Returns the region whose bbox is closest to the point — the region containing
+// it (distance 0) when there is one, otherwise the nearest within
+// MAX_NEAREST_REGION_DEGREES. Used for geolocation so a slightly miscalibrated
+// bbox still resolves to the right region instead of silently falling back.
+export const nearestRegion = (
+  regions: REGION_META[],
+  lon: number,
+  lat: number,
+): REGION_META | undefined => {
+  let best: REGION_META | undefined;
+  let bestDistance = MAX_NEAREST_REGION_DEGREES * MAX_NEAREST_REGION_DEGREES;
+  for (const r of regions) {
+    const distance = squaredDistanceToBbox(r.bbox, lon, lat);
+    if (distance === undefined) continue;
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = r;
+    }
+  }
+  return best;
+};
 
 export const errorRegionMeta = atom<string | undefined>(undefined);
 export const loadingRegionMeta = atom<boolean>(false);
