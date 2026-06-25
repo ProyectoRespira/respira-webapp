@@ -18,7 +18,7 @@
 #   Example: SKIP=ruff-check,mypy git commit -m "WIP"
 #   Multiple: SKIP=hook1,hook2,hook3 git commit -m "message"
 
-minimum_pre_commit_version: '4.6.0'
+minimum_pre_commit_version: "4.6.0"
 default_stages: [pre-commit]
 
 repos:
@@ -27,7 +27,7 @@ repos:
     rev: v6.0.0
     hooks:
       - id: check-yaml
-        args: ['--unsafe']
+        args: ["--unsafe"]
       - id: check-json
       - id: end-of-file-fixer
       - id: trailing-whitespace

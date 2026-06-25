@@ -13,5 +13,5 @@ queries:
 # Exclude paths from CodeQL analysis to improve performance and reduce false positives
 # Documentation-related files are unlikely to contain code vulnerabilities
 paths-ignore:
-  - '**/*.md'              # Exclude all Markdown documentation files
-  - 'docs/**'             # Exclude documentation directory
+  - "**/*.md" # Exclude all Markdown documentation files
+  - "docs/**" # Exclude documentation directory

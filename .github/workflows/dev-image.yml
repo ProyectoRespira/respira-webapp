@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Custom tag for dev image publish (valid Docker tag format)'
+        description: "Custom tag for dev image publish (valid Docker tag format)"
         required: true
         type: string
-        default: 'dev-manual'
+        default: "dev-manual"
 
 permissions:
   contents: read
