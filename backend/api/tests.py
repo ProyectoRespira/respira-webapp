@@ -210,6 +210,35 @@ class BackendEndpointTests(TestCase):
         ids = [station["id"] for station in response.json()]
         self.assertEqual(ids, sorted(ids))
 
+    def test_station_list_excludes_stations_without_coordinates(self):
+        no_coords_station = Stations.objects.create(
+            id=999,
+            name="Respira: Encarnacion",
+            region=self.region,
+            latitude=None,
+            longitude=None,
+            is_station_on=True,
+            is_pattern_station=False,
+        )
+        StationReadingsGold.objects.create(
+            station=no_coords_station,
+            date_utc=datetime(2026, 3, 31, 12, 0, tzinfo=timezone.utc),
+            aqi_pm2_5=38.0,
+        )
+
+        response = self.client.get(reverse("stations-list"))
+
+        self.assertEqual(response.status_code, 200)
+        ids = [station["id"] for station in response.json()]
+        self.assertNotIn(no_coords_station.id, ids)
+        self.assertTrue(
+            all(
+                station["coordinates"][0] is not None
+                and station["coordinates"][1] is not None
+                for station in response.json()
+            )
+        )
+
     def test_station_map_returns_station_specific_forecasts(self):
         response = self.client.get(
             reverse("map"), {"entity": "station", "id": self.station.id}
