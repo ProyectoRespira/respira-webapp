@@ -6,6 +6,9 @@ import TwitterCard from "../components/cards/TwitterCard.astro";
 import TelegramCard from "../components/cards/TelegramCard.astro";
 import Typography from "../components/atoms/Typography.astro";
 import Button from "../components/atoms/Button.astro";
+import { getLangFromLocals, useTranslations } from "../i18n/utils";
+
+const t = useTranslations(getLangFromLocals(Astro.locals));
 ---
 
 <script>
@@ -23,43 +26,47 @@ import Button from "../components/atoms/Button.astro";
     errorMsg?.classList.add("hidden");
 
     const formData = new FormData(form);
-    const { error } = await actions.sendMail(formData);
+    const { error, data: responseData } = await actions.sendMail(formData);
 
     if (error) {
       errorMsg?.classList.remove("hidden");
-      console.error({ error });
+      console.error(error);
     } else {
       successMsg?.classList.remove("hidden");
       form.reset();
     }
+
     if (submitBtn) submitBtn.disabled = false;
+    console.log(responseData);
   });
 </script>
 
 <BaseLayout>
   <section class="flex flex-col md:flex-row px-16 p-20">
     <div class="md:w-1/2">
-      <Typography variant="h2">Contactános</Typography>
-      <Typography variant="p"
-        >Estamos felices de que nos quieras enviar un saludo una consulta por
-        datos o algún mail en particular.
-      </Typography>
+      <Typography variant="h2">{t("contact.title")}</Typography>
+      <Typography variant="p">{t("contact.subtitle")}</Typography>
       <div class="md:mr-8 gap-2 flex flex-col my-8">
-        <form class="md:mr-8 gap-2 flex flex-col my-8" id="contacto">
+        <form
+          class="md:mr-8 gap-2 flex flex-col my-8"
+          id="contacto"
+          data-error-msg={t("contact.errorAlert")}
+          data-success-msg={t("contact.successAlert")}
+        >
           <div class="mb-4 flex flex-col md:flex-row gap-4">
             <div class="w-full">
               <label
                 class="block text-gray-700 text-sm font-bold mb-2"
                 for="name"
               >
-                Nombre*
+                {t("contact.name")}*
               </label>
               <input
                 class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                 id="name"
                 name="name"
                 type="text"
-                placeholder="Nombre"
+                placeholder={t("contact.namePlaceholder")}
                 required
               />
             </div>
@@ -68,36 +75,33 @@ import Button from "../components/atoms/Button.astro";
                 class="block text-gray-700 text-sm font-bold mb-2"
                 for="lastname"
               >
-                Apellido
+                {t("contact.lastname")}
               </label>
               <input
                 class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                 id="lastname"
                 type="text"
                 name="lastname"
-                placeholder="Apellido"
+                placeholder={t("contact.lastnamePlaceholder")}
               />
             </div>
           </div>
-          <label
-            class="block text-gray-700 text-sm font-bold mb-2"
-            for="lastname"
-          >
-            Correo*
+          <label class="block text-gray-700 text-sm font-bold mb-2" for="email">
+            {t("contact.email")}*
           </label>
           <input
             class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
             id="email"
             type="email"
             name="email"
-            placeholder="Correo"
+            placeholder={t("contact.emailPlaceholder")}
             required
           />
           <label
             class="block text-gray-700 text-sm font-bold mb-2"
             for="motive"
           >
-            Motivo*
+            {t("contact.motive")}*
           </label>
           <div class="relative">
             <select
@@ -106,10 +110,11 @@ import Button from "../components/atoms/Button.astro";
               required
               name="motive"
             >
-              <option>Solicitar datos de la red</option>
-              <option>Colaboración en investigación</option>
-              <option>Qué hacer en caso de AQI muy altos</option>
-              <option>Pedido sobre información de Salud </option>
+              <option>{t("contact.motive.data")}</option>
+              <option>{t("contact.motive.research")}</option>
+              <option>{t("contact.motive.internship")}</option>
+              <option>{t("contact.motive.highAqi")}</option>
+              <option>{t("contact.motive.health")}</option>
             </select>
             <div
               class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700"
@@ -128,33 +133,37 @@ import Button from "../components/atoms/Button.astro";
             class="block text-gray-700 text-sm font-bold mb-2"
             for="message"
           >
-            Mensaje*
+            {t("contact.message")}*
           </label>
           <textarea
             class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
             id="message"
-            placeholder="Escribe tu mensaje..."
+            placeholder={t("contact.messagePlaceholder")}
             required
             name="message"
             maxlength="800"
             rows="8"></textarea>
           <p class="text-[#FF18DA] text-xs">
-            *Máximo número de carácteres es 800
+            {t("contact.maxChars")}
           </p>
           <p
             id="form-success"
             class="hidden text-green-600 text-sm font-medium mt-2"
           >
-            ¡Mensaje enviado! Nos pondremos en contacto pronto.
+            {t("contact.successAlert")}
           </p>
           <p
             id="form-error"
             class="hidden text-red-600 text-sm font-medium mt-2"
           >
-            Hubo un error al enviar el mensaje. Por favor intentá de nuevo.
+            {t("contact.errorAlert")}
           </p>
           <div class="w-full mt-4">
-            <Button text="Enviar" variant="color" id={"form-button"} />
+            <Button
+              text={t("contact.submit")}
+              variant="color"
+              id={"form-button"}
+            />
           </div>
         </form>
       </div>

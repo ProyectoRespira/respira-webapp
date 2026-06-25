@@ -1,5 +1,3 @@
-import Image from "astro/components/Image.astro";
-
 import Heart from "../assets/icons/heart_icon.svg";
 import Lung from "../assets/icons/lung_icon.svg";
 import Flower from "../assets/icons/flower_icon.svg";
@@ -8,6 +6,7 @@ import Medicine from "../assets/icons/medicine_icon.svg";
 import Facebook from "../assets/icons/facebook_icon.svg";
 import Instagram from "../assets/icons/instagram_icon.svg";
 import Telegram from "../assets/icons/telegram_icon.svg";
+import Slack from "../assets/icons/slack_icon.svg";
 
 import Fiuna from "../assets/logos/fiuna.svg";
 import Mozilla from "../assets/logos/mozilla.svg";
@@ -32,12 +31,16 @@ import Kids from "../assets/recommendations/kids.svg";
 import LungDisease from "../assets/recommendations/lung_disease.svg";
 import Older from "../assets/recommendations/older.svg";
 
-import { INSTAGRAM_URL, FACEBOOK_URL, TELEGRAM_URL } from "./constants";
+import type { UIKey } from "../i18n/ui";
 
 export type Image = {
   alt: string;
   path: ImageMetadata;
   class?: string;
+};
+
+export type LabeledImage = Image & {
+  labelKey: UIKey;
 };
 
 export type Link = {
@@ -109,75 +112,84 @@ export const ORGANIZATIONS: Image[] = [
   },
 ];
 
-export const EXTERNAL_RESOURCES_IMAGES: (Image & Link)[] = [
+export const EXTERNAL_RESOURCES_IMAGES: (LabeledImage & {
+  link: string;
+})[] = [
   {
     alt: "EPA Logo",
     path: Epa,
-    text: "Guía de la calidad del aire. Agencia de Protección Ambiental de Estados Unidos",
+    labelKey: "resources.external.epa",
     link: "https://www.airnow.gov/sites/default/files/2018-05/air-quality-guide_ozone_SPA.pdf",
   },
   {
     alt: "Panamerican Health Organization Logo",
     path: Pho,
-    text: "(OPS) Organización Panamericana de la Salud",
+    labelKey: "resources.external.pho",
     link: "https://www.paho.org/es",
   },
 
   {
     alt: "World Health Organization Logo",
     path: Who,
-    text: "(OMS) Organización Mundial de la Salud",
+    labelKey: "resources.external.who",
     link: "https://www.who.int/es",
   },
   {
     alt: "Aire Libre Logo",
     path: AireLibre,
-    text: "Aire Libre",
+    labelKey: "resources.external.aireLibre",
     link: "https://airelib.re/",
   },
 ];
 
-export const SOCIAL_MEDIA_IMAGES: Omit<Image & Link, "text">[] = [
+export const SOCIAL_MEDIA_IMAGES: Image[] = [
   {
     alt: "Telegram Icon",
     path: Telegram,
-    link: TELEGRAM_URL,
   },
   {
     alt: "Instagram Icon",
     path: Instagram,
-    link: INSTAGRAM_URL,
   },
   {
     alt: "Facebook Icon",
     path: Facebook,
-    link: FACEBOOK_URL,
+  },
+  {
+    alt: "Slack Icon",
+    path: Slack,
   },
 ];
 
-export const RECOMMENDATIONS_IMAGES: Image[] = [
+export const RECOMMENDATIONS_IMAGES: LabeledImage[] = [
   {
-    alt: "recommendations",
+    alt: "Older adults",
     path: Older,
+    labelKey: "recommendations.group.older",
   },
   {
-    alt: "recommendations",
+    alt: "People with heart conditions",
     path: HeartCondition,
+    labelKey: "recommendations.group.heartCondition",
   },
   {
-    alt: "recommendations",
+    alt: "Kids",
     path: Kids,
+    labelKey: "recommendations.group.kids",
   },
   {
-    alt: "recommendations",
+    alt: "People with lung disease",
     path: LungDisease,
+    labelKey: "recommendations.group.lungDisease",
   },
   {
-    alt: "recommendations",
+    alt: "Babies and pregnant people",
     path: Babies,
+    labelKey: "recommendations.group.babies",
   },
   {
-    alt: "recommendations",
+    alt: "People with diabetes",
     path: Diabetes,
+    labelKey: "recommendations.group.diabetes",
   },
 ];

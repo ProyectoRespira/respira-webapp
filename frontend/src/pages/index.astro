@@ -11,6 +11,9 @@ import { HOME_IMAGES } from "../data/images";
 import BackTop from "../components/atoms/BackTop.astro";
 import Typography from "../components/atoms/Typography.astro";
 import AppDownload from "../components/AppDownload.astro";
+import { getLangFromLocals, useTranslations } from "../i18n/utils";
+
+const t = useTranslations(getLangFromLocals(Astro.locals));
 ---
 
 <script>
@@ -30,20 +33,9 @@ import AppDownload from "../components/AppDownload.astro";
   <div class="md:absolute top-0 w-full md:w-1/2 pointer-events-none">
     <Card />
     <div class="hidden px-10 mt-16 space-y-4 md:pr-20 md:block">
-      <Typography variant="p">
-        La contaminación por partículas puede ocasionar problemas de salud
-        graves, como ataques de asma, ataques cardíacos, derrames cerebrales y
-        una muerte temprana.
-      </Typography>
-      <Typography variant="p">
-        La contaminación por partículas puede ser un problema en cualquier
-        momento del año.
-      </Typography>
-      <Typography variant="p">
-        ¡Puede reducir la exposición a la contaminación y aún hacer ejercicio!
-        Utilice los pronósticos diarios del Índice de Calidad del Aire (AQI) de
-        esta web para planear sus actividades al aire libre.
-      </Typography>
+      <Typography variant="p">{t("home.intro.particles")}</Typography>
+      <Typography variant="p">{t("home.intro.anytime")}</Typography>
+      <Typography variant="p">{t("home.intro.forecast")}</Typography>
       <div class="flex flex-row w-full justify-between p-4 mt-16 px-14 mt-8">
         {
           HOME_IMAGES.map((image) => (
@@ -56,17 +48,17 @@ import AppDownload from "../components/AppDownload.astro";
   <div class="w-full flex flex-col md:flex-row p-8 md:p-12">
     <div class="md:w-1/2 hidden md:block"></div>
     <div class="md:w-1/2">
-      <Typography variant="h1" color="gray"
-        >Índice de calidad del aire (AQI)</Typography
-      >
+      <Typography variant="h1" color="gray">{t("home.aqi.title")}</Typography>
       <p class="mt-2">
         <Link
           href="https://www.airnow.gov/sites/default/files/2018-05/air-quality-guide_particle_SPA.pdf"
-          text="Via fuente"
+          text={t("home.aqi.source")}
         />
       </p>
-      <a class="modal cursor-pointer block text-right pt-8">
-        <p class="font-bold text-md">Recomendaciones por nivel</p>
+      <a class="modal">
+        <p class="font-bold text-md text-right mt-4">
+          {t("home.recommendations")}
+        </p>
       </a>
       <div class="flex flex-col space-y-3 h-full pt-4">
         {AQI.map((aqi) => <AQICard card={aqi} variant="full" />)}

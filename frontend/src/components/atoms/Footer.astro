@@ -4,23 +4,70 @@ export const prerender = false;
 import { Image } from "astro:assets";
 import { FOOTER_IMAGES, SOCIAL_MEDIA_IMAGES } from "../../data/images";
 import Typography from "./Typography.astro";
-import { CONTACT_MAIL } from "../../data/constants";
 import { FOOTER_MENU, type MenuItem } from "../../data/menu";
-import { BASE_URL } from "../../data/constants";
+import SlackIcon from "../../assets/icons/slack_icon.svg";
+import { getLangFromLocals, useTranslations } from "../../i18n/utils";
+import type { UIKey } from "../../i18n/ui";
+import { getRuntimeConfig } from "../../store/runtime-config";
 
-const getRoute = (route: string | MenuItem[]): string => {
+const lang = getLangFromLocals(Astro.locals);
+const t = useTranslations(lang);
+const {
+  siteUrl,
+  contactMail,
+  githubUrl,
+  slackUrl,
+  telegramUrl,
+  instagramUrl,
+  facebookUrl,
+} = await getRuntimeConfig();
+
+const getRoute = (route: string | MenuItem[], id?: string): string => {
   if (typeof route !== "string") {
     return "";
   }
-  return route.includes("https://") ? route : BASE_URL + route;
+  if (id === "github") {
+    return githubUrl;
+  }
+  return route.includes("https://") ? route : siteUrl + route;
 };
+
+const socialMediaImages = SOCIAL_MEDIA_IMAGES.map((image) => {
+  const links: Record<string, string> = {
+    "Telegram Icon": telegramUrl,
+    "Instagram Icon": instagramUrl,
+    "Facebook Icon": facebookUrl,
+    "Slack Icon": slackUrl,
+  };
+
+  return {
+    ...image,
+    link: links[image.alt],
+  };
+});
+
+// Maps footer menu item ids to their translation keys.
+const FOOTER_KEYS: Record<string, UIKey> = {
+  "resource-menu": "footer.resources",
+  "project-menu": "footer.project",
+  map: "footer.resources.map",
+  research: "footer.resources.research",
+  github: "footer.resources.github",
+  us: "footer.project.about",
+  contact: "footer.project.contact",
+};
+
+const footerLabel = (id: string, fallback: string): string =>
+  FOOTER_KEYS[id] ? t(FOOTER_KEYS[id]) : fallback;
 ---
 
 <div
   class="bg-black h-auto w-full flex md:flex-row flex-col-reverse md:p-20 lg:p-36 p-12"
 >
   <div class="flex flex-col w-full lg:mr-44 md:mr-16">
-    <p class="text-white text-xl font-bold font-serif">Una colaboración de</p>
+    <p class="text-white text-xl font-bold font-serif">
+      {t("footer.collaboration")}
+    </p>
     <div class="flex flex-wrap items-center gap-6 md:mt-8">
       {
         FOOTER_IMAGES.map((image) => (
@@ -31,22 +78,33 @@ const getRoute = (route: string | MenuItem[]): string => {
       }
     </div>
     <p class="text-white md:mt-4 mt-8">
-      Escribinos a <a
-        href=`https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=${CONTACT_MAIL}`
-        target="_blank"><b class="text-lg"><u>{CONTACT_MAIL}</u></b></a
+      {t("footer.writeUs")}
+      <a
+        href=`https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=${contactMail}`
+        target="_blank"><b class="text-lg"><u>{contactMail}</u></b></a
       >
     </p>
 
     <div class="flex flex-row gap-1 text-center md:align-middle md:mt-4">
-      <p class="text-white text-center">Seguinos en</p>
+      <p class="text-white text-center">{t("footer.followUs")}</p>
       {
-        SOCIAL_MEDIA_IMAGES.map((img) => (
+        socialMediaImages.map((img) => (
           <a href={img.link} target="_blank">
             <Image alt={img.alt} src={img.path} class={img.class} />
           </a>
         ))
       }
     </div>
+
+    <a
+      href={slackUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      class="flex items-center gap-3 bg-green hover:bg-light_green transition-colors text-black rounded-xl px-5 py-3 w-fit mt-6"
+    >
+      <Image alt="Slack" src={SlackIcon} class="h-6 w-auto" />
+      <span class="font-sans font-semibold">{t("footer.joinSlack")}</span>
+    </a>
   </div>
   <div class="grid w-full md:grid-cols-2 py-8 lg:gap-4 gap-3">
     {
@@ -61,17 +119,19 @@ const getRoute = (route: string | MenuItem[]): string => {
                 variant="h4"
                 customClass="text-white opacity-70 text-xl"
               >
-                {item.title}
+                {footerLabel(item.id, item.title)}
               </Typography>
               {item.route.map((i) => (
-                <a href={getRoute(i.route)}>
-                  <p class="text-white font-sans text-lg pt-6">{i.title}</p>
+                <a href={getRoute(i.route, i.id)}>
+                  <p class="text-white font-sans text-lg pt-6">
+                    {footerLabel(i.id, i.title)}
+                  </p>
                 </a>
               ))}
             </div>
           );
         } else {
-          <a href={getRoute(item.route)}>
+          <a href={getRoute(item.route, item.id)}>
             <p class="text-white font-sans text-lg pt-6">{item.title}</p>
           </a>;
         }

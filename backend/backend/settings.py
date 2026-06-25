@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 import os
 from dotenv import load_dotenv
 from pathlib import Path
+from typing import Any
 
 load_dotenv()
 
@@ -84,7 +85,8 @@ MIDDLEWARE = [
 
 CORS_ORIGIN_ALLOW_ALL = False
 
-CORS_ORIGIN_WHITELIST = ["http://proyectorespira.net", "http://dev.proyectorespira.net"]
+# Use the environment variable instead of hardcoded whitelist
+# cors_allowed_origins is already defined above
 
 ROOT_URLCONF = "backend.urls"
 
@@ -110,7 +112,7 @@ WSGI_APPLICATION = "backend.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-postgres_config = {
+postgres_config: dict[str, str | None] = {
     "NAME": os.getenv("BACKEND_POSTGRES_DB"),
     "USER": os.getenv("BACKEND_POSTGRES_USER"),
     "PASSWORD": os.getenv("BACKEND_POSTGRES_PASSWORD"),
@@ -118,8 +120,13 @@ postgres_config = {
     "PORT": os.getenv("BACKEND_POSTGRES_PORT"),
 }
 
+DATABASES: dict[str, dict[str, Any]]
+
 if all(postgres_config.values()):
-    db_options = {}
+    postgres_config_clean = {
+        key: value for key, value in postgres_config.items() if value is not None
+    }
+    db_options: dict[str, str] = {}
     sslmode = os.getenv("BACKEND_POSTGRES_SSLMODE")
     if sslmode:
         db_options["sslmode"] = sslmode
@@ -139,7 +146,7 @@ if all(postgres_config.values()):
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            **postgres_config,
+            **postgres_config_clean,
             "OPTIONS": db_options,
         }
     }
@@ -154,14 +161,14 @@ if all(postgres_config.values()):
         quoted_schemas = [_quote_postgres_identifier(schema) for schema in db_schemas]
         if "public" not in {schema.lower() for schema in db_schemas}:
             quoted_schemas.append("public")
-        DATABASES["default"]["OPTIONS"]["options"] = (
-            f"-c search_path={','.join(quoted_schemas)}"
-        )
+        default_db = DATABASES["default"]
+        db_options_map = default_db.setdefault("OPTIONS", {})
+        db_options_map["options"] = f"-c search_path={','.join(quoted_schemas)}"
 else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            "NAME": str(BASE_DIR / "db.sqlite3"),
         }
     }
 

@@ -30,6 +30,36 @@ export const getAQIIndex = (aqi: number): number => {
 
 export const getColorRange = (aqi: number) => AQI_COLORS[getAQIIndex(aqi)];
 
+export type LngLatBounds = [[number, number], [number, number]];
+
+export const parseBbox = (bbox?: string | null): LngLatBounds | undefined => {
+  if (!bbox) {
+    return undefined;
+  }
+  const parts = bbox.split(",").map((p) => Number(p.trim()));
+  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n))) {
+    return undefined;
+  }
+  const [minLon, minLat, maxLon, maxLat] = parts;
+  return [
+    [minLon, minLat],
+    [maxLon, maxLat],
+  ];
+};
+
+export const expandBounds = (
+  bounds: LngLatBounds,
+  factor: number,
+): LngLatBounds => {
+  const [[minLon, minLat], [maxLon, maxLat]] = bounds;
+  const lonPad = ((maxLon - minLon) * factor) / 2;
+  const latPad = ((maxLat - minLat) * factor) / 2;
+  return [
+    [minLon - lonPad, minLat - latPad],
+    [maxLon + lonPad, maxLat + latPad],
+  ];
+};
+
 export const getTextColor = (bg: string) => {
   const darks = ["aqi-red-dark", "aqi-purple-dark", "aqi-vermellion-dark"];
   if (darks.includes(bg)) {

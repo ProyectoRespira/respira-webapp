@@ -8,9 +8,11 @@ import {
 import { RECOMMENDATIONS_IMAGES } from "../../../data/images";
 import { RecommendationTabs } from "../RecommendationTabs";
 import { RecommendationSelect } from "../RecommendationSelect";
+import { useClientTranslations } from "../../../i18n/client";
 
 const RecommendationsModal = () => {
   const isOpen = useStore(isRecommendationsModalOpen);
+  const t = useClientTranslations();
   return (
     <Modal showModal={isOpen} toggleModal={toggleRecommendationsModal}>
       <div
@@ -18,23 +20,29 @@ const RecommendationsModal = () => {
         style={{ maxHeight: window.innerHeight * 0.8 }}
       >
         <h1 className="font-serif font-bold text-[1.5rem] md:text-[2rem] text-gray mb-6">
-          Recomendaciones por nivel
+          {t("home.recommendations")}
         </h1>
         {window.innerWidth < 640 && <RecommendationSelect />}
         <RecommendationTabs />
         <h3 className="font-sans font-semibold text-[1.875rem]  text-gray text-center">
-          ¿Quiénes son las personas sensibles?
+          {t("recommendations.sensitiveQuestion")}
         </h3>
-        <div className="grid md:grid-flow-col md:grid-cols-none grid-cols-2  gap-2 pt-6 justify-items-center">
+        <div className="grid md:grid-flow-col md:grid-cols-none grid-cols-2 gap-2 pt-6 justify-items-center">
           {RECOMMENDATIONS_IMAGES.map((image, key) => (
-            <img
+            <div
               key={key}
-              alt={image.alt}
-              src={image.path.src}
-              height={100}
-              width={100}
-              className="col-span-1"
-            />
+              className="col-span-1 flex flex-col items-center gap-2"
+            >
+              <img
+                alt={t(image.labelKey)}
+                src={image.path.src}
+                height={100}
+                width={100}
+              />
+              <p className="font-sans text-sm text-center text-gray">
+                {t(image.labelKey)}
+              </p>
+            </div>
           ))}
         </div>
       </div>

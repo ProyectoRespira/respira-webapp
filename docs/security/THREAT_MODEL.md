@@ -15,6 +15,7 @@ The goal is to explain, at a high level:
 Respira is a self-hosted web application that allows organizations to collect, analyze, and visualize environmental data (primarily air quality). Each user maintains and operates their own instance by building and deploying containers from this codebase. The platform includes data ingestion, analysis, visualization, and user interfaces.
 
 Key characteristics:
+
 - **Self-hosted:** Each user operates their own independent instance
 - **Code-only distribution:** No pre-built artifacts; users build containers from source
 - **Multi-tenant capability:** Some instances may serve multiple organizations or users
@@ -133,16 +134,17 @@ Good visibility reduces response time and improves recovery. In self-hosted scen
 
 Because Respira is self-hosted, some traditional security concerns shift:
 
-| Aspect | Centralized SaaS | Self-Hosted Respira |
-|--------|------------------|-------------------|
-| **Availability** | Platform responsibility | Operator responsibility |
-| **Code updates** | Instant platform-wide | User-initiated via source update |
-| **Patch timing** | Synchronized across users | Staggered; may be delayed by operators |
-| **Secrets management** | Centralized | Distributed; each operator manages their own |
-| **Audit logs** | Centralized review | Operator's responsibility to review |
-| **Incident scope** | Can affect all users equally | Each instance is independent |
+| Aspect                 | Centralized SaaS             | Self-Hosted Respira                          |
+| ---------------------- | ---------------------------- | -------------------------------------------- |
+| **Availability**       | Platform responsibility      | Operator responsibility                      |
+| **Code updates**       | Instant platform-wide        | User-initiated via source update             |
+| **Patch timing**       | Synchronized across users    | Staggered; may be delayed by operators       |
+| **Secrets management** | Centralized                  | Distributed; each operator manages their own |
+| **Audit logs**         | Centralized review           | Operator's responsibility to review          |
+| **Incident scope**     | Can affect all users equally | Each instance is independent                 |
 
 This means:
+
 - **Patching is distributed:** Each operator is responsible for pulling updates. Security advisories should be clear and actionable.
 - **Communication is critical:** When a vulnerability is found, the maintainers must publish clear guidance on which versions are affected and what action is needed.
 - **Operators are security partners:** Each operator's deployment practices directly affect their own instance. Documentation should emphasize secure defaults.

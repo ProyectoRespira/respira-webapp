@@ -4,21 +4,25 @@ import Typography from "./atoms/Typography.astro";
 import AppleIcon from "../assets/icons/apple_icon.svg";
 import GooglePlayIcon from "../assets/icons/google_play_icon.svg";
 import AppPromo from "../assets/mk_respira.png";
-import { APP_STORE_URL, PLAY_STORE_URL } from "../data/constants";
+import { getLangFromLocals, useTranslations } from "../i18n/utils";
+import { getRuntimeConfig } from "../store/runtime-config";
+
+const t = useTranslations(getLangFromLocals(Astro.locals));
+const { appStoreUrl, playStoreUrl } = await getRuntimeConfig();
 
 const stores = [
   {
-    href: APP_STORE_URL,
+    href: appStoreUrl,
     icon: AppleIcon,
     alt: "Apple logo",
-    label: "Descargá en la",
+    label: t("app.download.appStoreLabel"),
     name: "App Store",
   },
   {
-    href: PLAY_STORE_URL,
+    href: playStoreUrl,
     icon: GooglePlayIcon,
     alt: "Google Play logo",
-    label: "Disponible en",
+    label: t("app.download.playStoreLabel"),
     name: "Google Play",
   },
 ];
@@ -33,11 +37,10 @@ const stores = [
       class="flex flex-col justify-center space-y-6 p-8 md:p-14 order-2 md:order-1"
     >
       <Typography variant="h2" color="white"
-        >Descargá la app de Proyecto Respira</Typography
+        >{t("app.download.title")}</Typography
       >
       <Typography variant="p" color="white">
-        Consultá la calidad del aire desde tu celular y agregá el widget para
-        ver el AQI al instante desde tu pantalla principal, sin abrir la app.
+        {t("app.download.description")}
       </Typography>
       <div class="flex flex-col sm:flex-row gap-4">
         {

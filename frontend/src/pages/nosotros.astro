@@ -13,7 +13,11 @@ import GithubIcon from "../assets/logos/github_icon.svg";
 import Github from "../assets/logos/github.svg";
 import { TEAM } from "../data/team";
 import { ORGANIZATIONS } from "../data/images";
-import { GITHUB_URL } from "../data/constants";
+import { getLangFromLocals, useTranslations } from "../i18n/utils";
+import { getRuntimeConfig } from "../store/runtime-config";
+
+const t = useTranslations(getLangFromLocals(Astro.locals));
+const { githubUrl } = await getRuntimeConfig();
 ---
 
 <BaseLayout>
@@ -21,28 +25,12 @@ import { GITHUB_URL } from "../data/constants";
     class="grid md:grid-cols-2 md:p-20 p-0 gap-12 md:my-16 place-items-center"
   >
     <div class="space-y-4 justify-stretch md:m-0 m-12">
-      <Typography variant="h1">Sobre Proyecto Respira</Typography>
-      <Typography variant="p"
-        >Ofrecemos al público pronósticos sobre la Calidad del Aire en Asunción
-        y su área metropolitana mediante el uso de mapas interactivos en nuestra
-        página web, y alertas diarias en nuestros canales de Telegram y X
-        (Twitter).
-      </Typography>
-      <Typography variant="p"
-        >Además de proporcionar predicciones actualizadas sobre la calidad del
-        aire, proveemos estadísticas, noticias locales sobre incendios y datos
-        abiertos sobre la calidad del aire en la ciudad desde el año 2019,
-        provenientes de la Red de Monitoreo de Calidad del Aire de la Facultad
-        de Ingeniería de la Universidad Nacional de Asunción.
-      </Typography>
-      <Typography variant="p"
-        >Nuestras tecnologías open-source brindan a los ciudadanos información
-        clave para tomar decisiones informadas sobre su salud y el medio
-        ambiente, al tiempo que fomentan la colaboración comunitaria para
-        mejorar continuamente su funcionalidad y utilidad.
-      </Typography>
+      <Typography variant="h1">{t("about.title")}</Typography>
+      <Typography variant="p">{t("about.p1")}</Typography>
+      <Typography variant="p">{t("about.p2")}</Typography>
+      <Typography variant="p">{t("about.p3")}</Typography>
       <Link
-        text="¿Cómo puedo protegerme de la contaminación?  "
+        text={t("about.protectLink")}
         customClass="text-gray"
         href={"https://www.airnow.gov/sites/default/files/2018-05/air-quality-guide_particle_SPA.pdf"}
       />
@@ -57,61 +45,32 @@ import { GITHUB_URL } from "../data/constants";
       class="space-y-4 justify-stretch m-12 md:m-0 md:order-last order-first"
     >
       <Typography variant="h2" color="white"
-        >¿Para qué sirven los pronósticos?</Typography
+        >{t("about.forecasts.title")}</Typography
       >
       <Typography variant="p" color="white"
-        >Muchos de nosotros miramos a diario el pronóstico del tiempo para tomar
-        decisiones sobre nuestro día a día. Por ejemplo, si el pronóstico marca
-        lluvia, salimos de casa con un paraguas, o si el día estará muy
-        caluroso, evitamos exponernos al sol en horas del mediodía.
-      </Typography>
+        >{t("about.forecasts.p1")}</Typography
+      >
       <Typography variant="p" color="white"
-        >De la misma forma, el pronóstico de la Calidad del Aire sirve para que
-        las personas puedan tomar acción acerca de cómo proteger su salud
-        durante eventos de alta contaminación, ya sea evitando actividades
-        físicas extenuantes, prestando atención a síntomas de fatiga o cerrando
-        ventanas y puertas de nuestros hogares para evitar que el aire
-        contaminado ingrese.
-      </Typography>
+        >{t("about.forecasts.p2")}</Typography
+      >
     </div>
   </section>
   <section
     class="grid md:grid-cols-3 md:px-16 gap-12 md:py-32 place-content-stretch place-items-start justify-center"
   >
     <div class="space-y-4 justify-stretch m-12 md:m-0 md:col-span-2">
-      <Typography variant="h2">¿Por qué es necesario este proyecto?</Typography>
-      <Typography variant="p"
-        >En Asunción, cada año se reportan más días donde frentes de humo
-        provenientes de incendios forestales y quemas agrarias ingresan a la
-        ciudad, elevando los niveles de contaminación en el aire que respiramos.
-        Los incendios forestales no son la única fuente de contaminación del
-        aire que afecta a la ciudad. Prácticas endémicas como la quema de basura
-        y el amplio uso de vehículos con combustibles Diésel de baja calidad
-        afectan la calidad de nuestro aire, y por ende la calidad de vida de la
-        población paraguaya.
-      </Typography>
-      <Typography variant="p"
-        >Ante esta realidad, los ciudadanos nos encontramos desprotegidos de los
-        efectos nocivos de la contaminación del aire. La contaminación del aire
-        causa una serie de problemas de salud, tales como:
-      </Typography>
+      <Typography variant="h2">{t("about.why.title")}</Typography>
+      <Typography variant="p">{t("about.why.p1")}</Typography>
+      <Typography variant="p">{t("about.why.p2")}</Typography>
       <ul class="list-disc pl-4">
-        <li>Muerte temprana</li>
-        <li>Tos</li>
-        <li>Afectación de la función pulmonar</li>
-        <li>Ataques de asma</li>
-        <li>Cardiopatías</li>
-        <li>Derrames cerebrales</li>
-        <li>Muerte temprana</li>
+        <li>{t("about.why.health.earlyDeath")}</li>
+        <li>{t("about.why.health.cough")}</li>
+        <li>{t("about.why.health.lung")}</li>
+        <li>{t("about.why.health.asthma")}</li>
+        <li>{t("about.why.health.heart")}</li>
+        <li>{t("about.why.health.stroke")}</li>
       </ul>
-      <Typography variant="p"
-        >Este proyecto busca brindar a los ciudadanos herramientas para tomar
-        acción y protegerse ante los efectos nocivos de la contaminación del
-        aire. Además, queremos visibilizar esta problemática y encender el
-        debate ciudadano acerca de cómo nuestras autoridades pueden promover
-        iniciativas que combatan la contaminación del aire en Paraguay y
-        aseguren el bienestar de todos los paraguayos.
-      </Typography>
+      <Typography variant="p">{t("about.why.p3")}</Typography>
     </div>
     <div
       class="md:mt-8 flex md:items-center md:justify-center w-screen md:w-auto max-h-80 md:max-h-svh"
@@ -132,17 +91,17 @@ import { GITHUB_URL } from "../data/constants";
       <h3
         class={`font-sans font-semibold text-[1.2rem] md:text-[1.875rem] text-black`}
       >
-        Nuestro proyecto es Open Source!
+        {t("about.openSource.line1")}
       </h3>
       <h3
         class={`font-sans font-semibold text-[1.2rem] md:text-[1.875rem] text-black`}
       >
-        Accede a nuestro repositorio en GitHub
+        {t("about.openSource.line2")}
       </h3>
       <Button
         variant="color"
-        text="Ir al repositorio"
-        onclick=`window.open("${GITHUB_URL}","_blank","","")`
+        text={t("about.openSource.cta")}
+        onclick=`window.open("${githubUrl}","_blank","","")`
         customClass="max-w-64"
       />
     </div>
@@ -151,7 +110,9 @@ import { GITHUB_URL } from "../data/constants";
     </div>
   </section>
   <section class="flex flex-col py-8 px-8 md:px-16">
-    <Typography variant="h2" customClass="pt-2">Colaboradores</Typography>
+    <Typography variant="h2" customClass="pt-2"
+      >{t("about.collaborators")}</Typography
+    >
     <div
       class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-6 place-content-start py-8"
     >
@@ -177,8 +138,12 @@ import { GITHUB_URL } from "../data/constants";
     </div>
   </section>
   <section class="flex flex-col py-8 px-8 md:px-16">
-    <Typography variant="h2" customClass="pt-2">Organizaciones</Typography>
-    <div class="flex flex-wrap items-center gap-10 mt-12 md:py-12 w-full">
+    <Typography variant="h2" customClass="pt-2"
+      >{t("about.organizations")}</Typography
+    >
+    <div
+      class="grid md:divide-x text-black md:grid-cols-4 sm:grid-cols-1 mt-12 md:py-12 md:max-w-fit w-full md:items-center"
+    >
       {
         ORGANIZATIONS.map((org) => (
           <div class="flex items-center justify-center">

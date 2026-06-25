@@ -7,7 +7,17 @@ import Skull from "../assets/emojis/skull.svg";
 import Cloud from "../assets/emojis/cloud_face.svg";
 import Anxious from "../assets/emojis/anxious_face.svg";
 
+// `id` keys into the i18n dictionary (aqi.<id>.title / aqi.<id>.description).
+export type AQILevelId =
+  | "good"
+  | "moderate"
+  | "unhealthySensitive"
+  | "unhealthy"
+  | "veryUnhealthy"
+  | "hazardous";
+
 export type AQICard = {
+  id: AQILevelId;
   color: string;
   icon: Image;
   title: string;
@@ -19,6 +29,7 @@ export type AQICard = {
 
 export const AQI: AQICard[] = [
   {
+    id: "good",
     color: "aqi-green-dark",
     icon: {
       alt: "Beaming face",
@@ -36,6 +47,7 @@ export const AQI: AQICard[] = [
     ],
   },
   {
+    id: "moderate",
     color: "aqi-yellow-dark",
     icon: {
       alt: "Smilling face",
@@ -53,6 +65,7 @@ export const AQI: AQICard[] = [
     ],
   },
   {
+    id: "unhealthySensitive",
     color: "aqi-orange-dark",
     icon: {
       alt: "Medical mask face",
@@ -66,10 +79,11 @@ export const AQI: AQICard[] = [
     recommendations: [
       "Grupos sensibles: usá tapabocas y llevá medicamentos si es necesario salir.",
       "Evitá esfuerzos prolongados al aire libre.",
-      "Evitá esfuerzos prolongados al aire libre.",
+      "Preferí actividades en espacios cerrados y ventilados.",
     ],
   },
   {
+    id: "unhealthy",
     color: "aqi-red-dark",
     icon: {
       alt: "Cloud face",
@@ -87,6 +101,7 @@ export const AQI: AQICard[] = [
     ],
   },
   {
+    id: "veryUnhealthy",
     color: "aqi-purple-dark",
     icon: {
       alt: "Anxious face",
@@ -104,6 +119,7 @@ export const AQI: AQICard[] = [
     ],
   },
   {
+    id: "hazardous",
     color: "aqi-vermellion-dark",
     icon: {
       alt: "Skull face",

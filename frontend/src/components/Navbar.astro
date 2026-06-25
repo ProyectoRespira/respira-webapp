@@ -16,7 +16,14 @@ import {
   CloseIcon,
 } from "astro-navbar";
 import { menu } from "../data/menu";
-import { BASE_URL } from "../data/constants";
+import LanguageSelector from "./LanguageSelector.astro";
+import { getLangFromLocals, useTranslations } from "../i18n/utils";
+import type { UIKey } from "../i18n/ui";
+import { getSiteUrl } from "../store/runtime-config";
+
+const lang = getLangFromLocals(Astro.locals);
+const t = useTranslations(lang);
+const baseUrl = await getSiteUrl();
 ---
 
 <div
@@ -24,7 +31,7 @@ import { BASE_URL } from "../data/constants";
 >
   <Astronav closeOnClick>
     <div class="flex lg:w-auto justify-between items-center">
-      <a href={BASE_URL}>
+      <a href="/">
         <Image
           class="h-16 w-auto"
           alt="Respira"
@@ -48,17 +55,21 @@ import { BASE_URL } from "../data/constants";
         {
           menu.map((option) => (
             <NavbarItem
-              title={option.title}
+              title={t(`nav.${option.id}` as UIKey)}
               route={option.route}
               type={option.type}
             />
           ))
         }
+        <li class="lg:hidden block">
+          <LanguageSelector />
+        </li>
       </ul>
     </MenuItems>
-    <div class="hidden lg:block min-w-30 content-center">
-      <a href={BASE_URL}>
-        <Button text="MAPA" variant="void" />
+    <div class="hidden lg:flex min-w-30 content-center items-center gap-4">
+      <LanguageSelector />
+      <a href={baseUrl}>
+        <Button text={t("nav.map")} variant="void" />
       </a>
     </div>
   </Astronav>
