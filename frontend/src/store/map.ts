@@ -180,12 +180,26 @@ export const regionForCoords = (
 ): REGION_META | undefined =>
   regions.find((r) => isInsideBbox(r.bbox, lon, lat));
 
-// A located point farther than this (in degrees, ~55 km) from every region's
-// bbox is treated as "not near any region" so the default is used. Wide enough
-// to absorb slightly miscalibrated bboxes — e.g. a city center that sits just
-// outside its own rectangle — but narrow enough that someone in another country
-// isn't pulled into a Paraguayan region.
-const MAX_NEAREST_REGION_DEGREES = 0.5;
+// A located point farther than this from every region's bbox is treated as
+// "not near any region" so the default (Asunción, via PUBLIC_REGION_DEFAULT_ID)
+// is used instead. Configurable via PUBLIC_REGION_MAX_DISTANCE_KM so it can be
+// tuned per deployment without a code change — wide enough to absorb slightly
+// miscalibrated bboxes (e.g. a city center sitting just outside its own
+// rectangle), but narrow enough that someone in another country isn't pulled
+// into a Paraguayan region. Defaults to ~100 km.
+const DEFAULT_MAX_NEAREST_REGION_KM = 100;
+const KM_PER_DEGREE = 111.32; // at the equator; good enough for a threshold.
+
+const resolveMaxNearestRegionKm = (): number => {
+  const raw = import.meta.env.PUBLIC_REGION_MAX_DISTANCE_KM;
+  const parsed = typeof raw === "string" ? Number(raw.trim()) : NaN;
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_MAX_NEAREST_REGION_KM;
+};
+
+const MAX_NEAREST_REGION_DEGREES =
+  resolveMaxNearestRegionKm() / KM_PER_DEGREE;
 
 // Squared distance from a point to a bbox rectangle, 0 when inside. Longitude is
 // scaled by cos(latitude) so a degree of longitude and a degree of latitude are
