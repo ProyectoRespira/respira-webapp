@@ -198,8 +198,7 @@ const resolveMaxNearestRegionKm = (): number => {
     : DEFAULT_MAX_NEAREST_REGION_KM;
 };
 
-const MAX_NEAREST_REGION_DEGREES =
-  resolveMaxNearestRegionKm() / KM_PER_DEGREE;
+const MAX_NEAREST_REGION_DEGREES = resolveMaxNearestRegionKm() / KM_PER_DEGREE;
 
 // Squared distance from a point to a bbox rectangle, 0 when inside. Longitude is
 // scaled by cos(latitude) so a degree of longitude and a degree of latitude are
