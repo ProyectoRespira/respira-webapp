@@ -8,6 +8,7 @@ permissions:
   contents: read
   packages: write
   attestations: write
+  artifact-metadata: write
   id-token: write
 
 concurrency:
@@ -25,6 +26,7 @@ jobs:
       RELEASE_TAG: ${{ github.event.release.tag_name }}
       TARGET_COMMITISH: ${{ github.event.release.target_commitish }}
       IS_PRERELEASE: ${{ github.event.release.prerelease }}
+      ALLOWED_USERS: ${{ vars.ALLOWED_IMAGE_PUBLISH_USERS }}
 
     steps:
       - name: Validate release metadata
@@ -44,6 +46,25 @@ jobs:
 
           if ! printf '%s' "$RELEASE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "Release tag must match strict semver format: vX.Y.Z"
+            exit 1
+          fi
+
+      - name: Validate allowed user
+        shell: bash
+        run: |
+          set -eu
+
+          if [ -z "$ALLOWED_USERS" ]; then
+            echo "ALLOWED_IMAGE_PUBLISH_USERS repository variable is not set"
+            echo "Set it to a comma-separated list of GitHub usernames allowed to run image publishing workflows"
+            exit 1
+          fi
+
+          normalized_csv="$(printf '%s' "$ALLOWED_USERS" | tr -d '[:space:]')"
+
+          if ! printf ',%s,' "$normalized_csv" | grep -Fq ",${{ github.actor }},"; then
+            echo "User '${{ github.actor }}' is not allowed to run this workflow"
+            echo "Allowed users: $normalized_csv"
             exit 1
           fi
 
@@ -100,6 +121,16 @@ jobs:
             type=sha,prefix=sha-
             type=raw,value=latest
 
+      - name: Docker metadata proxy
+        id: meta_proxy
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-proxy
+          tags: |
+            type=raw,value=${{ env.RELEASE_TAG }}
+            type=sha,prefix=sha-
+            type=raw,value=latest
+
       - name: Build and push backend image
         id: push_backend
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
@@ -128,6 +159,21 @@ jobs:
           provenance: true
           sbom: true
 
+      - name: Build and push proxy image
+        id: push_proxy
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: ./proxy
+          file: ./proxy/Dockerfile
+          target: production
+          push: true
+          tags: ${{ steps.meta_proxy.outputs.tags }}
+          labels: ${{ steps.meta_proxy.outputs.labels }}
+          cache-from: type=gha,scope=proxy
+          cache-to: type=gha,scope=proxy,mode=max
+          provenance: true
+          sbom: true
+
       - name: Generate backend image attestation
         uses: actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb # v4
         with:
@@ -140,4 +186,11 @@ jobs:
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-frontend
           subject-digest: ${{ steps.push_frontend.outputs.digest }}
+          push-to-registry: true
+
+      - name: Generate proxy image attestation
+        uses: actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb # v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-proxy
+          subject-digest: ${{ steps.push_proxy.outputs.digest }}
           push-to-registry: true
