@@ -12,18 +12,13 @@ import "@fontsource/merriweather/400-italic.css";
 import "@fontsource/merriweather/700-italic.css";
 import "@fontsource/merriweather/900-italic.css";
 import "@fontsource-variable/inter";
-import { getRequiredRuntimeEnv } from "../runtime-env";
+import { getRequiredGtag } from "../runtime-env";
+import { getLangFromLocals } from "../i18n/utils";
 
 import "../../main.css";
 
-const GTAG = (process.env.PUBLIC_GTAG || "").trim();
-import { getLangFromLocals } from "../i18n/utils";
-
-if (!GTAG) {
-  throw new Error("Missing runtime PUBLIC_GTAG in frontend container.");
-}
 const lang = getLangFromLocals(Astro.locals);
-const analyticsTag = getRequiredRuntimeEnv("PUBLIC_GTAG");
+const analyticsTag = getRequiredGtag();
 ---
 
 <html lang={lang} class="md:overflow-hidden">
