@@ -47,11 +47,24 @@ export const getRequiredRuntimeEnv = (key: string): string => {
   return value;
 };
 
+const GTAG_PLACEHOLDER = "G-XXXXXXXXXX";
+const GTAG_FORMAT = /^G-[A-Z0-9]+$/;
+
+export const getRequiredGtag = (): string => {
+  const gtag = getRequiredRuntimeEnv("PUBLIC_GTAG");
+  if (gtag === GTAG_PLACEHOLDER || !GTAG_FORMAT.test(gtag)) {
+    throw new Error(
+      `Invalid PUBLIC_GTAG '${gtag}' in frontend container: must be a real GA4 Measurement ID (e.g. G-XXXXXXXXXX format, but not the literal placeholder).`,
+    );
+  }
+  return gtag;
+};
+
 export const getFrontendRuntimeConfig = (): FrontendRuntimeConfig => {
   const backendUrl = getRequiredRuntimeEnv("BACKEND_URL");
   const regionDefaultId = getRequiredRuntimeEnv("PUBLIC_REGION_DEFAULT_ID");
   const siteUrl = normalizeSiteUrl(getRequiredRuntimeEnv("SITE_URL"));
-  const gtag = getRequiredRuntimeEnv("PUBLIC_GTAG");
+  const gtag = getRequiredGtag();
   const contactMail = getRequiredRuntimeEnv("CONTACT_MAIL");
 
   const twitterHandle = normalizePath(getRequiredRuntimeEnv("TWITTER_HANDLE"));
