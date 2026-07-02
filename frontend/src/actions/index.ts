@@ -71,7 +71,6 @@ const sendJoinMail = async (values: JoinInput) => {
   const { data, error } = await resend.emails.send({
     from: getRequiredRuntimeEnv("SMTP_SENDER"),
     to: [CONTACT_MAIL],
-    replyTo: values.email,
     subject: `[Respira] Únete a la red — ${values.name}`,
     react: JoinEmail({ ...values, siteUrl }),
   });
