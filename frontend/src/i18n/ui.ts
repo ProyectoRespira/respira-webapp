@@ -14,6 +14,7 @@ const es = {
   "nav.data": "Datos",
   "nav.join": "Únete a la red",
   "nav.map": "Mapa",
+
   "nav.language": "Idioma",
 
   // Footer
@@ -295,6 +296,7 @@ const en: Dictionary = {
   "nav.data": "Data",
   "nav.join": "Join the network",
   "nav.map": "Map",
+
   "nav.language": "Language",
 
   "footer.collaboration": "A collaboration by",
@@ -554,6 +556,7 @@ const pt: Dictionary = {
   "nav.data": "Dados",
   "nav.join": "Junte-se à rede",
   "nav.map": "Mapa",
+
   "nav.language": "Idioma",
 
   "footer.collaboration": "Uma colaboração de",
