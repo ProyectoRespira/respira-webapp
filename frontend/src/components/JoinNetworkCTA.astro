@@ -34,11 +34,19 @@ const nodes = [
 ];
 
 const edges = [
-  [0, 8], [0, 6], [0, 5],
-  [1, 7], [1, 4], [1, 2],
-  [2, 7], [2, 8], [2, 3],
-  [3, 8], [3, 6],
-  [4, 5], [5, 7],
+  [0, 8],
+  [0, 6],
+  [0, 5],
+  [1, 7],
+  [1, 4],
+  [1, 2],
+  [2, 7],
+  [2, 8],
+  [2, 3],
+  [3, 8],
+  [3, 6],
+  [4, 5],
+  [5, 7],
 ];
 ---
 
@@ -48,15 +56,22 @@ const edges = [
   aria-labelledby="join-cta-title"
 >
   <!-- Decorative blobs -->
-  <div class="absolute -top-24 -right-24 w-96 h-96 bg-light_green/60 rounded-full blur-3xl pointer-events-none"></div>
-  <div class="absolute -bottom-16 -left-16 w-72 h-72 bg-light_green/40 rounded-full blur-3xl pointer-events-none"></div>
+  <div
+    class="absolute -top-24 -right-24 w-96 h-96 bg-light_green/60 rounded-full blur-3xl pointer-events-none"
+  >
+  </div>
+  <div
+    class="absolute -bottom-16 -left-16 w-72 h-72 bg-light_green/40 rounded-full blur-3xl pointer-events-none"
+  >
+  </div>
 
   <div class="relative z-10 px-6 md:px-16 py-16 md:py-24 max-w-6xl mx-auto">
     <div class="grid md:grid-cols-2 gap-12 md:gap-20 items-center">
-
       <!-- Left: text + CTA -->
       <div class="flex flex-col">
-        <span class="inline-flex items-center gap-2 text-green text-sm font-sans font-semibold tracking-widest uppercase mb-6">
+        <span
+          class="inline-flex items-center gap-2 text-green text-sm font-sans font-semibold tracking-widest uppercase mb-6"
+        >
           <span class="w-6 h-px bg-green"></span>
           Proyecto Respira
         </span>
@@ -75,7 +90,12 @@ const edges = [
             points.map((point) => (
               <li class="flex flex-row items-center gap-4">
                 <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green/20 border border-green/30">
-                  <svg class="h-5 w-5 text-green" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <svg
+                    class="h-5 w-5 text-green"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
                     <path d={GLYPHS[point.icon]} />
                   </svg>
                 </span>
@@ -91,11 +111,24 @@ const edges = [
           href={joinUrl}
           class="group inline-flex items-center justify-center gap-2 bg-green text-white font-sans font-bold py-4 px-7 rounded-md text-base w-full sm:w-fit hover:bg-green/90 transition-all hover:gap-3"
         >
-          <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <svg
+            class="h-5 w-5 shrink-0"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            aria-hidden="true"
+          >
             <path d={GLYPHS.leaf}></path>
           </svg>
           {t("home.cta.button")}
-          <svg class="h-4 w-4 shrink-0 translate-x-0 group-hover:translate-x-1 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            class="h-4 w-4 shrink-0 translate-x-0 group-hover:translate-x-1 transition-transform"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="m9 18 6-6-6-6"></path>
           </svg>
         </a>
@@ -113,8 +146,10 @@ const edges = [
             {
               edges.map(([a, b]) => (
                 <line
-                  x1={nodes[a].cx} y1={nodes[a].cy}
-                  x2={nodes[b].cx} y2={nodes[b].cy}
+                  x1={nodes[a].cx}
+                  y1={nodes[a].cy}
+                  x2={nodes[b].cx}
+                  y2={nodes[b].cy}
                   stroke="#4ade80"
                   stroke-width="0.4"
                   stroke-opacity="0.3"
@@ -125,24 +160,30 @@ const edges = [
             }
             <!-- Nodes -->
             {
-              nodes.map((node, i) => (
+              nodes.map((node) => (
                 <g class="sensor-node" style={`animation-delay: ${node.delay}`}>
                   <circle
-                    cx={node.cx} cy={node.cy} r={node.r + 4}
+                    cx={node.cx}
+                    cy={node.cy}
+                    r={node.r + 4}
                     fill="#4ade80"
                     fill-opacity="0.08"
                     class="pulse-ring"
                     style={`animation-delay: ${node.delay}`}
                   />
                   <circle
-                    cx={node.cx} cy={node.cy} r={node.r}
+                    cx={node.cx}
+                    cy={node.cy}
+                    r={node.r}
                     fill="#F0ECEA"
                     stroke="#4ade80"
                     stroke-width="0.8"
                     stroke-opacity="0.7"
                   />
                   <circle
-                    cx={node.cx} cy={node.cy} r={node.r * 0.45}
+                    cx={node.cx}
+                    cy={node.cy}
+                    r={node.r * 0.45}
                     fill="#4ade80"
                     fill-opacity="0.9"
                   />
@@ -150,10 +191,8 @@ const edges = [
               ))
             }
           </svg>
-
         </div>
       </div>
-
     </div>
   </div>
 </section>
@@ -175,18 +214,31 @@ const edges = [
   }
 
   @keyframes node-in {
-    from { opacity: 0; transform: scale(0.5); }
-    to   { opacity: 1; transform: scale(1); }
+    from {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 
   @keyframes pulse {
-    0%, 100% { r: 10; opacity: 0.08; }
-    50%       { r: 14; opacity: 0.18; }
+    0%,
+    100% {
+      r: 10;
+      opacity: 0.08;
+    }
+    50% {
+      r: 14;
+      opacity: 0.18;
+    }
   }
 
   @keyframes draw-edge {
-    to { stroke-dashoffset: 0; }
+    to {
+      stroke-dashoffset: 0;
+    }
   }
-
-
 </style>
