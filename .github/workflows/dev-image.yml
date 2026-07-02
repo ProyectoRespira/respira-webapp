@@ -1,6 +1,9 @@
 name: Dev Image Publish
 
 on:
+  push:
+    branches:
+      - dev
   workflow_dispatch:
     inputs:
       image_tag:
@@ -35,17 +38,20 @@ jobs:
         run: |
           set -eu
 
-          if [ "${{ github.ref }}" != "refs/heads/dev" ] && [ "${{ github.ref }}" != "refs/heads/hotfix/v2.0.6" ]; then
-            echo "This workflow can only publish from refs/heads/dev or refs/heads/hotfix/v2.0.6. Current ref: ${{ github.ref }}"
+          if [ "${{ github.ref }}" != "refs/heads/dev" ]; then
+            echo "This workflow can only publish from refs/heads/dev. Current ref: ${{ github.ref }}"
             exit 1
           fi
 
-          if ! printf '%s' "${{ inputs.image_tag }}" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$'; then
-            echo "image_tag must be a valid Docker tag: start with [A-Za-z0-9_], then only [A-Za-z0-9_.-], max 128 chars"
-            exit 1
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if ! printf '%s' "${{ inputs.image_tag }}" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$'; then
+              echo "image_tag must be a valid Docker tag: start with [A-Za-z0-9_], then only [A-Za-z0-9_.-], max 128 chars"
+              exit 1
+            fi
           fi
 
       - name: Validate allowed user
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         shell: bash
         run: |
           set -eu
@@ -69,8 +75,19 @@ jobs:
         run: |
           echo "IMAGE_OWNER_LC=${IMAGE_OWNER,,}" >> "$GITHUB_ENV"
 
+      - name: Resolve image tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "IMAGE_TAG=${{ inputs.image_tag }}" >> "$GITHUB_ENV"
+          else
+            echo "IMAGE_TAG=dev-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          fi
+
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: dev
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
@@ -88,7 +105,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-backend
           tags: |
-            type=raw,value=${{ inputs.image_tag }}
+            type=raw,value=${{ env.IMAGE_TAG }}
             type=sha,prefix=sha-
 
       - name: Docker metadata frontend
@@ -97,7 +114,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-frontend
           tags: |
-            type=raw,value=${{ inputs.image_tag }}
+            type=raw,value=${{ env.IMAGE_TAG }}
             type=sha,prefix=sha-
 
       - name: Docker metadata proxy
@@ -106,7 +123,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-proxy
           tags: |
-            type=raw,value=${{ inputs.image_tag }}
+            type=raw,value=${{ env.IMAGE_TAG }}
             type=sha,prefix=sha-
 
       - name: Build and push backend image
