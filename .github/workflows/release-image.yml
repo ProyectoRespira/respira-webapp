@@ -60,9 +60,10 @@ jobs:
             exit 1
           fi
 
-          normalized_csv="$(printf '%s' "$ALLOWED_USERS" | tr -d '[:space:]')"
+          normalized_csv="$(printf '%s' "$ALLOWED_USERS" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+          actor_lc="$(printf '%s' "${{ github.actor }}" | tr '[:upper:]' '[:lower:]')"
 
-          if ! printf ',%s,' "$normalized_csv" | grep -Fq ",${{ github.actor }},"; then
+          if ! printf ',%s,' "$normalized_csv" | grep -Fq ",${actor_lc},"; then
             echo "User '${{ github.actor }}' is not allowed to run this workflow"
             echo "Allowed users: $normalized_csv"
             exit 1

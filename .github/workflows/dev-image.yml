@@ -51,7 +51,6 @@ jobs:
           fi
 
       - name: Validate allowed user
-        if: ${{ github.event_name == 'workflow_dispatch' }}
         shell: bash
         run: |
           set -eu
@@ -62,9 +61,10 @@ jobs:
             exit 1
           fi
 
-          normalized_csv="$(printf '%s' "$ALLOWED_USERS" | tr -d '[:space:]')"
+          normalized_csv="$(printf '%s' "$ALLOWED_USERS" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+          actor_lc="$(printf '%s' "${{ github.actor }}" | tr '[:upper:]' '[:lower:]')"
 
-          if ! printf ',%s,' "$normalized_csv" | grep -Fq ",${{ github.actor }},"; then
+          if ! printf ',%s,' "$normalized_csv" | grep -Fq ",${actor_lc},"; then
             echo "User '${{ github.actor }}' is not allowed to run this workflow"
             echo "Allowed users: $normalized_csv"
             exit 1
@@ -87,7 +87,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: dev
+          ref: ${{ github.sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
