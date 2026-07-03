@@ -12,7 +12,9 @@ const es = {
   "nav.us": "Sobre nosotros",
   "nav.research": "Recursos",
   "nav.data": "Datos",
+  "nav.join": "Únete a la red",
   "nav.map": "Mapa",
+
   "nav.language": "Idioma",
 
   // Footer
@@ -38,6 +40,83 @@ const es = {
   "home.aqi.title": "Índice de calidad del aire (AQI)",
   "home.aqi.source": "Via fuente",
   "home.recommendations": "Recomendaciones por nivel",
+
+  // Home — "Sumate a la red" CTA section
+  "home.cta.title": "Sumate a la red de sensores Respira",
+  "home.cta.subtitle":
+    "Ayudanos a monitorear la calidad del aire en más comunidades, escuelas, instituciones y hogares.",
+  "home.cta.point1": "Contribuí con datos abiertos y de calidad.",
+  "home.cta.point2": "Impulsá decisiones para un aire más limpio y saludable.",
+  "home.cta.point3": "Tu sensor puede hacer la diferencia en tu comunidad.",
+  "home.cta.button": "Quiero tener un sensor",
+  "home.cta.learnMore": "Conocé más sobre la red Respira",
+  "home.cta.note.title":
+    "Instituciones, organizaciones o personas: solicitá instalar un sensor",
+  "home.cta.note.subtitle":
+    "Completá el formulario y nuestro equipo te contactará.",
+
+  // Join the network (unete)
+  "join.breadcrumb.home": "Inicio",
+  "join.breadcrumb.current": "Únete a la red",
+  "join.hero.title": "Únete a la red de sensores Respira",
+  "join.hero.subtitle":
+    "Buscamos instituciones, organizaciones y personas que quieran ser parte de la red de monitoreo de calidad del aire en Paraguay.",
+  "join.hero.subtitle2":
+    "Completá el formulario y nuestro equipo te contactará.",
+  "join.benefit.impact.title": "Impacto real",
+  "join.benefit.impact.desc":
+    "Mejorá la calidad del aire en tu comunidad con datos confiables y abiertos.",
+  "join.benefit.data.title": "Datos abiertos y de calidad",
+  "join.benefit.data.desc":
+    "Accedé a datos en tiempo real y contribuí a la ciencia ciudadana.",
+  "join.benefit.health.title": "Salud y ambiente",
+  "join.benefit.health.desc":
+    "Más información para tomar mejores decisiones y cuidar nuestra salud.",
+  "join.benefit.tech.title": "Tecnología abierta",
+  "join.benefit.tech.desc":
+    "Usamos hardware y software abierto para una red transparente y colaborativa.",
+  "join.next.title": "¿Qué pasa después?",
+  "join.next.desc":
+    "Nuestro equipo evaluará tu solicitud y te contactará para conversar sobre los próximos pasos.",
+  "join.form.title": "Formulario de interés",
+  "join.form.subtitle":
+    "Completá tus datos y contanos cómo te gustaría participar.",
+  "join.form.name": "Nombre completo",
+  "join.form.namePlaceholder": "Ej: María Pérez",
+  "join.form.email": "Correo electrónico",
+  "join.form.emailPlaceholder": "Ej: ejemplo@correo.com",
+  "join.form.phone": "Teléfono / WhatsApp",
+  "join.form.phonePlaceholder": "Ej: +595 98 123 4567",
+  "join.form.organization": "Institución u organización (si aplica)",
+  "join.form.organizationPlaceholder": "Ej: Colegio San José",
+  "join.form.city": "Ciudad / Localidad",
+  "join.form.cityPlaceholder": "Ej: Asunción",
+  "join.form.department": "Departamento",
+  "join.form.departmentPlaceholder": "Seleccioná...",
+  "join.form.interest": "¿Qué tipo de interés tenés?",
+  "join.form.interest.institution": "Institución",
+  "join.form.interest.institutionHint":
+    "(Escuelas, Colegios, Universidades, Empresas, etc.)",
+  "join.form.interest.home": "Hogar",
+  "join.form.interest.homeHint": "(Casa o vivienda particular)",
+  "join.form.interest.community": "Espacio comunitario",
+  "join.form.interest.communityHint": "(Plazas, centros comunitarios, etc.)",
+  "join.form.interest.ngo": "Otra organización u ONG",
+  "join.form.interest.ngoHint": "",
+  "join.form.interest.other": "Otro",
+  "join.form.interest.otherHint": "(Especificar en el mensaje)",
+  "join.form.message": "Contanos más sobre tu interés o motivación",
+  "join.form.messagePlaceholder":
+    "Ej: Queremos monitorear la calidad del aire en nuestra escuela para un proyecto ambiental...",
+  "join.form.consent":
+    "Acepto que Respira use mis datos para contactarme sobre la red de sensores.",
+  "join.form.submit": "Enviar formulario",
+  "join.form.privacy":
+    "Tus datos están protegidos. No compartimos tu información con terceros.",
+  "join.form.success":
+    "¡Gracias! Recibimos tu solicitud. Nuestro equipo te contactará pronto.",
+  "join.form.error":
+    "Hubo un error enviando el formulario. Intentá nuevamente.",
 
   // About (nosotros)
   "about.title": "Sobre Proyecto Respira",
@@ -215,7 +294,9 @@ const en: Dictionary = {
   "nav.us": "About us",
   "nav.research": "Resources",
   "nav.data": "Data",
+  "nav.join": "Join the network",
   "nav.map": "Map",
+
   "nav.language": "Language",
 
   "footer.collaboration": "A collaboration by",
@@ -239,6 +320,79 @@ const en: Dictionary = {
   "home.aqi.title": "Air Quality Index (AQI)",
   "home.aqi.source": "Via source",
   "home.recommendations": "Recommendations by level",
+
+  "home.cta.title": "Join the Respira sensor network",
+  "home.cta.subtitle":
+    "Help us monitor air quality in more communities, schools, institutions and homes.",
+  "home.cta.point1": "Contribute open, high-quality data.",
+  "home.cta.point2": "Drive decisions for cleaner, healthier air.",
+  "home.cta.point3": "Your sensor can make a difference in your community.",
+  "home.cta.button": "I want a sensor",
+  "home.cta.learnMore": "Learn more about the Respira network",
+  "home.cta.note.title":
+    "Institutions, organizations or individuals: request a sensor installation",
+  "home.cta.note.subtitle": "Fill out the form and our team will contact you.",
+
+  "join.breadcrumb.home": "Home",
+  "join.breadcrumb.current": "Join the network",
+  "join.hero.title": "Join the Respira sensor network",
+  "join.hero.subtitle":
+    "We are looking for institutions, organizations and individuals who want to be part of the air quality monitoring network in Paraguay.",
+  "join.hero.subtitle2": "Fill out the form and our team will contact you.",
+  "join.benefit.impact.title": "Real impact",
+  "join.benefit.impact.desc":
+    "Improve air quality in your community with reliable, open data.",
+  "join.benefit.data.title": "Open, high-quality data",
+  "join.benefit.data.desc":
+    "Access real-time data and contribute to citizen science.",
+  "join.benefit.health.title": "Health and environment",
+  "join.benefit.health.desc":
+    "More information to make better decisions and protect our health.",
+  "join.benefit.tech.title": "Open technology",
+  "join.benefit.tech.desc":
+    "We use open hardware and software for a transparent, collaborative network.",
+  "join.next.title": "What happens next?",
+  "join.next.desc":
+    "Our team will review your request and contact you to discuss the next steps.",
+  "join.form.title": "Interest form",
+  "join.form.subtitle":
+    "Fill in your details and tell us how you would like to participate.",
+  "join.form.name": "Full name",
+  "join.form.namePlaceholder": "E.g. María Pérez",
+  "join.form.email": "Email address",
+  "join.form.emailPlaceholder": "E.g. example@email.com",
+  "join.form.phone": "Phone / WhatsApp",
+  "join.form.phonePlaceholder": "E.g. +595 98 123 4567",
+  "join.form.organization": "Institution or organization (if applicable)",
+  "join.form.organizationPlaceholder": "E.g. San José School",
+  "join.form.city": "City / Town",
+  "join.form.cityPlaceholder": "E.g. Asunción",
+  "join.form.department": "Department",
+  "join.form.departmentPlaceholder": "Select...",
+  "join.form.interest": "What type of interest do you have?",
+  "join.form.interest.institution": "Institution",
+  "join.form.interest.institutionHint":
+    "(Schools, Colleges, Universities, Companies, etc.)",
+  "join.form.interest.home": "Home",
+  "join.form.interest.homeHint": "(Private house or residence)",
+  "join.form.interest.community": "Community space",
+  "join.form.interest.communityHint": "(Squares, community centers, etc.)",
+  "join.form.interest.ngo": "Other organization or NGO",
+  "join.form.interest.ngoHint": "",
+  "join.form.interest.other": "Other",
+  "join.form.interest.otherHint": "(Specify in the message)",
+  "join.form.message": "Tell us more about your interest or motivation",
+  "join.form.messagePlaceholder":
+    "E.g. We want to monitor air quality at our school for an environmental project...",
+  "join.form.consent":
+    "I agree that Respira may use my data to contact me about the sensor network.",
+  "join.form.submit": "Submit form",
+  "join.form.privacy":
+    "Your data is protected. We do not share your information with third parties.",
+  "join.form.success":
+    "Thank you! We received your request. Our team will contact you soon.",
+  "join.form.error":
+    "There was an error submitting the form. Please try again.",
 
   "about.title": "About Proyecto Respira",
   "about.p1":
@@ -400,7 +554,9 @@ const pt: Dictionary = {
   "nav.us": "Sobre nós",
   "nav.research": "Recursos",
   "nav.data": "Dados",
+  "nav.join": "Junte-se à rede",
   "nav.map": "Mapa",
+
   "nav.language": "Idioma",
 
   "footer.collaboration": "Uma colaboração de",
@@ -424,6 +580,80 @@ const pt: Dictionary = {
   "home.aqi.title": "Índice de Qualidade do Ar (AQI)",
   "home.aqi.source": "Ver fonte",
   "home.recommendations": "Recomendações por nível",
+
+  "home.cta.title": "Junte-se à rede de sensores Respira",
+  "home.cta.subtitle":
+    "Ajude-nos a monitorar a qualidade do ar em mais comunidades, escolas, instituições e residências.",
+  "home.cta.point1": "Contribua com dados abertos e de qualidade.",
+  "home.cta.point2": "Impulsione decisões para um ar mais limpo e saudável.",
+  "home.cta.point3": "Seu sensor pode fazer a diferença na sua comunidade.",
+  "home.cta.button": "Quero ter um sensor",
+  "home.cta.learnMore": "Saiba mais sobre a rede Respira",
+  "home.cta.note.title":
+    "Instituições, organizações ou pessoas: solicite a instalação de um sensor",
+  "home.cta.note.subtitle":
+    "Preencha o formulário e nossa equipe entrará em contato.",
+
+  "join.breadcrumb.home": "Início",
+  "join.breadcrumb.current": "Junte-se à rede",
+  "join.hero.title": "Junte-se à rede de sensores Respira",
+  "join.hero.subtitle":
+    "Buscamos instituições, organizações e pessoas que queiram fazer parte da rede de monitoramento da qualidade do ar no Paraguai.",
+  "join.hero.subtitle2":
+    "Preencha o formulário e nossa equipe entrará em contato.",
+  "join.benefit.impact.title": "Impacto real",
+  "join.benefit.impact.desc":
+    "Melhore a qualidade do ar na sua comunidade com dados confiáveis e abertos.",
+  "join.benefit.data.title": "Dados abertos e de qualidade",
+  "join.benefit.data.desc":
+    "Acesse dados em tempo real e contribua para a ciência cidadã.",
+  "join.benefit.health.title": "Saúde e meio ambiente",
+  "join.benefit.health.desc":
+    "Mais informação para tomar melhores decisões e cuidar da nossa saúde.",
+  "join.benefit.tech.title": "Tecnologia aberta",
+  "join.benefit.tech.desc":
+    "Usamos hardware e software aberto para uma rede transparente e colaborativa.",
+  "join.next.title": "O que acontece depois?",
+  "join.next.desc":
+    "Nossa equipe avaliará sua solicitação e entrará em contato para conversar sobre os próximos passos.",
+  "join.form.title": "Formulário de interesse",
+  "join.form.subtitle":
+    "Preencha seus dados e conte-nos como gostaria de participar.",
+  "join.form.name": "Nome completo",
+  "join.form.namePlaceholder": "Ex: María Pérez",
+  "join.form.email": "E-mail",
+  "join.form.emailPlaceholder": "Ex: exemplo@email.com",
+  "join.form.phone": "Telefone / WhatsApp",
+  "join.form.phonePlaceholder": "Ex: +595 98 123 4567",
+  "join.form.organization": "Instituição ou organização (se aplicável)",
+  "join.form.organizationPlaceholder": "Ex: Colégio San José",
+  "join.form.city": "Cidade / Localidade",
+  "join.form.cityPlaceholder": "Ex: Assunção",
+  "join.form.department": "Departamento",
+  "join.form.departmentPlaceholder": "Selecione...",
+  "join.form.interest": "Que tipo de interesse você tem?",
+  "join.form.interest.institution": "Instituição",
+  "join.form.interest.institutionHint":
+    "(Escolas, Colégios, Universidades, Empresas, etc.)",
+  "join.form.interest.home": "Residência",
+  "join.form.interest.homeHint": "(Casa ou moradia particular)",
+  "join.form.interest.community": "Espaço comunitário",
+  "join.form.interest.communityHint": "(Praças, centros comunitários, etc.)",
+  "join.form.interest.ngo": "Outra organização ou ONG",
+  "join.form.interest.ngoHint": "",
+  "join.form.interest.other": "Outro",
+  "join.form.interest.otherHint": "(Especificar na mensagem)",
+  "join.form.message": "Conte-nos mais sobre seu interesse ou motivação",
+  "join.form.messagePlaceholder":
+    "Ex: Queremos monitorar a qualidade do ar na nossa escola para um projeto ambiental...",
+  "join.form.consent":
+    "Concordo que a Respira use meus dados para entrar em contato sobre a rede de sensores.",
+  "join.form.submit": "Enviar formulário",
+  "join.form.privacy":
+    "Seus dados estão protegidos. Não compartilhamos suas informações com terceiros.",
+  "join.form.success":
+    "Obrigado! Recebemos sua solicitação. Nossa equipe entrará em contato em breve.",
+  "join.form.error": "Houve um erro ao enviar o formulário. Tente novamente.",
 
   "about.title": "Sobre o Proyecto Respira",
   "about.p1":

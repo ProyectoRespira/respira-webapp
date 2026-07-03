@@ -38,7 +38,11 @@ services:
     volumes:
       - static_volume:/static
     healthcheck:
-      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:${BACKEND_PORT}/api/health/ | grep -q 200"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s -o /dev/null -w '%{http_code}' http://localhost:${BACKEND_PORT}/api/health/ | grep -q 200",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -50,6 +54,7 @@ services:
     restart: always
     environment:
       PUBLIC_REGION_DEFAULT_ID: ${PUBLIC_REGION_DEFAULT_ID}
+      PUBLIC_REGION_MAX_DISTANCE_KM: ${PUBLIC_REGION_MAX_DISTANCE_KM:-100}
       BACKEND_URL: ${BACKEND_URL}
       BACKEND_URL_INTERNAL: ${BACKEND_URL_INTERNAL:-}
       FRONTEND_PORT: ${FRONTEND_PORT}
@@ -70,7 +75,8 @@ services:
       - frontend_nw
       - proxy_nw
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail http://localhost:${FRONTEND_PORT} || exit 1"]
+      test:
+        ["CMD-SHELL", "curl --fail http://localhost:${FRONTEND_PORT} || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

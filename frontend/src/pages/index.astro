@@ -11,6 +11,7 @@ import { HOME_IMAGES } from "../data/images";
 import BackTop from "../components/atoms/BackTop.astro";
 import Typography from "../components/atoms/Typography.astro";
 import AppDownload from "../components/AppDownload.astro";
+import JoinNetworkCTA from "../components/JoinNetworkCTA.astro";
 import { getLangFromLocals, useTranslations } from "../i18n/utils";
 
 const t = useTranslations(getLangFromLocals(Astro.locals));
@@ -36,7 +37,9 @@ const t = useTranslations(getLangFromLocals(Astro.locals));
       <Typography variant="p">{t("home.intro.particles")}</Typography>
       <Typography variant="p">{t("home.intro.anytime")}</Typography>
       <Typography variant="p">{t("home.intro.forecast")}</Typography>
-      <div class="flex flex-row w-full justify-between p-4 mt-16 px-14 mt-8">
+      <div
+        class="flex flex-row w-full items-center justify-between gap-6 pr-10 mt-20 mb-16 md:mt-24 md:mb-20"
+      >
         {
           HOME_IMAGES.map((image) => (
             <Image class={image.class} alt={image.alt} src={image.path} />
@@ -65,6 +68,7 @@ const t = useTranslations(getLangFromLocals(Astro.locals));
       </div>
     </div>
   </div>
+  <JoinNetworkCTA />
   <AppDownload />
   <BackTop />
   <Footer />
