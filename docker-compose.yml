@@ -84,7 +84,7 @@ services:
   proxy:
     build:
       context: ./proxy
-      target: ${ENVIRONMENT:-dev}
+      target: ${ENVIRONMENT:-local}
     restart: always
     environment:
       BACKEND_HOST: backend
