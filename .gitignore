@@ -181,3 +181,10 @@ vite.config.ts.timestamp-*
 
 # PNPM
 .pnpm-store/
+
+# Docker Compose
+docker-compose.override.yml
+.env.demo
+.env.prod
+.env.local
+*.env.backup-*
