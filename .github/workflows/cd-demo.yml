@@ -35,6 +35,8 @@ jobs:
       - name: Resolve image tag and validate branch
         id: set_tag
         shell: bash
+        env:
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             branch="${GITHUB_REF_NAME}"
@@ -44,7 +46,7 @@ jobs:
               exit 1
             fi
           else
-            branch="${{ github.event.workflow_run.head_branch }}"
+            branch="$HEAD_BRANCH"
             tag="dev-latest"
           fi
 

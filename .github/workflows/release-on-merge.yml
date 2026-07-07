@@ -52,11 +52,13 @@ jobs:
       - name: Generate release notes
         if: steps.extract_tag.outputs.skip != 'true'
         id: release_notes
+        env:
+          PR_BODY_RAW: ${{ github.event.pull_request.body }}
         run: |
           set -eu
 
           # Get PR description as release notes
-          PR_BODY="${{ github.event.pull_request.body }}"
+          PR_BODY="$PR_BODY_RAW"
 
           # If PR body is empty, use a default message
           if [ -z "$PR_BODY" ] || [ "$PR_BODY" = "null" ]; then
