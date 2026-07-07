@@ -195,7 +195,9 @@ def _ip_geolocate(ip):
         # Use a query parameter for the IP rather than formatting it into the
         # URL path. Ensure the IP was already validated by ipaddress above.
         response = requests.get(
-            IP_GEOLOCATION_URL, params={"ip": str(parsed)}, timeout=IP_GEOLOCATION_TIMEOUT
+            IP_GEOLOCATION_URL,
+            params={"ip": str(parsed)},
+            timeout=IP_GEOLOCATION_TIMEOUT,
         )
         if response.status_code == 200:
             data = response.json()

@@ -30,7 +30,11 @@ class IpGeolocateTests(TestCase):
         cache.clear()
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"success": True, "latitude": -25.3, "longitude": -57.5}
+        mock_resp.json.return_value = {
+            "success": True,
+            "latitude": -25.3,
+            "longitude": -57.5,
+        }
 
         with patch("api.views.requests.get", return_value=mock_resp) as mock_get:
             coords = views._ip_geolocate("8.8.8.8")
