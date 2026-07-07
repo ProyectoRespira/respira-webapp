@@ -16,27 +16,32 @@ from .models import (
     Stations,
 )
 
+
+class IpGeolocateTests(TestCase):
     def test_ip_geolocate_private_ip_returns_none(self):
         from .views import _ip_geolocate
 
         # Private IPs should not be geolocated
         self.assertIsNone(_ip_geolocate("10.0.0.1"))
 
-    def test_ip_geolocate_calls_provider_with_params(self):
+    def test_ip_geolocate_calls_provider_with_ip_in_path(self):
         from . import views
 
+        cache.clear()
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"success": True, "latitude": -25.3, "longitude": -57.5}
 
-        with patch("backend.api.views.requests.get", return_value=mock_resp) as mock_get:
+        with patch("api.views.requests.get", return_value=mock_resp) as mock_get:
             coords = views._ip_geolocate("8.8.8.8")
             self.assertEqual(coords, (-25.3, -57.5))
             mock_get.assert_called_once()
-            called_args, called_kwargs = mock_get.call_args
-            # Ensure we call the provider URL and pass the IP as a query param
-            self.assertIn(views.IP_GEOLOCATION_URL, called_args)
-            self.assertEqual(called_kwargs.get("params"), {"ip": "8.8.8.8"})
+            called_args, _ = mock_get.call_args
+            # ipwho.is is path-based: the IP is formatted into the URL, not
+            # passed as a query param.
+            self.assertEqual(
+                called_args[0], views.IP_GEOLOCATION_URL.format(ip="8.8.8.8")
+            )
 
 
 class BackendEndpointTests(TestCase):
