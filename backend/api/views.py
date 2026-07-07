@@ -151,9 +151,9 @@ def _parse_lat_lon(request):
 
 # Provider must return JSON with a truthy "success" flag plus "latitude" and
 # "longitude" fields (ipwho.is shape). Override via settings if needed.
-IP_GEOLOCATION_URL = getattr(
-    settings, "IP_GEOLOCATION_URL", "https://ipwho.is/{ip}"
-)
+# Prefer an endpoint that accepts the IP as a query parameter to avoid
+# interpolating user-controlled values into the request URL path (SSRF).
+IP_GEOLOCATION_URL = getattr(settings, "IP_GEOLOCATION_URL", "https://ipwho.is/json")
 IP_GEOLOCATION_TIMEOUT = getattr(settings, "IP_GEOLOCATION_TIMEOUT", 4)
 IP_GEOLOCATION_CACHE_TTL = getattr(settings, "IP_GEOLOCATION_CACHE_TTL", 6 * 60 * 60)
 
@@ -192,11 +192,14 @@ def _ip_geolocate(ip):
 
     coords = None
     try:
+        # Use a query parameter for the IP rather than formatting it into the
+        # URL path. Ensure the IP was already validated by ipaddress above.
         response = requests.get(
-            IP_GEOLOCATION_URL.format(ip=ip), timeout=IP_GEOLOCATION_TIMEOUT
+            IP_GEOLOCATION_URL, params={"ip": str(parsed)}, timeout=IP_GEOLOCATION_TIMEOUT
         )
         if response.status_code == 200:
             data = response.json()
+            # Many providers use `success` flag; default to True if absent.
             if data.get("success", True):
                 lat = data.get("latitude")
                 lon = data.get("longitude")
