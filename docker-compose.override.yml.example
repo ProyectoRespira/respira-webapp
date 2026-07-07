@@ -1,0 +1,30 @@
+# Local Development Overrides
+# This file is auto-loaded by Docker Compose and overrides docker-compose.yml
+# Only used locally - not committed to git
+#
+# To use:
+#   1. Edit this file to match your local setup
+#   2. docker compose up -d
+#
+# This example provides hot-reload for development:
+
+services:
+  backend:
+    # Mount source code for hot reload (Django auto-reloads on file changes)
+    volumes:
+      - ./backend:/app
+    # Reduce workers for easier debugging
+    environment:
+      BACKEND_DEBUG: "true"
+      BACKEND_GUNICORN_WORKERS: "1"
+
+  frontend:
+    # Mount source code for hot reload (Astro dev server auto-reloads)
+    volumes:
+      - ./frontend:/app
+
+  proxy:
+    # Uncomment to use different port (if 80 is already in use)
+    # ports:
+    #   - "8080:80"
+    #   - "8443:443"
