@@ -1,0 +1,31 @@
+# CODEOWNERS for CI/CD and release governance.
+#
+# Official guidance used:
+# - Protect CODEOWNERS itself so ownership cannot be bypassed by editing this file.
+# - Put multiple owners for the same pattern on a single line.
+# - Use directory rules for workflow and automation configs.
+#
+# NOTE: CODEOWNERS only requests reviewers. To enforce approvals, enable branch
+# protection (or rulesets) with "Require review from Code Owners" on protected branches.
+
+# Protect ownership metadata itself.
+/.github/CODEOWNERS @ProyectoRespira/platform-admins
+
+# Protect all GitHub Actions workflows (build, test, release, deploy).
+/.github/workflows/ @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+
+# Protect repo automation and security scanning configuration.
+/.github/dependabot.yml @ProyectoRespira/platform-admins
+/.github/codeql/ @ProyectoRespira/platform-admins
+
+# Protect PR policy template (can influence review quality/signals).
+/.github/pull_request_template.md @ProyectoRespira/platform-admins
+
+# Protect deployment/runtime infrastructure outside .github.
+/docker-compose*.yml @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/backend/Dockerfile @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/frontend/Dockerfile @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/proxy/Dockerfile @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/backend/entrypoint.sh @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/proxy/entrypoint.sh @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/proxy/nginx.conf*.template @ProyectoRespira/platform-admins @ProyectoRespira/release-managers

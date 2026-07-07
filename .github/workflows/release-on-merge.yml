@@ -1,0 +1,140 @@
+name: Create Release on Merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    steps:
+      - name: Extract and validate branch tag
+        id: extract_tag
+        run: |
+          set -eu
+
+          # Extract tag from PR head branch name (e.g., release/v1.2.3 or hotfix/v1.2.3 -> v1.2.3)
+          HEAD_REF="${{ github.head_ref }}"
+
+          # Only process release and hotfix branches
+          if ! [[ "$HEAD_REF" =~ ^(release|hotfix)/(.*)$ ]]; then
+            echo "Not a release or hotfix branch, skipping release creation"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BRANCH_TYPE="${BASH_REMATCH[1]}"
+          BRANCH_TAG="${BASH_REMATCH[2]}"
+
+          if ! printf '%s' "$BRANCH_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Version tag must follow semver format: vX.Y.Z"
+            echo "Current tag: $BRANCH_TAG"
+            exit 1
+          fi
+
+          echo "tag=$BRANCH_TAG" >> "$GITHUB_OUTPUT"
+          echo "branch_type=$BRANCH_TYPE" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "✓ Valid branch: $HEAD_REF -> $BRANCH_TAG ($BRANCH_TYPE)"
+
+      - name: Checkout code
+        if: steps.extract_tag.outputs.skip != 'true'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Generate release notes
+        if: steps.extract_tag.outputs.skip != 'true'
+        id: release_notes
+        env:
+          PR_BODY_RAW: ${{ github.event.pull_request.body }}
+        run: |
+          set -eu
+
+          # Get PR description as release notes
+          PR_BODY="$PR_BODY_RAW"
+
+          # If PR body is empty, use a default message
+          if [ -z "$PR_BODY" ] || [ "$PR_BODY" = "null" ]; then
+            PR_BODY="Release ${{ steps.extract_tag.outputs.tag }} from ${{ steps.extract_tag.outputs.branch_type }} branch"
+          fi
+
+          # Escape newlines for GitHub output
+          PR_BODY="${PR_BODY//'%'/'%25'}"
+          PR_BODY="${PR_BODY//$'\n'/'%0A'}"
+          PR_BODY="${PR_BODY//$'\r'/'%0D'}"
+
+          echo "body=$PR_BODY" >> "$GITHUB_OUTPUT"
+          echo "Release notes prepared from PR description"
+
+      - name: Delete previous hotfix/release images from GHCR
+        if: steps.extract_tag.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e  # Continue on error
+
+          RELEASE_TAG="${{ steps.extract_tag.outputs.tag }}"
+          BRANCH_TYPE="${{ steps.extract_tag.outputs.branch_type }}"
+          PREFIXED_TAG="$BRANCH_TYPE-$RELEASE_TAG"
+
+          echo "Deleting previous images from GHCR..."
+
+          # Function to delete all versions with a specific tag
+          delete_tag_from_image() {
+            local image_name=$1
+            local tag=$2
+            echo "Deleting $image_name:$tag..."
+
+            gh api \
+              -X GET \
+              "/user/packages/container/$image_name/versions" \
+              --paginate \
+              --jq ".[] | select(.tags[]? == \"$tag\") | .id" | \
+              while read version_id; do
+                if [ ! -z "$version_id" ]; then
+                  echo "  Deleting version $version_id"
+                  gh api -X DELETE "/user/packages/container/$image_name/versions/$version_id" || true
+                fi
+              done
+          }
+
+          # Delete both version tag and prefixed tag for all images
+          for image_name in respira-backend respira-frontend respira-proxy; do
+            delete_tag_from_image "$image_name" "$RELEASE_TAG"
+            delete_tag_from_image "$image_name" "$PREFIXED_TAG"
+          done
+
+          echo "Previous images deletion completed"
+          set -e
+
+      - name: Create GitHub Release
+        if: steps.extract_tag.outputs.skip != 'true'
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v0.1.15
+        with:
+          tag_name: ${{ steps.extract_tag.outputs.tag }}
+          body: ${{ steps.release_notes.outputs.body }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release creation summary
+        if: steps.extract_tag.outputs.skip != 'true'
+        run: |
+          echo "✓ GitHub Release created"
+          echo "  Tag: ${{ steps.extract_tag.outputs.tag }}"
+          echo "  Branch Type: ${{ steps.extract_tag.outputs.branch_type }}"
+          echo "  Release Type: Full Release"
+          echo "  PR: #${{ github.event.pull_request.number }}"
+          echo ""
+          echo "✓ Intermediate images deleted"
+          echo "  Deleted: ${{ steps.extract_tag.outputs.branch_type }}-${{ steps.extract_tag.outputs.tag }}"
+          echo "  From: respira-backend, respira-frontend, respira-proxy"
