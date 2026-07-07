@@ -1,31 +1,34 @@
-# CODEOWNERS for CI/CD and release governance.
+# CODEOWNERS for CI/CD, release, and application governance.
 #
-# Official guidance used:
-# - Protect CODEOWNERS itself so ownership cannot be bypassed by editing this file.
-# - Put multiple owners for the same pattern on a single line.
-# - Use directory rules for workflow and automation configs.
-#
-# NOTE: CODEOWNERS only requests reviewers. To enforce approvals, enable branch
-# protection (or rulesets) with "Require review from Code Owners" on protected branches.
+# This layout is designed to work with Terraform-managed rulesets that require
+# code-owner review on main, dev, release/*, and hotfix/*.
 
-# Protect ownership metadata itself.
+# Ownership metadata and repository governance.
 /.github/CODEOWNERS @ProyectoRespira/platform-admins
-
-# Protect all GitHub Actions workflows (build, test, release, deploy).
 /.github/workflows/ @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
-
-# Protect repo automation and security scanning configuration.
 /.github/dependabot.yml @ProyectoRespira/platform-admins
 /.github/codeql/ @ProyectoRespira/platform-admins
-
-# Protect PR policy template (can influence review quality/signals).
 /.github/pull_request_template.md @ProyectoRespira/platform-admins
 
-# Protect deployment/runtime infrastructure outside .github.
+# Security and repo policy documents.
+/SECURITY.md @ProyectoRespira/platform-admins
+/README.md @ProyectoRespira/release-managers
+
+# Runtime and deployment infrastructure.
 /docker-compose*.yml @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/docker-compose.remote.yml @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/.env.example @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/.devcontainer/ @ProyectoRespira/platform-admins
+/proxy/ @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+
+# Application delivery surfaces.
 /backend/Dockerfile @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
 /frontend/Dockerfile @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
-/proxy/Dockerfile @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
 /backend/entrypoint.sh @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
 /proxy/entrypoint.sh @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
 /proxy/nginx.conf*.template @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+
+# Application source ownership.
+/backend/ @ProyectoRespira/release-managers
+/frontend/ @ProyectoRespira/release-managers
+/docs/ @ProyectoRespira/release-managers
