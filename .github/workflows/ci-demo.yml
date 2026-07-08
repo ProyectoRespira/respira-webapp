@@ -11,8 +11,8 @@ permissions:
   contents: read
   packages: write
   attestations: write
+  artifact-metadata: write
   id-token: write
-  artifact-metadata-write: write
 
 concurrency:
   group: ci-demo-${{ github.ref }}
@@ -49,6 +49,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set +e
+          PACKAGE_API_PREFIX="/orgs/${{ github.repository_owner }}/packages/container"
 
           delete_tag_from_image() {
             local image_name=$1
@@ -56,13 +57,13 @@ jobs:
 
             gh api \
               -X GET \
-              "/user/packages/container/$image_name/versions" \
+              "$PACKAGE_API_PREFIX/$image_name/versions" \
               --paginate \
               --jq '.[] | select(.tags[]? == "dev-latest") | .id' | \
               while read version_id; do
                 if [ -n "$version_id" ]; then
                   echo "  Deleting version $version_id"
-                  gh api -X DELETE "/user/packages/container/$image_name/versions/$version_id" || true
+                  gh api -X DELETE "$PACKAGE_API_PREFIX/$image_name/versions/$version_id" || true
                 fi
               done
           }
