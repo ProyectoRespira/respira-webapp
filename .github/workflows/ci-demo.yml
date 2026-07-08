@@ -3,6 +3,7 @@ name: CI Demo
 run-name: Build and Publish Dev Images
 
 on:
+  workflow_dispatch:
   push:
     branches: [dev]
 
