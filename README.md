@@ -16,6 +16,13 @@ For security procedures and incident response details:
 - [Security Policy](SECURITY.md)
 - [Security Documentation](docs/security/)
 
+## Docker Compose
+
+For local development and deployment with Docker Compose, see:
+
+- **[Docker Compose How-To Guide](docs/DOCKER_COMPOSE_HOWTO.md)** - Setup, configuration, and troubleshooting
+- Quick start: `cp docker-compose.override.yml.example docker-compose.override.yml && cp .env.example .env && docker compose up -d`
+
 ## Developer workflow
 
 ### Backend local setup
@@ -65,28 +72,9 @@ git commit -m "your message"
 
 If a hook modifies files during commit, re-stage the modified files and commit again.
 
-## Running with Docker Compose
+## Environment Variables
 
-Create a root `.env` with at least:
-
-```env
-BACKEND_SECRET_KEY=<django-secret>
-BACKEND_PORT=8000
-FRONTEND_PORT=4321
-PROXY_PORT=80
-ENVIRONMENT=local
-```
-
-Build and start:
-
-```bash
-docker compose build
-docker compose up -d
-```
-
-The stack uses an external Postgres database. Configure connection variables in `backend/.env`.
-
-Environment variable references:
+Configuration reference for all services:
 
 - [Backend environment variables](docs/backend-env-vars.md)
 - [Frontend environment variables](docs/frontend-env-vars.md)

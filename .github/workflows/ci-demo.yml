@@ -1,23 +1,22 @@
-name: Dev Image Publish
+name: CI Demo
+
+run-name: Build and Publish Dev Images
 
 on:
   workflow_dispatch:
-    inputs:
-      image_tag:
-        description: "Custom tag for dev image publish (valid Docker tag format)"
-        required: true
-        type: string
-        default: "dev-manual"
+  push:
+    branches: [dev]
 
 permissions:
   contents: read
   packages: write
   attestations: write
+  artifact-metadata: write
   id-token: write
 
 concurrency:
-  group: dev-image-${{ github.ref }}
-  cancel-in-progress: false
+  group: ci-demo-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   publish:
@@ -28,25 +27,9 @@ jobs:
       IMAGE_OWNER: ${{ github.repository_owner }}
 
     steps:
-      - name: Validate branch and tag
-        shell: bash
-        run: |
-          set -eu
-
-          if [ "${{ github.ref }}" != "refs/heads/dev" ]; then
-            echo "This workflow can only publish from refs/heads/dev. Current ref: ${{ github.ref }}"
-            exit 1
-          fi
-
-          if ! printf '%s' "${{ inputs.image_tag }}" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$'; then
-            echo "image_tag must be a valid Docker tag: start with [A-Za-z0-9_], then only [A-Za-z0-9_.-], max 128 chars"
-            exit 1
-          fi
-
       - name: Normalize image owner
         shell: bash
-        run: |
-          echo "IMAGE_OWNER_LC=${IMAGE_OWNER,,}" >> "$GITHUB_ENV"
+        run: echo "IMAGE_OWNER_LC=${IMAGE_OWNER,,}" >> "$GITHUB_ENV"
 
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -61,13 +44,44 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Delete previous dev-latest images from GHCR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          PACKAGE_API_PREFIX="/orgs/${{ github.repository_owner }}/packages/container"
+
+          delete_tag_from_image() {
+            local image_name=$1
+            echo "Deleting previous $image_name:dev-latest..."
+
+            gh api \
+              -X GET \
+              "$PACKAGE_API_PREFIX/$image_name/versions" \
+              --paginate \
+              --jq '.[] | select(.tags[]? == "dev-latest") | .id' | \
+              while read version_id; do
+                if [ -n "$version_id" ]; then
+                  echo "  Deleting version $version_id"
+                  gh api -X DELETE "$PACKAGE_API_PREFIX/$image_name/versions/$version_id" || true
+                fi
+              done
+          }
+
+          delete_tag_from_image "respira-backend"
+          delete_tag_from_image "respira-frontend"
+          delete_tag_from_image "respira-proxy"
+
+          echo "Previous image deletion completed"
+          set -e
+
       - name: Docker metadata backend
         id: meta_backend
         uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-backend
           tags: |
-            type=raw,value=${{ inputs.image_tag }}
+            type=raw,value=dev-latest
             type=sha,prefix=sha-
 
       - name: Docker metadata frontend
@@ -76,7 +90,16 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-frontend
           tags: |
-            type=raw,value=${{ inputs.image_tag }}
+            type=raw,value=dev-latest
+            type=sha,prefix=sha-
+
+      - name: Docker metadata proxy
+        id: meta_proxy
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-proxy
+          tags: |
+            type=raw,value=dev-latest
             type=sha,prefix=sha-
 
       - name: Build and push backend image
@@ -107,6 +130,20 @@ jobs:
           provenance: true
           sbom: true
 
+      - name: Build and push proxy image
+        id: push_proxy
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: ./proxy
+          file: ./proxy/Dockerfile
+          push: true
+          tags: ${{ steps.meta_proxy.outputs.tags }}
+          labels: ${{ steps.meta_proxy.outputs.labels }}
+          cache-from: type=gha,scope=proxy
+          cache-to: type=gha,scope=proxy,mode=max
+          provenance: true
+          sbom: true
+
       - name: Generate backend image attestation
         uses: actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb # v4
         with:
@@ -119,4 +156,11 @@ jobs:
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-frontend
           subject-digest: ${{ steps.push_frontend.outputs.digest }}
+          push-to-registry: true
+
+      - name: Generate proxy image attestation
+        uses: actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb # v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-proxy
+          subject-digest: ${{ steps.push_proxy.outputs.digest }}
           push-to-registry: true
