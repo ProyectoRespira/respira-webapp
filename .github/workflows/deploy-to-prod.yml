@@ -158,7 +158,6 @@ jobs:
         id: copy_files
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_HOST_FINGERPRINT: ${{ secrets.DEPLOY_HOST_FINGERPRINT }}
           DEPLOY_HOST_KEY: ${{ secrets.DEPLOY_HOST_KEY }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_WEBAPP }}
@@ -173,20 +172,8 @@ jobs:
             exit 1
           fi
 
-          if [ -z "$DEPLOY_HOST_FINGERPRINT" ]; then
-            echo "Missing required DEPLOY_HOST_FINGERPRINT secret in Production environment."
-            exit 1
-          fi
-
-          if ! printf '%s' "$DEPLOY_HOST_FINGERPRINT" | grep -Eq '^SHA256:[A-Za-z0-9+/=]+$'; then
-            echo "DEPLOY_HOST_FINGERPRINT must be an OpenSSH SHA256 fingerprint like SHA256:abc123..."
-            exit 1
-          fi
-
           printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-
-          echo "fingerprint=$DEPLOY_HOST_FINGERPRINT" >> "$GITHUB_OUTPUT"
 
           scp -i "$KEY_PATH" \
             -o StrictHostKeyChecking=yes \
@@ -202,87 +189,89 @@ jobs:
             "$DEPLOY_USER@$DEPLOY_HOST:$COMPOSE_PATH/.env.prod"
 
       - name: Deploy over SSH
-        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          fingerprint: ${{ steps.copy_files.outputs.fingerprint }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key_path: ${{ steps.prepare_ssh_key.outputs.key_path }}
-          port: 22
-          command_timeout: 30m
-          script: |
-            set -euo pipefail
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_WEBAPP }}
+          KEY_PATH: ${{ steps.prepare_ssh_key.outputs.key_path }}
+        run: |
+          ssh -i "$KEY_PATH" \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -o ConnectTimeout=30 \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "export COMPOSE_PATH='$COMPOSE_PATH'; bash -se" <<'REMOTE_SCRIPT'
+          set -euo pipefail
 
-            COMPOSE_PATH="${{ secrets.DEPLOY_COMPOSE_PATH_WEBAPP }}"
-            if [ -z "$COMPOSE_PATH" ] || [ ! -d "$COMPOSE_PATH" ]; then
-              echo "Invalid DEPLOY_COMPOSE_PATH_WEBAPP configured for selected environment."
+          if [ -z "$COMPOSE_PATH" ] || [ ! -d "$COMPOSE_PATH" ]; then
+            echo "Invalid DEPLOY_COMPOSE_PATH_WEBAPP configured for selected environment."
+            exit 1
+          fi
+
+          cd "$COMPOSE_PATH"
+
+          docker compose \
+            -f docker-compose.yml \
+            -f docker-compose.remote.yml \
+            --env-file .env.prod \
+            up -d --pull always --remove-orphans
+
+          timeout_seconds=600
+          interval_seconds=10
+          elapsed=0
+
+          while true; do
+            containers="$(docker compose ps -q)"
+            if [ -z "$containers" ]; then
+              echo "No containers were created by docker compose."
+              docker compose ps
               exit 1
             fi
 
-            cd "$COMPOSE_PATH"
+            all_running=true
+            all_healthy=true
 
-            # Deploy using remote override (pre-built images, latest tag by default).
-            docker compose \
-              -f docker-compose.yml \
-              -f docker-compose.remote.yml \
-              --env-file .env.prod \
-              up -d --pull always --remove-orphans
+            for container in $containers; do
+              name="$(docker inspect --format '{{.Name}}' "$container" | sed 's#^/##')"
+              state="$(docker inspect --format '{{.State.Status}}' "$container")"
+              health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container")"
 
-            timeout_seconds=600
-            interval_seconds=10
-            elapsed=0
+              echo "$name state=$state health=$health"
 
-            while true; do
-              containers="$(docker compose ps -q)"
-              if [ -z "$containers" ]; then
-                echo "No containers were created by docker compose."
+              if [ "$state" != "running" ]; then
+                all_running=false
+              fi
+
+              if [ "$health" = "unhealthy" ]; then
+                echo "$name is unhealthy"
                 docker compose ps
                 exit 1
               fi
 
-              all_running=true
-              all_healthy=true
-
-              for container in $containers; do
-                name="$(docker inspect --format '{{.Name}}' "$container" | sed 's#^/##')"
-                state="$(docker inspect --format '{{.State.Status}}' "$container")"
-                health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container")"
-
-                echo "$name state=$state health=$health"
-
-                if [ "$state" != "running" ]; then
-                  all_running=false
-                fi
-
-                if [ "$health" = "unhealthy" ]; then
-                  echo "$name is unhealthy"
-                  docker compose ps
-                  exit 1
-                fi
-
-                if [ "$health" != "none" ] && [ "$health" != "healthy" ]; then
-                  all_healthy=false
-                fi
-              done
-
-              if [ "$all_running" = true ] && [ "$all_healthy" = true ]; then
-                echo "Compose stack is up and healthy."
-                break
+              if [ "$health" != "none" ] && [ "$health" != "healthy" ]; then
+                all_healthy=false
               fi
-
-              if [ "$elapsed" -ge "$timeout_seconds" ]; then
-                echo "Timed out waiting for stack to become ready."
-                docker compose ps
-                exit 1
-              fi
-
-              sleep "$interval_seconds"
-              elapsed=$((elapsed + interval_seconds))
             done
 
-            docker system prune -af
-            docker image prune -af
-            docker builder prune -af
+            if [ "$all_running" = true ] && [ "$all_healthy" = true ]; then
+              echo "Compose stack is up and healthy."
+              break
+            fi
+
+            if [ "$elapsed" -ge "$timeout_seconds" ]; then
+              echo "Timed out waiting for stack to become ready."
+              docker compose ps
+              exit 1
+            fi
+
+            sleep "$interval_seconds"
+            elapsed=$((elapsed + interval_seconds))
+          done
+
+          docker system prune -af
+          docker image prune -af
+          docker builder prune -af
+          REMOTE_SCRIPT
 
       - name: Post-deploy summary
         run: |
