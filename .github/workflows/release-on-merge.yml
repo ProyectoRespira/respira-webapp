@@ -47,12 +47,25 @@ jobs:
           echo "skip=false" >> "$GITHUB_OUTPUT"
           echo "✓ Valid branch: $HEAD_REF -> $BRANCH_TAG ($BRANCH_TYPE)"
 
-      - name: Checkout code
+      - name: Verify release tag exists on origin
         if: steps.extract_tag.outputs.skip != 'true'
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        id: tag_exists
+        env:
+          RELEASE_TAG: ${{ steps.extract_tag.outputs.tag }}
+        run: |
+          set -eu
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "✓ Tag exists on origin: $RELEASE_TAG"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Tag does not exist on origin: $RELEASE_TAG"
+            echo "Skipping release creation because repository rules do not allow this workflow to create tags"
+          fi
 
       - name: Generate release notes
-        if: steps.extract_tag.outputs.skip != 'true'
+        if: steps.extract_tag.outputs.skip != 'true' && steps.tag_exists.outputs.exists == 'true'
         id: release_notes
         env:
           PR_BODY_RAW: ${{ github.event.pull_request.body }}
@@ -76,7 +89,7 @@ jobs:
           echo "Release notes prepared from PR description"
 
       - name: Delete previous hotfix/release images from GHCR
-        if: steps.extract_tag.outputs.skip != 'true'
+        if: steps.extract_tag.outputs.skip != 'true' && steps.tag_exists.outputs.exists == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -118,7 +131,7 @@ jobs:
           set -e
 
       - name: Create GitHub Release
-        if: steps.extract_tag.outputs.skip != 'true'
+        if: steps.extract_tag.outputs.skip != 'true' && steps.tag_exists.outputs.exists == 'true'
         uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v0.1.15
         with:
           tag_name: ${{ steps.extract_tag.outputs.tag }}
@@ -130,7 +143,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Release creation summary
-        if: steps.extract_tag.outputs.skip != 'true'
+        if: steps.extract_tag.outputs.skip != 'true' && steps.tag_exists.outputs.exists == 'true'
         run: |
           echo "✓ GitHub Release created"
           echo "  Tag: ${{ steps.extract_tag.outputs.tag }}"
@@ -141,3 +154,11 @@ jobs:
           echo "✓ Intermediate images deleted"
           echo "  Deleted: ${{ steps.extract_tag.outputs.branch_type }}-${{ steps.extract_tag.outputs.tag }}"
           echo "  From: respira-backend, respira-frontend, respira-proxy"
+
+      - name: Release skipped summary
+        if: steps.extract_tag.outputs.skip != 'true' && steps.tag_exists.outputs.exists != 'true'
+        run: |
+          echo "Release skipped"
+          echo "  Tag: ${{ steps.extract_tag.outputs.tag }}"
+          echo "  Reason: tag is missing on origin and repository rules restrict tag creation"
+          echo "  Action: create and push the tag first, then rerun this workflow"
