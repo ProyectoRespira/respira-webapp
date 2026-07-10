@@ -337,7 +337,7 @@ jobs:
           printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-          DEPLOY_HOST_FINGERPRINT="$(printf '%s\n' "$DEPLOY_HOST_KEY" | ssh-keygen -E sha256 -lf - | awk '{print $2}' | sed 's/^SHA256://')"
+          DEPLOY_HOST_FINGERPRINT="$(printf '%s\n' "$DEPLOY_HOST_KEY" | ssh-keygen -E sha256 -lf - | awk '{print $2}')"
           if [ -z "$DEPLOY_HOST_FINGERPRINT" ]; then
             echo "Failed to derive SSH host fingerprint from DEPLOY_HOST_KEY."
             exit 1
