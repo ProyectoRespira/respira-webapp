@@ -1,0 +1,34 @@
+# CODEOWNERS for CI/CD, release, and application governance.
+#
+# This layout is designed to work with Terraform-managed rulesets that require
+# code-owner review on main, dev, release/*, and hotfix/*.
+
+# Ownership metadata and repository governance.
+/.github/CODEOWNERS @ProyectoRespira/platform-admins
+/.github/workflows/ @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/.github/dependabot.yml @ProyectoRespira/platform-admins
+/.github/codeql/ @ProyectoRespira/platform-admins
+/.github/pull_request_template.md @ProyectoRespira/platform-admins
+
+# Security and repo policy documents.
+/SECURITY.md @ProyectoRespira/platform-admins
+/README.md @ProyectoRespira/release-managers
+
+# Runtime and deployment infrastructure.
+/docker-compose*.yml @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/docker-compose.remote.yml @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/.env.example @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/.devcontainer/ @ProyectoRespira/platform-admins
+/proxy/ @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+
+# Application delivery surfaces.
+/backend/Dockerfile @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/frontend/Dockerfile @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/backend/entrypoint.sh @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/proxy/entrypoint.sh @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/proxy/nginx.conf*.template @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+
+# Application source ownership.
+/backend/ @ProyectoRespira/release-managers
+/frontend/ @ProyectoRespira/release-managers
+/docs/ @ProyectoRespira/release-managers
