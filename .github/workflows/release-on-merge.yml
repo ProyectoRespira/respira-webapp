@@ -106,20 +106,24 @@ jobs:
         run: |
           set -eu
 
-          # Get PR description as release notes
-          PR_BODY="$PR_BODY_RAW"
+          RELEASE_TAG="${{ steps.extract_tag.outputs.tag }}"
+          BRANCH_TYPE="${{ steps.extract_tag.outputs.branch_type }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
 
-          # If PR body is empty, use a default message
+          # Keep PR body formatting intact and normalize CRLF to LF.
+          PR_BODY="$(printf '%s' "$PR_BODY_RAW" | sed 's/\r$//')"
+
+          # If PR body is empty, create a predictable markdown template.
           if [ -z "$PR_BODY" ] || [ "$PR_BODY" = "null" ]; then
-            PR_BODY="Release ${{ steps.extract_tag.outputs.tag }} from ${{ steps.extract_tag.outputs.branch_type }} branch"
+            PR_BODY="$(printf '## Summary\nRelease %s published from a %s branch.\n\n## Source\n- Pull Request: #%s\n' "$RELEASE_TAG" "$BRANCH_TYPE" "$PR_NUMBER")"
           fi
 
-          # Escape newlines for GitHub output
-          PR_BODY="${PR_BODY//'%'/'%25'}"
-          PR_BODY="${PR_BODY//$'\n'/'%0A'}"
-          PR_BODY="${PR_BODY//$'\r'/'%0D'}"
+          {
+            echo "body<<EOF"
+            printf '%s\n' "$PR_BODY"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
-          echo "body=$PR_BODY" >> "$GITHUB_OUTPUT"
           echo "Release notes prepared from PR description"
 
       - name: Delete previous hotfix/release images from GHCR
@@ -168,12 +172,13 @@ jobs:
         if: steps.extract_tag.outputs.skip != 'true' && steps.ensure_tag.outputs.ready == 'true'
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         with:
+          name: Release ${{ steps.extract_tag.outputs.tag }}
           tag_name: ${{ steps.extract_tag.outputs.tag }}
           target_commitish: ${{ github.event.pull_request.merge_commit_sha }}
           body: ${{ steps.release_notes.outputs.body }}
           draft: false
           prerelease: false
-          generate_release_notes: true
+          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
