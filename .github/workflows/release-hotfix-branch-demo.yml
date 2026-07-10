@@ -123,8 +123,8 @@ jobs:
           push: true
           tags: ${{ steps.meta_backend.outputs.tags }}
           labels: ${{ steps.meta_backend.outputs.labels }}
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,scope=backend,mode=max
+          cache-from: type=gha,scope=release-hotfix-demo-backend
+          cache-to: type=gha,scope=release-hotfix-demo-backend,mode=max,ignore-error=true
           provenance: true
           sbom: true
 
@@ -137,8 +137,8 @@ jobs:
           push: true
           tags: ${{ steps.meta_frontend.outputs.tags }}
           labels: ${{ steps.meta_frontend.outputs.labels }}
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,scope=frontend,mode=max
+          cache-from: type=gha,scope=release-hotfix-demo-frontend
+          cache-to: type=gha,scope=release-hotfix-demo-frontend,mode=max,ignore-error=true
           provenance: true
           sbom: true
 
@@ -151,8 +151,8 @@ jobs:
           push: true
           tags: ${{ steps.meta_proxy.outputs.tags }}
           labels: ${{ steps.meta_proxy.outputs.labels }}
-          cache-from: type=gha,scope=proxy
-          cache-to: type=gha,scope=proxy,mode=max
+          cache-from: type=gha,scope=release-hotfix-demo-proxy
+          cache-to: type=gha,scope=release-hotfix-demo-proxy,mode=max,ignore-error=true
           provenance: true
           sbom: true
 
