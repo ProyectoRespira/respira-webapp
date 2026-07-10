@@ -378,9 +378,17 @@ jobs:
 
           cd "$COMPOSE_PATH"
 
+          # Keep the repository file unchanged; adjust fallback tag only on the remote deployed copy.
+          cp docker-compose.remote.yml docker-compose.remote.demo.yml
+          sed -i \
+            -e 's/${BACKEND_IMAGE_TAG:-latest}/${BACKEND_IMAGE_TAG:-dev-latest}/g' \
+            -e 's/${FRONTEND_IMAGE_TAG:-latest}/${FRONTEND_IMAGE_TAG:-dev-latest}/g' \
+            -e 's/${PROXY_IMAGE_TAG:-latest}/${PROXY_IMAGE_TAG:-dev-latest}/g' \
+            docker-compose.remote.demo.yml
+
           docker compose \
             -f docker-compose.yml \
-            -f docker-compose.remote.yml \
+            -f docker-compose.remote.demo.yml \
             --env-file .env.demo \
             up -d --pull always --remove-orphans
 
