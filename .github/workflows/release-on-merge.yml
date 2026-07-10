@@ -47,25 +47,59 @@ jobs:
           echo "skip=false" >> "$GITHUB_OUTPUT"
           echo "✓ Valid branch: $HEAD_REF -> $BRANCH_TAG ($BRANCH_TYPE)"
 
-      - name: Verify release tag exists on origin
+      - name: Ensure release tag exists on merge commit
         if: steps.extract_tag.outputs.skip != 'true'
-        id: tag_exists
+        id: ensure_tag
         env:
           RELEASE_TAG: ${{ steps.extract_tag.outputs.tag }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITHUB_FALLBACK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
 
-          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" > /dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "✓ Tag exists on origin: $RELEASE_TAG"
+          AUTH_TOKEN="$RELEASE_TOKEN"
+          TOKEN_SOURCE="RELEASE_TOKEN"
+          if [ -z "$AUTH_TOKEN" ]; then
+            AUTH_TOKEN="$GITHUB_FALLBACK_TOKEN"
+            TOKEN_SOURCE="GITHUB_TOKEN"
+          fi
+
+          if [ -z "$MERGE_SHA" ] || [ "$MERGE_SHA" = "null" ]; then
+            echo "Missing merge commit SHA from pull_request event"
+            exit 1
+          fi
+
+          REF_API="repos/${{ github.repository }}/git/ref/tags/$RELEASE_TAG"
+
+          if GH_TOKEN="$AUTH_TOKEN" gh api "$REF_API" > /dev/null 2>&1; then
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "✓ Tag already exists: $RELEASE_TAG"
           else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Tag does not exist on origin: $RELEASE_TAG"
-            echo "Skipping release creation because repository rules do not allow this workflow to create tags"
+            if GH_TOKEN="$AUTH_TOKEN" gh api \
+              -X POST \
+              "repos/${{ github.repository }}/git/refs" \
+              -f ref="refs/tags/$RELEASE_TAG" \
+              -f sha="$MERGE_SHA" > /dev/null 2>&1; then
+              echo "created=true" >> "$GITHUB_OUTPUT"
+              echo "ready=true" >> "$GITHUB_OUTPUT"
+              echo "✓ Created tag $RELEASE_TAG at merge commit $MERGE_SHA"
+            elif GH_TOKEN="$AUTH_TOKEN" gh api "$REF_API" > /dev/null 2>&1; then
+              # Handle races from retries/concurrent reruns where tag appears after create attempt.
+              echo "created=false" >> "$GITHUB_OUTPUT"
+              echo "ready=true" >> "$GITHUB_OUTPUT"
+              echo "✓ Tag exists after create attempt: $RELEASE_TAG"
+            else
+              echo "Failed to create release tag $RELEASE_TAG from merge commit $MERGE_SHA"
+              echo "Token source: $TOKEN_SOURCE"
+              echo "If repository rules restrict ref creation, configure a repo secret named RELEASE_TOKEN"
+              exit 1
+            fi
           fi
 
       - name: Generate release notes
-        if: steps.extract_tag.outputs.skip != 'true' && steps.tag_exists.outputs.exists == 'true'
+        if: steps.extract_tag.outputs.skip != 'true' && steps.ensure_tag.outputs.ready == 'true'
         id: release_notes
         env:
           PR_BODY_RAW: ${{ github.event.pull_request.body }}
@@ -89,7 +123,7 @@ jobs:
           echo "Release notes prepared from PR description"
 
       - name: Delete previous hotfix/release images from GHCR
-        if: steps.extract_tag.outputs.skip != 'true' && steps.tag_exists.outputs.exists == 'true'
+        if: steps.extract_tag.outputs.skip != 'true' && steps.ensure_tag.outputs.ready == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -131,10 +165,11 @@ jobs:
           set -e
 
       - name: Create GitHub Release
-        if: steps.extract_tag.outputs.skip != 'true' && steps.tag_exists.outputs.exists == 'true'
+        if: steps.extract_tag.outputs.skip != 'true' && steps.ensure_tag.outputs.ready == 'true'
         uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v0.1.15
         with:
           tag_name: ${{ steps.extract_tag.outputs.tag }}
+          target_commitish: ${{ github.event.pull_request.merge_commit_sha }}
           body: ${{ steps.release_notes.outputs.body }}
           draft: false
           prerelease: false
@@ -143,22 +178,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Release creation summary
-        if: steps.extract_tag.outputs.skip != 'true' && steps.tag_exists.outputs.exists == 'true'
+        if: steps.extract_tag.outputs.skip != 'true' && steps.ensure_tag.outputs.ready == 'true'
         run: |
           echo "✓ GitHub Release created"
           echo "  Tag: ${{ steps.extract_tag.outputs.tag }}"
           echo "  Branch Type: ${{ steps.extract_tag.outputs.branch_type }}"
           echo "  Release Type: Full Release"
+          echo "  Tag Created: ${{ steps.ensure_tag.outputs.created }}"
+          echo "  Merge Commit: ${{ github.event.pull_request.merge_commit_sha }}"
           echo "  PR: #${{ github.event.pull_request.number }}"
           echo ""
           echo "✓ Intermediate images deleted"
           echo "  Deleted: ${{ steps.extract_tag.outputs.branch_type }}-${{ steps.extract_tag.outputs.tag }}"
           echo "  From: respira-backend, respira-frontend, respira-proxy"
-
-      - name: Release skipped summary
-        if: steps.extract_tag.outputs.skip != 'true' && steps.tag_exists.outputs.exists != 'true'
-        run: |
-          echo "Release skipped"
-          echo "  Tag: ${{ steps.extract_tag.outputs.tag }}"
-          echo "  Reason: tag is missing on origin and repository rules restrict tag creation"
-          echo "  Action: create and push the tag first, then rerun this workflow"
