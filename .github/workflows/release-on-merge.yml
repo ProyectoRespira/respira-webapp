@@ -166,7 +166,7 @@ jobs:
 
       - name: Create GitHub Release
         if: steps.extract_tag.outputs.skip != 'true' && steps.ensure_tag.outputs.ready == 'true'
-        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v0.1.15
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         with:
           tag_name: ${{ steps.extract_tag.outputs.tag }}
           target_commitish: ${{ github.event.pull_request.merge_commit_sha }}
