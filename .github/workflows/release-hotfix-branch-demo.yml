@@ -3,8 +3,7 @@ name: CI/CD Release/Hotfix Branches to Demo
 on:
   pull_request:
     branches:
-      - release/v*
-      - hotfix/v*
+      - main
 
 permissions:
   contents: read
@@ -20,6 +19,7 @@ concurrency:
 jobs:
   validate:
     name: Validate Release/Hotfix Branch
+    if: ${{ startsWith(github.event.pull_request.head.ref, 'release/') || startsWith(github.event.pull_request.head.ref, 'hotfix/') }}
     runs-on: ubuntu-latest
     outputs:
       branch_tag: ${{ steps.extract_tag.outputs.tag }}
