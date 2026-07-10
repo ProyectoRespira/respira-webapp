@@ -195,6 +195,32 @@ jobs:
     runs-on: ubuntu-latest
     environment: Demo
     steps:
+      - name: Resolve image tag and validate branch
+        id: set_tag
+        shell: bash
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          IMAGE_TAG_INPUT: ${{ needs.validate.outputs.prefixed_tag }}
+        run: |
+          set -euo pipefail
+
+          if ! printf '%s' "$HEAD_REF" | grep -Eq '^(release|hotfix)/v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Invalid release/hotfix head branch: $HEAD_REF"
+            exit 1
+          fi
+
+          if [ -z "$IMAGE_TAG_INPUT" ]; then
+            echo "Resolved image tag is empty; refusing to deploy."
+            exit 1
+          fi
+
+          if ! printf '%s' "$IMAGE_TAG_INPUT" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$'; then
+            echo "Resolved image tag is invalid: $IMAGE_TAG_INPUT"
+            exit 1
+          fi
+
+          echo "image_tag=$IMAGE_TAG_INPUT" >> "$GITHUB_OUTPUT"
+
       - name: Check authorization
         env:
           ALLOWED_USERS_DEMO: ${{ vars.DEPLOY_ALLOWED_USERS_DEMO }}
@@ -361,7 +387,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_WEBAPP }}
           KEY_PATH: ${{ steps.prepare_ssh_key.outputs.key_path }}
-          IMAGE_TAG: ${{ needs.validate.outputs.prefixed_tag }}
+          IMAGE_TAG: ${{ steps.set_tag.outputs.image_tag }}
         run: |
           ssh -i "$KEY_PATH" \
             -o StrictHostKeyChecking=yes \
@@ -376,19 +402,21 @@ jobs:
             exit 1
           fi
 
+          if [ -z "${BACKEND_IMAGE_TAG:-}" ] || [ -z "${FRONTEND_IMAGE_TAG:-}" ] || [ -z "${PROXY_IMAGE_TAG:-}" ]; then
+            echo "One or more required image tag variables are empty."
+            exit 1
+          fi
+
           cd "$COMPOSE_PATH"
 
-          # Keep the repository file unchanged; adjust fallback tag only on the remote deployed copy.
-          cp docker-compose.remote.yml docker-compose.remote.demo.yml
-          sed -i \
-            -e 's/${BACKEND_IMAGE_TAG:-latest}/${BACKEND_IMAGE_TAG:-dev-latest}/g' \
-            -e 's/${FRONTEND_IMAGE_TAG:-latest}/${FRONTEND_IMAGE_TAG:-dev-latest}/g' \
-            -e 's/${PROXY_IMAGE_TAG:-latest}/${PROXY_IMAGE_TAG:-dev-latest}/g' \
-            docker-compose.remote.demo.yml
+          # Fail fast if any required tag is unavailable in GHCR.
+          docker pull "ghcr.io/proyectorespira/respira-backend:${BACKEND_IMAGE_TAG}"
+          docker pull "ghcr.io/proyectorespira/respira-frontend:${FRONTEND_IMAGE_TAG}"
+          docker pull "ghcr.io/proyectorespira/respira-proxy:${PROXY_IMAGE_TAG}"
 
           docker compose \
             -f docker-compose.yml \
-            -f docker-compose.remote.demo.yml \
+            -f docker-compose.remote.yml \
             --env-file .env.demo \
             up -d --pull always --remove-orphans
 
