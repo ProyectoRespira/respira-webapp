@@ -27,11 +27,13 @@ jobs:
     steps:
       - name: Extract and validate branch tag
         id: extract_tag
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           set -eu
 
           # Extract tag from PR head branch name (e.g., release/v1.2.3 or hotfix/v1.2.3 -> v1.2.3)
-          HEAD_REF="${{ github.event.pull_request.head.ref }}"
+          HEAD_REF="$HEAD_REF"
 
           # Remove release/ or hotfix/ prefix
           if [[ "$HEAD_REF" =~ ^(release|hotfix)/(.*)$ ]]; then
@@ -65,8 +67,10 @@ jobs:
     steps:
       - name: Extract branch type
         id: branch_type
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
-          HEAD_REF="${{ github.event.pull_request.head.ref }}"
+          HEAD_REF="$HEAD_REF"
           if [[ "$HEAD_REF" =~ ^(release|hotfix)/(.*)$ ]]; then
             BRANCH_TYPE="${BASH_REMATCH[1]}"
             echo "type=$BRANCH_TYPE" >> "$GITHUB_OUTPUT"
