@@ -22,7 +22,7 @@ jobs:
           set -eu
 
           # Extract tag from PR head branch name (e.g., release/v1.2.3 or hotfix/v1.2.3 -> v1.2.3)
-          HEAD_REF="${{ github.head_ref }}"
+          HEAD_REF="${{ github.event.pull_request.head.ref }}"
 
           # Only process release and hotfix branches
           if ! [[ "$HEAD_REF" =~ ^(release|hotfix)/(.*)$ ]]; then
@@ -79,6 +79,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set +e  # Continue on error
+          PACKAGE_API_PREFIX="/orgs/${{ github.repository_owner }}/packages/container"
 
           RELEASE_TAG="${{ steps.extract_tag.outputs.tag }}"
           BRANCH_TYPE="${{ steps.extract_tag.outputs.branch_type }}"
@@ -94,13 +95,13 @@ jobs:
 
             gh api \
               -X GET \
-              "/user/packages/container/$image_name/versions" \
+              "$PACKAGE_API_PREFIX/$image_name/versions" \
               --paginate \
               --jq ".[] | select(.tags[]? == \"$tag\") | .id" | \
               while read version_id; do
-                if [ ! -z "$version_id" ]; then
+                if [ -n "$version_id" ]; then
                   echo "  Deleting version $version_id"
-                  gh api -X DELETE "/user/packages/container/$image_name/versions/$version_id" || true
+                  gh api -X DELETE "$PACKAGE_API_PREFIX/$image_name/versions/$version_id" || true
                 fi
               done
           }

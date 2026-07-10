@@ -1,8 +1,12 @@
+import ipaddress
 from collections import defaultdict
 from datetime import timedelta
 from math import asin, cos, radians, sin, sqrt
 from statistics import median, quantiles
 
+import requests
+from django.conf import settings
+from django.core.cache import cache
 from django.db.models.functions import TruncDate, TruncMonth, TruncWeek
 from django.utils import timezone
 from rest_framework import generics, status
@@ -143,6 +147,71 @@ def _parse_lat_lon(request):
             ),
         )
     return lat, lon, None
+
+
+# Provider must return JSON with a truthy "success" flag plus "latitude" and
+# "longitude" fields (ipwho.is shape). Override via settings if needed.
+# Prefer an endpoint that accepts the IP as a query parameter to avoid
+# interpolating user-controlled values into the request URL path (SSRF).
+IP_GEOLOCATION_URL = getattr(settings, "IP_GEOLOCATION_URL", "https://ipwho.is/json")
+IP_GEOLOCATION_TIMEOUT = getattr(settings, "IP_GEOLOCATION_TIMEOUT", 4)
+IP_GEOLOCATION_CACHE_TTL = getattr(settings, "IP_GEOLOCATION_CACHE_TTL", 6 * 60 * 60)
+
+
+def _client_ip(request):
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+    if forwarded:
+        # X-Forwarded-For is a comma-separated list; the original client is first.
+        return forwarded.split(",")[0].strip()
+    return request.META.get("HTTP_X_REAL_IP") or request.META.get("REMOTE_ADDR")
+
+
+def _ip_geolocate(ip):
+    """Resolve an approximate (lat, lon) for a public IP, or None on failure.
+
+    Used as a fallback when a request arrives without coordinates (e.g. the
+    mobile widget before the app has been opened and location granted). Results
+    are cached per IP to avoid hammering the external provider on every widget
+    refresh.
+    """
+    if not ip:
+        return None
+    try:
+        parsed = ipaddress.ip_address(ip)
+    except ValueError:
+        return None
+    if parsed.is_private or parsed.is_loopback or parsed.is_reserved:
+        return None
+
+    cache_key = f"ip_geo:{ip}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        # Empty tuple marks a cached "no result" so repeated failures don't
+        # keep calling the provider.
+        return cached or None
+
+    coords = None
+    try:
+        # Use a query parameter for the IP rather than formatting it into the
+        # URL path. Ensure the IP was already validated by ipaddress above.
+        response = requests.get(
+            IP_GEOLOCATION_URL,
+            params={"ip": str(parsed)},
+            timeout=IP_GEOLOCATION_TIMEOUT,
+        )
+        if response.status_code == 200:
+            data = response.json()
+            # Many providers use `success` flag; default to True if absent.
+            if data.get("success", True):
+                lat = data.get("latitude")
+                lon = data.get("longitude")
+                if lat is not None and lon is not None:
+                    coords = (float(lat), float(lon))
+    except (requests.RequestException, ValueError, TypeError):
+        coords = None
+
+    cache.set(cache_key, coords or (), IP_GEOLOCATION_CACHE_TTL)
+    return coords
 
 
 def _haversine_km(lat1, lon1, lat2, lon2):
@@ -340,9 +409,24 @@ class NearestRegionView(generics.GenericAPIView):
     http_method_names = ["get"]
 
     def get(self, request, *args, **kwargs):
-        lat, lon, err = _parse_lat_lon(request)
-        if err is not None:
-            return err
+        lat_raw = request.query_params.get("lat")
+        lon_raw = request.query_params.get("lon")
+
+        if lat_raw is None and lon_raw is None:
+            # No coordinates supplied (e.g. the mobile widget before the app has
+            # been opened and location granted). Resolve an approximate location
+            # from the request IP so the first render still shows a nearby region.
+            coords = _ip_geolocate(_client_ip(request))
+            if coords is None:
+                return Response(
+                    {"error": "Could not resolve a location for this request."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            lat, lon = coords
+        else:
+            lat, lon, err = _parse_lat_lon(request)
+            if err is not None:
+                return err
 
         nearest_station, _ = _nearest_active_station(lat, lon)
         if nearest_station is None or nearest_station.region_id is None:

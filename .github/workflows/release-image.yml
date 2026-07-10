@@ -8,8 +8,8 @@ permissions:
   contents: read
   packages: write
   attestations: write
+  artifact-metadata: write
   id-token: write
-  artifact-metadata-write: write
 
 concurrency:
   group: release-image-${{ github.event.release.id || github.ref }}
