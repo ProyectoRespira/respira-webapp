@@ -158,6 +158,7 @@ jobs:
         id: copy_files
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_HOST_FINGERPRINT: ${{ secrets.DEPLOY_HOST_FINGERPRINT }}
           DEPLOY_HOST_KEY: ${{ secrets.DEPLOY_HOST_KEY }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_WEBAPP }}
@@ -172,14 +173,19 @@ jobs:
             exit 1
           fi
 
+          if [ -z "$DEPLOY_HOST_FINGERPRINT" ]; then
+            echo "Missing required DEPLOY_HOST_FINGERPRINT secret in Production environment."
+            exit 1
+          fi
+
+          if ! printf '%s' "$DEPLOY_HOST_FINGERPRINT" | grep -Eq '^SHA256:[A-Za-z0-9+/=]+$'; then
+            echo "DEPLOY_HOST_FINGERPRINT must be an OpenSSH SHA256 fingerprint like SHA256:abc123..."
+            exit 1
+          fi
+
           printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-          DEPLOY_HOST_FINGERPRINT="$(printf '%s\n' "$DEPLOY_HOST_KEY" | ssh-keygen -E sha256 -lf - | awk '{print $2}' | sed 's/^SHA256://')"
-          if [ -z "$DEPLOY_HOST_FINGERPRINT" ]; then
-            echo "Failed to derive SSH host fingerprint from DEPLOY_HOST_KEY."
-            exit 1
-          fi
           echo "fingerprint=$DEPLOY_HOST_FINGERPRINT" >> "$GITHUB_OUTPUT"
 
           scp -i "$KEY_PATH" \

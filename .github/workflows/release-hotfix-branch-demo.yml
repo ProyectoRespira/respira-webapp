@@ -78,9 +78,10 @@ jobs:
           fi
 
       - name: Normalize image owner
+        id: normalize_owner
         shell: bash
         run: |
-          echo "IMAGE_OWNER_LC=${IMAGE_OWNER,,}" >> "$GITHUB_ENV"
+          echo "image_owner_lc=${IMAGE_OWNER,,}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -99,7 +100,7 @@ jobs:
         id: meta_backend
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-backend
+          images: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-backend
           tags: |
             type=raw,value=${{ env.RELEASE_TAG }}
             type=raw,value=${{ steps.branch_type.outputs.prefixed_tag }}
@@ -109,7 +110,7 @@ jobs:
         id: meta_frontend
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-frontend
+          images: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-frontend
           tags: |
             type=raw,value=${{ env.RELEASE_TAG }}
             type=raw,value=${{ steps.branch_type.outputs.prefixed_tag }}
@@ -119,7 +120,7 @@ jobs:
         id: meta_proxy
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-proxy
+          images: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-proxy
           tags: |
             type=raw,value=${{ env.RELEASE_TAG }}
             type=raw,value=${{ steps.branch_type.outputs.prefixed_tag }}
@@ -170,21 +171,21 @@ jobs:
       - name: Generate backend image attestation
         uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
         with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-backend
+          subject-name: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-backend
           subject-digest: ${{ steps.push_backend.outputs.digest }}
           push-to-registry: true
 
       - name: Generate frontend image attestation
         uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
         with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-frontend
+          subject-name: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-frontend
           subject-digest: ${{ steps.push_frontend.outputs.digest }}
           push-to-registry: true
 
       - name: Generate proxy image attestation
         uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
         with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-proxy
+          subject-name: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-proxy
           subject-digest: ${{ steps.push_proxy.outputs.digest }}
           push-to-registry: true
 
@@ -324,6 +325,7 @@ jobs:
         id: copy_files
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_HOST_FINGERPRINT: ${{ secrets.DEPLOY_HOST_FINGERPRINT }}
           DEPLOY_HOST_KEY: ${{ secrets.DEPLOY_HOST_KEY }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_WEBAPP }}
@@ -338,14 +340,19 @@ jobs:
             exit 1
           fi
 
+          if [ -z "$DEPLOY_HOST_FINGERPRINT" ]; then
+            echo "Missing required DEPLOY_HOST_FINGERPRINT secret in Demo environment."
+            exit 1
+          fi
+
+          if ! printf '%s' "$DEPLOY_HOST_FINGERPRINT" | grep -Eq '^SHA256:[A-Za-z0-9+/=]+$'; then
+            echo "DEPLOY_HOST_FINGERPRINT must be an OpenSSH SHA256 fingerprint like SHA256:abc123..."
+            exit 1
+          fi
+
           printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-          DEPLOY_HOST_FINGERPRINT="$(printf '%s\n' "$DEPLOY_HOST_KEY" | ssh-keygen -E sha256 -lf - | awk '{print $2}' | sed 's/^SHA256://')"
-          if [ -z "$DEPLOY_HOST_FINGERPRINT" ]; then
-            echo "Failed to derive SSH host fingerprint from DEPLOY_HOST_KEY."
-            exit 1
-          fi
           echo "fingerprint=$DEPLOY_HOST_FINGERPRINT" >> "$GITHUB_OUTPUT"
 
           scp -i "$KEY_PATH" \
