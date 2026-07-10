@@ -210,6 +210,11 @@ jobs:
               echo "image_tag must be a valid Docker tag: start with [A-Za-z0-9_], then only [A-Za-z0-9_.-], max 128 chars"
               exit 1
             fi
+
+            if [ "$tag" = "latest" ]; then
+              echo "image_tag 'latest' is not allowed for demo deployment. Use 'dev-latest' or an immutable release/hotfix tag."
+              exit 1
+            fi
           else
             tag="dev-latest"
           fi
