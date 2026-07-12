@@ -537,7 +537,7 @@ class AdminUserViewSet(ModelViewSet):
     Restricted to authenticated users with the ``admin`` or ``superadmin`` role.
     """
 
-    queryset = User.objects.all().order_by("id")
+    queryset = User.objects.select_related("profile").all().order_by("id")
     permission_classes = [IsAuthenticated, IsAdminRole]
     pagination_class = StandardResultsSetPagination
     http_method_names = ["get", "post", "patch", "delete"]
@@ -558,7 +558,7 @@ class AdminUserViewSet(ModelViewSet):
 
         role = self.request.query_params.get("role")
         if role:
-            queryset = queryset.filter(role=role)
+            queryset = queryset.filter(profile__role=role)
 
         is_active = _parse_bool(self.request.query_params.get("is_active"))
         if is_active is not None:

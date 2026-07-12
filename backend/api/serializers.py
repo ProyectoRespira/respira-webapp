@@ -1,10 +1,18 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.db import transaction
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
-from .models import Regions, Stations, StationReadingsGold, UserRole
+from .models import (
+    Regions,
+    Stations,
+    StationReadingsGold,
+    UserProfile,
+    UserRole,
+    user_role,
+)
 
 User = get_user_model()
 
@@ -91,7 +99,9 @@ class _RoleAssignmentMixin:
 
     def validate_role(self, value):
         acting_user = self._acting_user()
-        acting_is_superadmin = getattr(acting_user, "role", None) == UserRole.SUPERADMIN
+        acting_is_superadmin = (
+            acting_user is not None and user_role(acting_user) == UserRole.SUPERADMIN
+        )
 
         if value == UserRole.SUPERADMIN and not acting_is_superadmin:
             raise serializers.ValidationError(
@@ -101,7 +111,7 @@ class _RoleAssignmentMixin:
         target = getattr(self, "instance", None)
         if (
             target is not None
-            and target.role == UserRole.SUPERADMIN
+            and user_role(target) == UserRole.SUPERADMIN
             and value != UserRole.SUPERADMIN
             and not acting_is_superadmin
         ):
@@ -113,7 +123,9 @@ class _RoleAssignmentMixin:
 
 
 class AdminUserSerializer(serializers.ModelSerializer):
-    """Read representation of a platform user."""
+    """Read representation of a platform user (auth user + platform role)."""
+
+    role = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -128,6 +140,10 @@ class AdminUserSerializer(serializers.ModelSerializer):
             "last_login",
         ]
         read_only_fields = fields
+
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_role(self, obj) -> str:
+        return user_role(obj)
 
 
 class AdminUserCreateSerializer(_RoleAssignmentMixin, serializers.ModelSerializer):
@@ -144,6 +160,9 @@ class AdminUserCreateSerializer(_RoleAssignmentMixin, serializers.ModelSerialize
     password = serializers.CharField(
         write_only=True, validators=[validate_password], style={"input_type": "password"}
     )
+    role = serializers.ChoiceField(
+        choices=UserRole.choices, required=False, default=UserRole.VIEWER
+    )
 
     class Meta:
         model = User
@@ -157,9 +176,20 @@ class AdminUserCreateSerializer(_RoleAssignmentMixin, serializers.ModelSerialize
             "is_active",
         ]
 
+    @transaction.atomic
     def create(self, validated_data):
+        role = validated_data.pop("role", UserRole.VIEWER)
         password = validated_data.pop("password")
-        return User.objects.create_user(password=password, **validated_data)
+        email = validated_data["email"]
+        # The default Django user requires a username; keep it in sync with email.
+        user = User(username=email, **validated_data)
+        user.set_password(password)
+        user.save()
+        UserProfile.objects.create(user=user, role=role)
+        return user
+
+    def to_representation(self, instance):
+        return AdminUserSerializer(instance, context=self.context).data
 
 
 class AdminUserUpdateSerializer(_RoleAssignmentMixin, serializers.ModelSerializer):
@@ -180,6 +210,7 @@ class AdminUserUpdateSerializer(_RoleAssignmentMixin, serializers.ModelSerialize
         validators=[validate_password],
         style={"input_type": "password"},
     )
+    role = serializers.ChoiceField(choices=UserRole.choices, required=False)
 
     class Meta:
         model = User
@@ -193,11 +224,28 @@ class AdminUserUpdateSerializer(_RoleAssignmentMixin, serializers.ModelSerialize
             "is_active",
         ]
 
+    @transaction.atomic
     def update(self, instance, validated_data):
+        role = validated_data.pop("role", None)
         password = validated_data.pop("password", None)
+        email = validated_data.get("email")
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
+        if email:
+            instance.username = email
         if password is not None:
             instance.set_password(password)
         instance.save()
+
+        if role is not None:
+            profile, _ = UserProfile.objects.update_or_create(
+                user=instance, defaults={"role": role}
+            )
+            # Refresh the cached reverse relation so the response reflects the
+            # new role (validate_role may have cached the old profile).
+            instance.profile = profile
         return instance
+
+    def to_representation(self, instance):
+        return AdminUserSerializer(instance, context=self.context).data

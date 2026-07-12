@@ -1,6 +1,6 @@
 from rest_framework.permissions import BasePermission
 
-from .models import UserRole
+from .models import UserRole, user_role
 
 
 class IsAdminRole(BasePermission):
@@ -13,6 +13,5 @@ class IsAdminRole(BasePermission):
         return bool(
             user
             and user.is_authenticated
-            and getattr(user, "role", None)
-            in {UserRole.ADMIN, UserRole.SUPERADMIN}
+            and user_role(user) in {UserRole.ADMIN, UserRole.SUPERADMIN}
         )

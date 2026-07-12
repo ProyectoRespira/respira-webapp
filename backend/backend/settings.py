@@ -60,8 +60,6 @@ INSTALLED_APPS = [
 
 REST_FRAMEWORK = {"DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema"}
 
-AUTH_USER_MODEL = "api.User"
-
 SPECTACULAR_SETTINGS = {
     "TITLE": "RespiraAPI",
     "DESCRIPTION": "This is the Respira API",

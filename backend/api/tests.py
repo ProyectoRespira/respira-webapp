@@ -475,27 +475,27 @@ class AdminUserManagementTests(TestCase):
 
     def setUp(self):
         from django.contrib.auth import get_user_model
+        from api.models import UserProfile
 
         self.User = get_user_model()
+        self.UserProfile = UserProfile
         self.client = APIClient()
 
         self.list_url = reverse("admin-users-list")
 
-        self.superadmin = self.User.objects.create_user(
-            email="super@example.com",
-            password="Sup3r!Pass99",
-            role="superadmin",
+        self.superadmin = self._make_user("super@example.com", "superadmin")
+        self.admin = self._make_user("admin@example.com", "admin")
+        self.viewer = self._make_user("viewer@example.com", "viewer")
+
+    def _make_user(self, email, role, password="S3ed!Pass99"):
+        user = self.User.objects.create_user(
+            username=email, email=email, password=password
         )
-        self.admin = self.User.objects.create_user(
-            email="admin@example.com",
-            password="Adm1n!Pass99",
-            role="admin",
-        )
-        self.viewer = self.User.objects.create_user(
-            email="viewer@example.com",
-            password="View3r!Pass99",
-            role="viewer",
-        )
+        self.UserProfile.objects.create(user=user, role=role)
+        return user
+
+    def _role_of(self, user):
+        return self.User.objects.get(pk=user.pk).profile.role
 
     def _detail_url(self, user_id):
         return reverse("admin-users-detail", args=[user_id])
@@ -594,7 +594,8 @@ class AdminUserManagementTests(TestCase):
         )
         self.assertEqual(response.status_code, 201)
         self.assertEqual(
-            self.User.objects.get(email="promoted@example.com").role, "superadmin"
+            self.User.objects.get(email="promoted@example.com").profile.role,
+            "superadmin",
         )
 
     def test_admin_cannot_promote_existing_user_to_superadmin(self):
@@ -614,9 +615,11 @@ class AdminUserManagementTests(TestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 200)
+        # Response must reflect the new role immediately, not a stale profile.
+        self.assertEqual(response.json()["role"], "admin")
         self.viewer.refresh_from_db()
         self.assertEqual(self.viewer.first_name, "Updated")
-        self.assertEqual(self.viewer.role, "admin")
+        self.assertEqual(self._role_of(self.viewer), "admin")
 
     def test_update_password_is_hashed(self):
         self.client.force_authenticate(self.admin)
