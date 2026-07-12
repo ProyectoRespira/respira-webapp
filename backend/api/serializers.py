@@ -158,7 +158,9 @@ class AdminUserCreateSerializer(_RoleAssignmentMixin, serializers.ModelSerialize
         ]
     )
     password = serializers.CharField(
-        write_only=True, validators=[validate_password], style={"input_type": "password"}
+        write_only=True,
+        validators=[validate_password],
+        style={"input_type": "password"},
     )
     role = serializers.ChoiceField(
         choices=UserRole.choices, required=False, default=UserRole.VIEWER

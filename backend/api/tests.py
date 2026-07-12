@@ -502,7 +502,6 @@ class BackendEndpointTests(TestCase):
             payload["forecast_12h"], [{"timestamp": "2026-03-31 12:00:00", "value": 25}]
         )
 
-
     def _geo_response(self, *, latitude, longitude, success=True):
         fake = MagicMock()
         fake.status_code = 200
