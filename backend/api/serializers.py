@@ -1,7 +1,12 @@
+from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
+from rest_framework.validators import UniqueValidator
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
-from .models import Regions, Stations, StationReadingsGold
+from .models import Regions, Stations, StationReadingsGold, UserRole
+
+User = get_user_model()
 
 
 class RegionSerializer(serializers.ModelSerializer):
@@ -75,3 +80,124 @@ class HistorySerializer(serializers.Serializer):
     historical_1d = serializers.JSONField()
     historical_7d = serializers.JSONField()
     historical_30d = serializers.JSONField()
+
+
+class _RoleAssignmentMixin:
+    """Enforce that only a superadmin may assign or modify the superadmin role."""
+
+    def _acting_user(self):
+        request = self.context.get("request")
+        return getattr(request, "user", None)
+
+    def validate_role(self, value):
+        acting_user = self._acting_user()
+        acting_is_superadmin = getattr(acting_user, "role", None) == UserRole.SUPERADMIN
+
+        if value == UserRole.SUPERADMIN and not acting_is_superadmin:
+            raise serializers.ValidationError(
+                "Only a superadmin may assign the superadmin role."
+            )
+
+        target = getattr(self, "instance", None)
+        if (
+            target is not None
+            and target.role == UserRole.SUPERADMIN
+            and value != UserRole.SUPERADMIN
+            and not acting_is_superadmin
+        ):
+            raise serializers.ValidationError(
+                "Only a superadmin may modify a superadmin's role."
+            )
+
+        return value
+
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    """Read representation of a platform user."""
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "email",
+            "first_name",
+            "last_name",
+            "role",
+            "is_active",
+            "date_joined",
+            "last_login",
+        ]
+        read_only_fields = fields
+
+
+class AdminUserCreateSerializer(_RoleAssignmentMixin, serializers.ModelSerializer):
+    """Create a platform user with a hashed password and a unique email."""
+
+    email = serializers.EmailField(
+        validators=[
+            UniqueValidator(
+                queryset=User.objects.all(),
+                message="A user with this email already exists.",
+            )
+        ]
+    )
+    password = serializers.CharField(
+        write_only=True, validators=[validate_password], style={"input_type": "password"}
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "email",
+            "password",
+            "first_name",
+            "last_name",
+            "role",
+            "is_active",
+        ]
+
+    def create(self, validated_data):
+        password = validated_data.pop("password")
+        return User.objects.create_user(password=password, **validated_data)
+
+
+class AdminUserUpdateSerializer(_RoleAssignmentMixin, serializers.ModelSerializer):
+    """Update profile information, role and status of a platform user."""
+
+    email = serializers.EmailField(
+        required=False,
+        validators=[
+            UniqueValidator(
+                queryset=User.objects.all(),
+                message="A user with this email already exists.",
+            )
+        ],
+    )
+    password = serializers.CharField(
+        write_only=True,
+        required=False,
+        validators=[validate_password],
+        style={"input_type": "password"},
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "email",
+            "password",
+            "first_name",
+            "last_name",
+            "role",
+            "is_active",
+        ]
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop("password", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        if password is not None:
+            instance.set_password(password)
+        instance.save()
+        return instance

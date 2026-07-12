@@ -3,10 +3,15 @@ from datetime import timedelta
 from math import asin, cos, radians, sin, sqrt
 from statistics import median, quantiles
 
+from django.contrib.auth import get_user_model
 from django.db.models.functions import TruncDate, TruncMonth, TruncWeek
 from django.utils import timezone
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import generics, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
@@ -17,14 +22,22 @@ from .models import (
     Regions,
     StationReadingsGold,
     Stations,
+    UserRole,
 )
+from .pagination import StandardResultsSetPagination
+from .permissions import IsAdminRole
 from .serializers import (
+    AdminUserCreateSerializer,
+    AdminUserSerializer,
+    AdminUserUpdateSerializer,
     ForecastSerializer,
     HealthSerializer,
     MapSerializer,
     RegionSerializer,
     StationSerializer,
 )
+
+User = get_user_model()
 
 
 def _flatten_forecast_rows(rows):
@@ -482,3 +495,84 @@ class StationViewset(ModelViewSet):
             box_data["upperfence"].append(upperfence)
 
         return Response(box_data, status=status.HTTP_200_OK)
+
+
+def _parse_bool(value):
+    if value is None:
+        return None
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List platform users",
+        parameters=[
+            OpenApiParameter(
+                name="email",
+                type=OpenApiTypes.STR,
+                description="Filter by case-insensitive partial email match.",
+            ),
+            OpenApiParameter(
+                name="role",
+                type=OpenApiTypes.STR,
+                enum=[choice.value for choice in UserRole],
+                description="Filter by exact role.",
+            ),
+            OpenApiParameter(
+                name="is_active",
+                type=OpenApiTypes.BOOL,
+                description="Filter by active status.",
+            ),
+        ],
+    ),
+    create=extend_schema(summary="Create a platform user"),
+    retrieve=extend_schema(summary="Retrieve a platform user"),
+    partial_update=extend_schema(summary="Update a platform user"),
+    destroy=extend_schema(summary="Deactivate (soft delete) a platform user"),
+)
+@extend_schema(tags=["Admin Users"])
+class AdminUserViewSet(ModelViewSet):
+    """Administrative CRUD for platform users and their assigned roles.
+
+    Restricted to authenticated users with the ``admin`` or ``superadmin`` role.
+    """
+
+    queryset = User.objects.all().order_by("id")
+    permission_classes = [IsAuthenticated, IsAdminRole]
+    pagination_class = StandardResultsSetPagination
+    http_method_names = ["get", "post", "patch", "delete"]
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return AdminUserCreateSerializer
+        if self.action in {"update", "partial_update"}:
+            return AdminUserUpdateSerializer
+        return AdminUserSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        email = self.request.query_params.get("email")
+        if email:
+            queryset = queryset.filter(email__icontains=email)
+
+        role = self.request.query_params.get("role")
+        if role:
+            queryset = queryset.filter(role=role)
+
+        is_active = _parse_bool(self.request.query_params.get("is_active"))
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active)
+
+        return queryset
+
+    def perform_destroy(self, instance):
+        """Soft delete: deactivate the account instead of removing the row."""
+        instance.is_active = False
+        instance.save(update_fields=["is_active"])
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance == request.user:
+            raise PermissionDenied("You cannot delete your own account.")
+        return super().destroy(request, *args, **kwargs)

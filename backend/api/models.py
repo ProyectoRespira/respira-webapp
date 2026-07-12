@@ -1,12 +1,79 @@
 import os
 import uuid
 
+from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 from django.utils import timezone
 
 
 def _column_env_or_default(key: str, default: str) -> str:
     return (os.getenv(key) or "").strip() or default
+
+
+class UserRole(models.TextChoices):
+    VIEWER = "viewer", "Viewer"
+    ADMIN = "admin", "Admin"
+    SUPERADMIN = "superadmin", "Superadmin"
+
+
+class UserManager(BaseUserManager):
+    """Manager for the email-based custom user model."""
+
+    use_in_migrations = True
+
+    def _create_user(self, email, password, **extra_fields):
+        if not email:
+            raise ValueError("Users must have an email address.")
+        email = self.normalize_email(email)
+        user = self.model(email=email, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_user(self, email, password=None, **extra_fields):
+        extra_fields.setdefault("role", UserRole.VIEWER)
+        extra_fields.setdefault("is_staff", False)
+        extra_fields.setdefault("is_superuser", False)
+        return self._create_user(email, password, **extra_fields)
+
+    def create_superuser(self, email, password=None, **extra_fields):
+        extra_fields.setdefault("role", UserRole.SUPERADMIN)
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        if extra_fields.get("is_staff") is not True:
+            raise ValueError("Superuser must have is_staff=True.")
+        if extra_fields.get("is_superuser") is not True:
+            raise ValueError("Superuser must have is_superuser=True.")
+        return self._create_user(email, password, **extra_fields)
+
+
+class User(AbstractUser):
+    """Platform user authenticated by a unique email address and a role."""
+
+    username = None
+    email = models.EmailField(unique=True)
+    role = models.CharField(
+        max_length=20, choices=UserRole.choices, default=UserRole.VIEWER
+    )
+
+    USERNAME_FIELD = "email"
+    REQUIRED_FIELDS: list[str] = []
+
+    objects = UserManager()
+
+    class Meta:
+        db_table = "api_user"
+
+    def __str__(self):
+        return self.email
+
+    @property
+    def is_admin_role(self) -> bool:
+        return self.role in {UserRole.ADMIN, UserRole.SUPERADMIN}
+
+    @property
+    def is_superadmin_role(self) -> bool:
+        return self.role == UserRole.SUPERADMIN
 
 
 class Regions(models.Model):
