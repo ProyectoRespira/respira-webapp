@@ -1,10 +1,11 @@
-name: CI/CD Release/Hotfix Branches to Demo
+name: Deploy Demo from Release/Hotfix
 
 on:
-  pull_request:
+  push:
     branches:
-      - release/v*
-      - hotfix/v*
+      - release/*
+      - hotfix/*
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,78 +15,70 @@ permissions:
   id-token: write
 
 concurrency:
-  group: release-hotfix-branch-demo-${{ github.event.pull_request.head.ref }}
-  cancel-in-progress: false
+  group: demo-deploy-${{ github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   validate:
     name: Validate Release/Hotfix Branch
+    if: ${{ github.repository == 'ProyectoRespira/respira-webapp' }}
     runs-on: ubuntu-latest
     outputs:
       branch_tag: ${{ steps.extract_tag.outputs.tag }}
       prefixed_tag: ${{ steps.extract_tag.outputs.prefixed_tag }}
+      branch_type: ${{ steps.extract_tag.outputs.branch_type }}
     steps:
       - name: Extract and validate branch tag
         id: extract_tag
+        shell: bash
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
         run: |
-          set -eu
+          set -euo pipefail
 
-          # Extract tag from PR head branch name (e.g., release/v1.2.3 or hotfix/v1.2.3 -> v1.2.3)
-          HEAD_REF="${{ github.event.pull_request.head.ref }}"
-
-          # Remove release/ or hotfix/ prefix
-          if [[ "$HEAD_REF" =~ ^(release|hotfix)/(.*)$ ]]; then
+          # Expected branch names:
+          # release/vX.Y.Z
+          # hotfix/vX.Y.Z
+          if [[ "$BRANCH_NAME" =~ ^(release|hotfix)/(v[0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
             BRANCH_TYPE="${BASH_REMATCH[1]}"
             BRANCH_TAG="${BASH_REMATCH[2]}"
           else
             echo "Branch must match pattern: release/vX.Y.Z or hotfix/vX.Y.Z"
-            echo "Current branch: $HEAD_REF"
+            echo "Current branch: $BRANCH_NAME"
             exit 1
           fi
 
-          if ! printf '%s' "$BRANCH_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "Version tag must follow semver format: vX.Y.Z"
-            echo "Current tag: $BRANCH_TAG"
-            exit 1
-          fi
-
+          echo "branch_type=$BRANCH_TYPE" >> "$GITHUB_OUTPUT"
           echo "tag=$BRANCH_TAG" >> "$GITHUB_OUTPUT"
-          echo "prefixed_tag=$BRANCH_TYPE-$BRANCH_TAG" >> "$GITHUB_OUTPUT"
-          echo "✓ Valid branch: $HEAD_REF -> $BRANCH_TYPE-$BRANCH_TAG"
+          echo "prefixed_tag=${BRANCH_TYPE}-${BRANCH_TAG}" >> "$GITHUB_OUTPUT"
+          echo "Validated branch: $BRANCH_NAME -> ${BRANCH_TYPE}-${BRANCH_TAG}"
 
   publish:
     name: Publish Images to GHCR
     needs: validate
+    if: ${{ github.repository == 'ProyectoRespira/respira-webapp' }}
     runs-on: ubuntu-latest
     env:
       REGISTRY: ghcr.io
       IMAGE_OWNER: ${{ github.repository_owner }}
       RELEASE_TAG: ${{ needs.validate.outputs.branch_tag }}
-
+      PREFIXED_TAG: ${{ needs.validate.outputs.prefixed_tag }}
     steps:
-      - name: Extract branch type
-        id: branch_type
-        run: |
-          HEAD_REF="${{ github.event.pull_request.head.ref }}"
-          if [[ "$HEAD_REF" =~ ^(release|hotfix)/(.*)$ ]]; then
-            BRANCH_TYPE="${BASH_REMATCH[1]}"
-            echo "type=$BRANCH_TYPE" >> "$GITHUB_OUTPUT"
-            echo "prefixed_tag=$BRANCH_TYPE-${{ env.RELEASE_TAG }}" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Normalize image owner
+        id: normalize_owner
         shell: bash
         run: |
-          echo "IMAGE_OWNER_LC=${IMAGE_OWNER,,}" >> "$GITHUB_ENV"
+          set -euo pipefail
+          echo "image_owner_lc=${IMAGE_OWNER,,}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
 
       - name: Log in to GHCR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -93,129 +86,134 @@ jobs:
 
       - name: Docker metadata backend
         id: meta_backend
-        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-backend
+          images: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-backend
           tags: |
             type=raw,value=${{ env.RELEASE_TAG }}
-            type=raw,value=${{ steps.branch_type.outputs.prefixed_tag }}
+            type=raw,value=${{ env.PREFIXED_TAG }}
             type=sha,prefix=sha-
 
       - name: Docker metadata frontend
         id: meta_frontend
-        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-frontend
+          images: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-frontend
           tags: |
             type=raw,value=${{ env.RELEASE_TAG }}
-            type=raw,value=${{ steps.branch_type.outputs.prefixed_tag }}
+            type=raw,value=${{ env.PREFIXED_TAG }}
             type=sha,prefix=sha-
 
       - name: Docker metadata proxy
         id: meta_proxy
-        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-proxy
+          images: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-proxy
           tags: |
             type=raw,value=${{ env.RELEASE_TAG }}
-            type=raw,value=${{ steps.branch_type.outputs.prefixed_tag }}
+            type=raw,value=${{ env.PREFIXED_TAG }}
             type=sha,prefix=sha-
 
       - name: Build and push backend image
         id: push_backend
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
         with:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
           tags: ${{ steps.meta_backend.outputs.tags }}
           labels: ${{ steps.meta_backend.outputs.labels }}
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,scope=backend,mode=max
+          cache-from: type=gha,scope=release-hotfix-demo-backend
+          cache-to: type=gha,scope=release-hotfix-demo-backend,mode=max,ignore-error=true
           provenance: true
           sbom: true
 
       - name: Build and push frontend image
         id: push_frontend
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
           push: true
           tags: ${{ steps.meta_frontend.outputs.tags }}
           labels: ${{ steps.meta_frontend.outputs.labels }}
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,scope=frontend,mode=max
+          cache-from: type=gha,scope=release-hotfix-demo-frontend
+          cache-to: type=gha,scope=release-hotfix-demo-frontend,mode=max,ignore-error=true
           provenance: true
           sbom: true
 
       - name: Build and push proxy image
         id: push_proxy
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
         with:
           context: ./proxy
           file: ./proxy/Dockerfile
           push: true
           tags: ${{ steps.meta_proxy.outputs.tags }}
           labels: ${{ steps.meta_proxy.outputs.labels }}
-          cache-from: type=gha,scope=proxy
-          cache-to: type=gha,scope=proxy,mode=max
+          cache-from: type=gha,scope=release-hotfix-demo-proxy
+          cache-to: type=gha,scope=release-hotfix-demo-proxy,mode=max,ignore-error=true
           provenance: true
           sbom: true
 
       - name: Generate backend image attestation
-        uses: actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb # v4
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763
         with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-backend
+          subject-name: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-backend
           subject-digest: ${{ steps.push_backend.outputs.digest }}
           push-to-registry: true
 
       - name: Generate frontend image attestation
-        uses: actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb # v4
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763
         with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-frontend
+          subject-name: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-frontend
           subject-digest: ${{ steps.push_frontend.outputs.digest }}
           push-to-registry: true
 
       - name: Generate proxy image attestation
-        uses: actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb # v4
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763
         with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-proxy
+          subject-name: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-proxy
           subject-digest: ${{ steps.push_proxy.outputs.digest }}
           push-to-registry: true
 
   deploy-demo:
     name: Deploy to Demo Server
     needs: [validate, publish]
+    if: ${{ github.repository == 'ProyectoRespira/respira-webapp' }}
     runs-on: ubuntu-latest
     environment: Demo
     steps:
       - name: Check authorization
+        shell: bash
         env:
           ALLOWED_USERS_DEMO: ${{ vars.DEPLOY_ALLOWED_USERS_DEMO }}
+          CURRENT_USER: ${{ github.actor }}
         run: |
-          ALLOWED_USERS="$ALLOWED_USERS_DEMO"
+          set -euo pipefail
 
-          if [ -z "$ALLOWED_USERS" ]; then
-            echo "Error: DEPLOY_ALLOWED_USERS_DEMO variable not configured"
+          if [ -z "$ALLOWED_USERS_DEMO" ]; then
+            echo "DEPLOY_ALLOWED_USERS_DEMO variable is not configured"
             exit 1
           fi
 
-          CURRENT_USER="${{ github.actor }}"
-          if echo "$ALLOWED_USERS" | grep -qw "$CURRENT_USER"; then
-            echo "✓ User $CURRENT_USER is authorized to deploy to demo"
+          if echo "$ALLOWED_USERS_DEMO" | grep -Eq '(^|[[:space:],])'"$CURRENT_USER"'([[:space:],]|$)'; then
+            echo "User $CURRENT_USER is authorized to deploy to Demo"
           else
-            echo "✗ User $CURRENT_USER is NOT authorized to deploy to demo"
+            echo "User $CURRENT_USER is NOT authorized to deploy to Demo"
             exit 1
           fi
 
       - name: Validate SSH configuration
         id: prepare_ssh_key
+        shell: bash
         env:
           DEPLOY_HOST_VALUE: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER_VALUE: ${{ secrets.DEPLOY_USER }}
           DEPLOY_SSH_KEY_VALUE: ${{ secrets.DEPLOY_SSH_KEY }}
         run: |
+          set -euo pipefail
+
           echo "::add-mask::$DEPLOY_HOST_VALUE"
           echo "::add-mask::$DEPLOY_USER_VALUE"
           echo "::add-mask::$DEPLOY_SSH_KEY_VALUE"
@@ -256,16 +254,16 @@ jobs:
 
           echo "key_path=$tmp_key" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
       - name: Validate and write env file
         id: write_env
+        shell: bash
         env:
           ENV_FILE_B64: ${{ secrets.ENV_FILE_DEMO }}
         run: |
+          set -euo pipefail
+
           if [ -z "$ENV_FILE_B64" ]; then
-            echo "Missing ENV_FILE_DEMO secret. See docs/deploy-secrets.md."
+            echo "Missing ENV_FILE_DEMO secret"
             exit 1
           fi
 
@@ -279,42 +277,26 @@ jobs:
             BACKEND_POSTGRES_PASSWORD
             BACKEND_POSTGRES_HOST
             PUBLIC_REGION_DEFAULT_ID
-            BACKEND_URL
-            FRONTEND_PORT
-            SITE_URL
-            PUBLIC_GTAG
-            CONTACT_MAIL
-            TWITTER_HANDLE
-            TELEGRAM_CHANNEL
-            FACEBOOK_PAGE
-            INSTAGRAM_HANDLE
-            GITHUB_PATH
-            SLACK_INVITE_PATH
-            APP_STORE_PATH
-            PLAY_STORE_APP_ID
-            SMTP_KEY
-            SMTP_SENDER
-            SERVER_HOST
-            CERT_NAME
-            PROXY_PORT
           )
 
           missing=()
           for key in "${required_keys[@]}"; do
-            val="$(grep -E "^${key}=" "$env_file" | cut -d= -f2- | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')"
+            val="$(grep -E "^${key}=" "$env_file" | head -n1 | cut -d'=' -f2- | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')"
             if [ -z "$val" ]; then
               missing+=("$key")
             fi
           done
 
           if [ "${#missing[@]}" -gt 0 ]; then
-            echo "Missing or empty required env vars in ENV_FILE_DEMO:"
-            for k in "${missing[@]}"; do echo "  - $k"; done
+            echo "Missing required keys in ENV_FILE_DEMO:"
+            for k in "${missing[@]}"; do echo "- $k"; done
             exit 1
           fi
 
-          echo "All required env vars present."
           echo "env_file=$env_file" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Copy compose and env files to server
         id: copy_files
@@ -326,6 +308,8 @@ jobs:
           KEY_PATH: ${{ steps.prepare_ssh_key.outputs.key_path }}
           ENV_FILE: ${{ steps.write_env.outputs.env_file }}
         run: |
+          set -euo pipefail
+
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
@@ -336,13 +320,6 @@ jobs:
 
           printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-
-          DEPLOY_HOST_FINGERPRINT="$(printf '%s\n' "$DEPLOY_HOST_KEY" | ssh-keygen -E sha256 -lf - | awk '{print $2}' | sed 's/^SHA256://')"
-          if [ -z "$DEPLOY_HOST_FINGERPRINT" ]; then
-            echo "Failed to derive SSH host fingerprint from DEPLOY_HOST_KEY."
-            exit 1
-          fi
-          echo "fingerprint=$DEPLOY_HOST_FINGERPRINT" >> "$GITHUB_OUTPUT"
 
           scp -i "$KEY_PATH" \
             -o StrictHostKeyChecking=yes \
@@ -358,91 +335,53 @@ jobs:
             "$DEPLOY_USER@$DEPLOY_HOST:$COMPOSE_PATH/.env.demo"
 
       - name: Deploy over SSH
-        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          fingerprint: ${{ steps.copy_files.outputs.fingerprint }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key_path: ${{ steps.prepare_ssh_key.outputs.key_path }}
-          port: 22
-          command_timeout: 30m
-          script: |
-            set -euo pipefail
-
-            COMPOSE_PATH="${{ secrets.DEPLOY_COMPOSE_PATH_WEBAPP }}"
-            if [ -z "$COMPOSE_PATH" ] || [ ! -d "$COMPOSE_PATH" ]; then
-              echo "Invalid DEPLOY_COMPOSE_PATH_WEBAPP configured for demo environment."
-              exit 1
-            fi
-
-            cd "$COMPOSE_PATH"
-
-            export BACKEND_IMAGE_TAG="${{ needs.validate.outputs.prefixed_tag }}"
-            export FRONTEND_IMAGE_TAG="${{ needs.validate.outputs.prefixed_tag }}"
-            export PROXY_IMAGE_TAG="${{ needs.validate.outputs.prefixed_tag }}"
-
-            docker compose \
-              -f docker-compose.yml \
-              -f docker-compose.remote.yml \
-              --env-file .env.demo \
-              up -d --pull always --remove-orphans
-
-            timeout_seconds=600
-            interval_seconds=10
-            elapsed=0
-
-            while true; do
-              containers="$(docker compose ps -q)"
-              if [ -z "$containers" ]; then
-                echo "No containers were created by docker compose."
-                docker compose ps
-                exit 1
-              fi
-
-              all_running=true
-              all_healthy=true
-
-              for container in $containers; do
-                name="$(docker inspect --format '{{.Name}}' "$container" | sed 's#^/##')"
-                state="$(docker inspect --format '{{.State.Status}}' "$container")"
-                health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container")"
-
-                echo "$name state=$state health=$health"
-
-                if [ "$state" != "running" ]; then
-                  all_running=false
-                fi
-
-                if [ "$health" = "unhealthy" ]; then
-                  echo "$name is unhealthy"
-                  docker compose ps
-                  exit 1
-                fi
-
-                if [ "$health" != "none" ] && [ "$health" != "healthy" ]; then
-                  all_healthy=false
-                fi
-              done
-
-              if [ "$all_running" = true ] && [ "$all_healthy" = true ]; then
-                echo "Compose stack is up and healthy."
-                break
-              fi
-
-              if [ "$elapsed" -ge "$timeout_seconds" ]; then
-                echo "Timed out waiting for stack to become ready."
-                docker compose ps
-                exit 1
-              fi
-
-              sleep "$interval_seconds"
-              elapsed=$((elapsed + interval_seconds))
-            done
-
-            docker system prune -af
-            docker image prune -af
-            docker builder prune -af
-
-      - name: Post-deploy summary
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_WEBAPP }}
+          KEY_PATH: ${{ steps.prepare_ssh_key.outputs.key_path }}
+          IMAGE_TAG: ${{ needs.validate.outputs.prefixed_tag }}
         run: |
-          echo "Deployment of Respira WebApp to Demo from release/hotfix branch PR #${{ github.event.pull_request.number }} completed on remote server."
+          set -euo pipefail
+
+          ssh -i "$KEY_PATH" \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -o ConnectTimeout=30 \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "export COMPOSE_PATH='$COMPOSE_PATH' BACKEND_IMAGE_TAG='$IMAGE_TAG' FRONTEND_IMAGE_TAG='$IMAGE_TAG' PROXY_IMAGE_TAG='$IMAGE_TAG'; bash -se" <<'REMOTE_SCRIPT'
+          set -euo pipefail
+
+          if [ -z "$COMPOSE_PATH" ] || [ ! -d "$COMPOSE_PATH" ]; then
+            echo "Invalid DEPLOY_COMPOSE_PATH_WEBAPP for Demo"
+            exit 1
+          fi
+
+          if [ -z "$BACKEND_IMAGE_TAG" ] || [ -z "$FRONTEND_IMAGE_TAG" ] || [ -z "$PROXY_IMAGE_TAG" ]; then
+            echo "One or more image tags are empty"
+            exit 1
+          fi
+
+          cd "$COMPOSE_PATH"
+
+          docker pull "ghcr.io/proyectorespira/respira-backend:${BACKEND_IMAGE_TAG}"
+          docker pull "ghcr.io/proyectorespira/respira-frontend:${FRONTEND_IMAGE_TAG}"
+          docker pull "ghcr.io/proyectorespira/respira-proxy:${PROXY_IMAGE_TAG}"
+
+          BACKEND_IMAGE_TAG="$BACKEND_IMAGE_TAG" \
+          FRONTEND_IMAGE_TAG="$FRONTEND_IMAGE_TAG" \
+          PROXY_IMAGE_TAG="$PROXY_IMAGE_TAG" \
+          docker compose \
+            -f docker-compose.yml \
+            -f docker-compose.remote.yml \
+            --env-file .env.demo \
+            up -d --pull always --remove-orphans
+
+          docker compose ps
+          REMOTE_SCRIPT
+
+      - name: Summary
+        shell: bash
+        run: |
+          echo "Demo deployment for ${{ github.ref_name }} completed."

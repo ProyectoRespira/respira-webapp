@@ -1,6 +1,8 @@
 import uuid
 from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, patch
 
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
@@ -13,6 +15,37 @@ from .models import (
     StationReadingsGold,
     Stations,
 )
+
+
+class IpGeolocateTests(TestCase):
+    def test_ip_geolocate_private_ip_returns_none(self):
+        from .views import _ip_geolocate
+
+        # Private IPs should not be geolocated
+        self.assertIsNone(_ip_geolocate("10.0.0.1"))
+
+    def test_ip_geolocate_calls_provider_with_ip_in_path(self):
+        from . import views
+
+        cache.clear()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "success": True,
+            "latitude": -25.3,
+            "longitude": -57.5,
+        }
+
+        with patch("api.views.requests.get", return_value=mock_resp) as mock_get:
+            coords = views._ip_geolocate("8.8.8.8")
+            self.assertEqual(coords, (-25.3, -57.5))
+            mock_get.assert_called_once()
+            called_args, _ = mock_get.call_args
+            # ipwho.is is path-based: the IP is formatted into the URL, not
+            # passed as a query param.
+            self.assertEqual(
+                called_args[0], views.IP_GEOLOCATION_URL.format(ip="8.8.8.8")
+            )
 
 
 class BackendEndpointTests(TestCase):
@@ -468,6 +501,88 @@ class BackendEndpointTests(TestCase):
         self.assertEqual(
             payload["forecast_12h"], [{"timestamp": "2026-03-31 12:00:00", "value": 25}]
         )
+
+
+    def _geo_response(self, *, latitude, longitude, success=True):
+        fake = MagicMock()
+        fake.status_code = 200
+        fake.json.return_value = {
+            "success": success,
+            "latitude": latitude,
+            "longitude": longitude,
+        }
+        return fake
+
+    @patch("api.views.requests.get")
+    def test_nearest_region_resolves_from_ip_when_no_coords(self, mock_get):
+        cache.clear()
+        # Coordinates close to the Gran Asuncion stations; the endpoint should
+        # resolve that region without any lat/lon query params.
+        mock_get.return_value = self._geo_response(latitude=-25.3, longitude=-57.5)
+
+        response = self.client.get(
+            reverse("nearest-region"), HTTP_X_FORWARDED_FOR="8.8.8.8"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["region_id"], self.region.id)
+        self.assertEqual(payload["aqi"], 72.0)
+        mock_get.assert_called_once()
+
+    @patch("api.views.requests.get")
+    def test_nearest_region_caches_ip_geolocation(self, mock_get):
+        cache.clear()
+        mock_get.return_value = self._geo_response(latitude=-25.3, longitude=-57.5)
+
+        for _ in range(3):
+            response = self.client.get(
+                reverse("nearest-region"), HTTP_X_FORWARDED_FOR="8.8.8.8"
+            )
+            self.assertEqual(response.status_code, 200)
+
+        # Repeated widget refreshes from the same IP hit the cache, not the
+        # external geolocation provider.
+        mock_get.assert_called_once()
+
+    @patch("api.views.requests.get")
+    def test_nearest_region_without_coords_returns_404_when_ip_unresolved(
+        self, mock_get
+    ):
+        cache.clear()
+        mock_get.side_effect = __import__("requests").RequestException("boom")
+
+        response = self.client.get(
+            reverse("nearest-region"), HTTP_X_FORWARDED_FOR="8.8.8.8"
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    @patch("api.views.requests.get")
+    def test_nearest_region_skips_geolocation_for_private_ip(self, mock_get):
+        cache.clear()
+
+        response = self.client.get(
+            reverse("nearest-region"), HTTP_X_FORWARDED_FOR="10.0.0.1"
+        )
+
+        self.assertEqual(response.status_code, 404)
+        # Private/loopback IPs never reach the external provider.
+        mock_get.assert_not_called()
+
+    @patch("api.views.requests.get")
+    def test_nearest_region_with_coords_ignores_ip_geolocation(self, mock_get):
+        cache.clear()
+
+        response = self.client.get(
+            reverse("nearest-region"),
+            {"lat": -25.3, "lon": -57.5},
+            HTTP_X_FORWARDED_FOR="8.8.8.8",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["region_id"], self.region.id)
+        mock_get.assert_not_called()
 
 
 class AdminUserManagementTests(TestCase):
