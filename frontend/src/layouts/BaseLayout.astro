@@ -31,8 +31,8 @@ const analyticsTag = getRequiredGtag();
     ></script>
     <script is:inline define:vars={{ analyticsTag }}>
       window.dataLayer = window.dataLayer || [];
-      function gtag() {
-        dataLayer.push(arguments);
+      function gtag(...args) {
+        dataLayer.push(args);
       }
       // Expose the helper globally so React islands and page scripts can send
       // events through src/utils/analytics.ts.
