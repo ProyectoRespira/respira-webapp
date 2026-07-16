@@ -30,7 +30,7 @@ const analyticsTag = getOptionalGtag();
           <script
             is:inline
             async
-            src=`https://www.googletagmanager.com/gtag/js?id=${analyticsTag}`
+            src={`https://www.googletagmanager.com/gtag/js?id=${analyticsTag}`}
           />
           <script is:inline define:vars={{ analyticsTag }}>
             window.dataLayer = window.dataLayer || [];
