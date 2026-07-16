@@ -25,6 +25,9 @@ let isDropdown = type === "dropdown";
   // Track clicks on every main navigation option so we can measure which
   // menu items users use to move around the site.
   document.querySelectorAll<HTMLElement>("[data-track-nav]").forEach((el) => {
+    if (el.dataset.navTrackBound === "1") return;
+    el.dataset.navTrackBound = "1";
+
     el.addEventListener("click", () => {
       trackNavClick(el.dataset.trackNav ?? "", el.dataset.trackRoute ?? "");
     });
