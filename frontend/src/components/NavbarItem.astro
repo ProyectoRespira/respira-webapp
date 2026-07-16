@@ -11,6 +11,7 @@ let isDropdown = type === "dropdown";
 
 <script>
   import { isAlertModalOpen } from "../store/modals";
+  import { trackNavClick } from "../utils/analytics";
 
   const buttons = document.querySelectorAll("button.dialog");
 
@@ -20,6 +21,14 @@ let isDropdown = type === "dropdown";
       isAlertModalOpen.set(!isAlertModalOpen.get());
     });
   });
+
+  // Track clicks on every main navigation option so we can measure which
+  // menu items users use to move around the site.
+  document.querySelectorAll<HTMLElement>("[data-track-nav]").forEach((el) => {
+    el.addEventListener("click", () => {
+      trackNavClick(el.dataset.trackNav ?? "", el.dataset.trackRoute ?? "");
+    });
+  });
 </script>
 {
   isModal && (
@@ -27,12 +36,19 @@ let isDropdown = type === "dropdown";
       <button
         class="dialog place-content-center cursor-default hidden md:block"
         data-dialog-target="dialog"
+        data-track-nav={title}
+        data-track-route={route}
       >
         <Typography variant="nav" customClass="m-auto select-none">
           {title}
         </Typography>
       </button>
-      <a href={route} class={"md:hidden visible justify-items-start"}>
+      <a
+        href={route}
+        class={"md:hidden visible justify-items-start"}
+        data-track-nav={title}
+        data-track-route={route}
+      >
         <li class="place-content-start cursor-default flex-row flex">
           <Typography variant="nav" customClass="m-auto select-none">
             {title}
@@ -51,7 +67,12 @@ let isDropdown = type === "dropdown";
 
 {
   !isModal && !isDropdown && (
-    <a href={route} class={isModal ? "md:hidden visible" : ""}>
+    <a
+      href={route}
+      class={isModal ? "md:hidden visible" : ""}
+      data-track-nav={title}
+      data-track-route={route}
+    >
       <li class="place-content-center cursor-default">
         <Typography variant="nav" customClass="m-auto select-none">
           {title}

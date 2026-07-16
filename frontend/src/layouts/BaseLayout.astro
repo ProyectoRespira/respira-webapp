@@ -34,9 +34,17 @@ const analyticsTag = getRequiredGtag();
       function gtag(...args) {
         dataLayer.push(args);
       }
+      // Expose the helper globally so React islands and page scripts can send
+      // events through src/utils/analytics.ts.
+      window.gtag = gtag;
       gtag("js", new Date());
 
-      gtag("config", analyticsTag);
+      // Fires an automatic `page_view` on every full page load. Because the
+      // site is MPA, this also captures navigation between menu options.
+      gtag("config", analyticsTag, {
+        page_path: window.location.pathname,
+        page_title: document.title,
+      });
     </script>
     <meta charset="utf-8" />
     <link rel="sitemap" href="/sitemap-index.xml" />
