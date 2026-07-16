@@ -12,32 +12,46 @@ import "@fontsource/merriweather/400-italic.css";
 import "@fontsource/merriweather/700-italic.css";
 import "@fontsource/merriweather/900-italic.css";
 import "@fontsource-variable/inter";
-import { getRequiredGtag } from "../runtime-env";
+import { getOptionalGtag } from "../runtime-env";
 import { getLangFromLocals } from "../i18n/utils";
 
 import "../../main.css";
 
 const lang = getLangFromLocals(Astro.locals);
-const analyticsTag = getRequiredGtag();
+const analyticsTag = getOptionalGtag();
 ---
 
 <html lang={lang} class="md:overflow-hidden">
   <head>
-    <!-- Google tag (gtag.js) -->
-    <script
-      is:inline
-      async
-      src=`https://www.googletagmanager.com/gtag/js?id=${analyticsTag}`
-    ></script>
-    <script is:inline define:vars={{ analyticsTag }}>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(...args) {
-        dataLayer.push(args);
-      }
-      gtag("js", new Date());
+    <!-- Google tag (gtag.js); omitted when PUBLIC_GTAG is unset -->
+    {
+      analyticsTag && (
+        <>
+          <script
+            is:inline
+            async
+            src={`https://www.googletagmanager.com/gtag/js?id=${analyticsTag}`}
+          />
+          <script is:inline define:vars={{ analyticsTag }}>
+            window.dataLayer = window.dataLayer || [];
+            function gtag(...args) {
+              window.dataLayer.push(args);
+            }
+            // Expose the helper globally so React islands and page scripts can send
+            // events through src/utils/analytics.ts.
+            window.gtag = gtag;
+            gtag("js", new Date());
 
-      gtag("config", analyticsTag);
-    </script>
+            // Fires an automatic `page_view` on every full page load. Because the
+            // site is MPA, this also captures navigation between menu options.
+            gtag("config", analyticsTag, {
+              page_path: window.location.pathname,
+              page_title: document.title,
+            });
+          </script>
+        </>
+      )
+    }
     <meta charset="utf-8" />
     <link rel="sitemap" href="/sitemap-index.xml" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />

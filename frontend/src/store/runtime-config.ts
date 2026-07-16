@@ -69,7 +69,7 @@ const loadRuntimeConfig = async (): Promise<RuntimeConfig> => {
     "regionDefaultId",
   );
   const siteUrl = getRequiredRuntimeConfigField(json, "siteUrl");
-  const gtag = getRequiredRuntimeConfigField(json, "gtag");
+  const gtag = typeof json.gtag === "string" ? json.gtag : "";
 
   return {
     backendUrl,
