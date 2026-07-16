@@ -50,11 +50,14 @@ export const getRequiredRuntimeEnv = (key: string): string => {
 const GTAG_PLACEHOLDER = "G-XXXXXXXXXX";
 const GTAG_FORMAT = /^G-[A-Z0-9]+$/;
 
-export const getRequiredGtag = (): string => {
-  const gtag = getRequiredRuntimeEnv("PUBLIC_GTAG");
-  if (gtag === GTAG_PLACEHOLDER || !GTAG_FORMAT.test(gtag)) {
+export const getOptionalGtag = (): string => {
+  const gtag = (process.env.PUBLIC_GTAG || "").trim();
+  if (!gtag || gtag === GTAG_PLACEHOLDER) {
+    return "";
+  }
+  if (!GTAG_FORMAT.test(gtag)) {
     throw new Error(
-      `Invalid PUBLIC_GTAG '${gtag}' in frontend container: must be a real GA4 Measurement ID (e.g. G-XXXXXXXXXX format, but not the literal placeholder).`,
+      `Invalid PUBLIC_GTAG '${gtag}' in frontend container: must be a GA4 Measurement ID (G-XXXXXXXXXX format), or empty to disable analytics.`,
     );
   }
   return gtag;
@@ -64,7 +67,7 @@ export const getFrontendRuntimeConfig = (): FrontendRuntimeConfig => {
   const backendUrl = getRequiredRuntimeEnv("BACKEND_URL");
   const regionDefaultId = getRequiredRuntimeEnv("PUBLIC_REGION_DEFAULT_ID");
   const siteUrl = normalizeSiteUrl(getRequiredRuntimeEnv("SITE_URL"));
-  const gtag = getRequiredGtag();
+  const gtag = getOptionalGtag();
   const contactMail = getRequiredRuntimeEnv("CONTACT_MAIL");
 
   const twitterHandle = normalizePath(getRequiredRuntimeEnv("TWITTER_HANDLE"));
