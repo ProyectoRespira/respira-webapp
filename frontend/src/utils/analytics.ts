@@ -17,13 +17,17 @@ export const trackEvent = (
 ): void => {
   if (typeof window === "undefined") return;
 
-  if (typeof window.gtag === "function") {
-    window.gtag("event", name, params);
-    return;
+  if (typeof window.gtag !== "function") {
+    // gtag.js only processes `arguments` objects pushed to dataLayer; plain
+    // arrays are silently ignored. Queue through the standard stub instead.
+    window.dataLayer = window.dataLayer ?? [];
+    window.gtag = function gtag() {
+      // eslint-disable-next-line prefer-rest-params
+      window.dataLayer?.push(arguments);
+    };
   }
 
-  window.dataLayer = window.dataLayer ?? [];
-  window.dataLayer.push(["event", name, params]);
+  window.gtag("event", name, params);
 };
 
 export const trackNavClick = (label: string, route: string): void => {

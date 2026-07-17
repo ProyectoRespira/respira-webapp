@@ -34,8 +34,11 @@ const analyticsTag = getOptionalGtag();
           />
           <script is:inline define:vars={{ analyticsTag }}>
             window.dataLayer = window.dataLayer || [];
-            function gtag(...args) {
-              window.dataLayer.push(args);
+            // gtag.js only processes `arguments` objects pushed to dataLayer;
+            // plain arrays are silently ignored, so this must not use rest args.
+            function gtag() {
+              // eslint-disable-next-line prefer-rest-params
+              window.dataLayer.push(arguments);
             }
             // Expose the helper globally so React islands and page scripts can send
             // events through src/utils/analytics.ts.
