@@ -9,6 +9,8 @@ python manage.py collectstatic --noinput;
 if [ "${BACKEND_RUN_MIGRATIONS:-true}" = "true" ]; then
   python manage.py migrate api --fake-initial;
   python manage.py migrate;
+  # Refresh admin role groups and their permissions (idempotent).
+  python manage.py sync_roles;
 else
   echo "Skipping migrations because BACKEND_RUN_MIGRATIONS=false";
 fi
