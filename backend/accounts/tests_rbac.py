@@ -68,9 +68,7 @@ class UserRoleGroupSignalTests(TestCase):
         )
         user.refresh_from_db()
         self.assertTrue(user.is_staff)
-        self.assertTrue(
-            user.groups.filter(name=group_name_for_role("editor")).exists()
-        )
+        self.assertTrue(user.groups.filter(name=group_name_for_role("editor")).exists())
 
     def test_changing_role_swaps_group(self):
         editor = Role.objects.get(slug="editor")
@@ -81,9 +79,7 @@ class UserRoleGroupSignalTests(TestCase):
         user.role = viewer
         user.save()
         user.refresh_from_db()
-        self.assertTrue(
-            user.groups.filter(name=group_name_for_role("viewer")).exists()
-        )
+        self.assertTrue(user.groups.filter(name=group_name_for_role("viewer")).exists())
         self.assertFalse(
             user.groups.filter(name=group_name_for_role("editor")).exists()
         )
@@ -110,9 +106,7 @@ class AdminPermissionEnforcementTests(TestCase):
 
     def _user_with_role(self, slug, email):
         role = Role.objects.get(slug=slug)
-        user = User.objects.create_user(
-            email=email, password="pw-Str0ng!42", role=role
-        )
+        user = User.objects.create_user(email=email, password="pw-Str0ng!42", role=role)
         user.refresh_from_db()
         return User.objects.get(pk=user.pk)  # reload perms cache
 

@@ -30,8 +30,9 @@ class SecuritySettingsTests(TestCase):
             "axes.backends.AxesStandaloneBackend",
             settings.AUTHENTICATION_BACKENDS,
         )
-        self.assertEqual(settings.AUTHENTICATION_BACKENDS[0],
-                         "axes.backends.AxesStandaloneBackend")
+        self.assertEqual(
+            settings.AUTHENTICATION_BACKENDS[0], "axes.backends.AxesStandaloneBackend"
+        )
         self.assertTrue(settings.AXES_FAILURE_LIMIT >= 1)
 
 

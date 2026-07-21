@@ -19,9 +19,7 @@ class CustomUserModelTests(TestCase):
         self.assertIsInstance(user.pk, uuid.UUID)
 
     def test_create_user_hashes_password(self):
-        user = User.objects.create_user(
-            email="user@example.com", password="pw-Str0ng!"
-        )
+        user = User.objects.create_user(email="user@example.com", password="pw-Str0ng!")
         self.assertEqual(user.email, "user@example.com")
         self.assertNotEqual(user.password, "pw-Str0ng!")
         self.assertTrue(user.check_password("pw-Str0ng!"))
@@ -33,9 +31,7 @@ class CustomUserModelTests(TestCase):
             User.objects.create_user(email="", password="pw-Str0ng!")
 
     def test_email_is_normalized(self):
-        user = User.objects.create_user(
-            email="user@EXAMPLE.COM", password="pw-Str0ng!"
-        )
+        user = User.objects.create_user(email="user@EXAMPLE.COM", password="pw-Str0ng!")
         self.assertEqual(user.email, "user@example.com")
 
     def test_create_superuser(self):

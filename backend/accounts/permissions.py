@@ -97,9 +97,7 @@ def sync_user_group(user) -> None:
     if role is not None:
         target_name = group_name_for_role(role.slug)
         target_group, _ = Group.objects.get_or_create(name=target_name)
-        stale = user.groups.filter(name__in=ROLE_GROUP_NAMES).exclude(
-            name=target_name
-        )
+        stale = user.groups.filter(name__in=ROLE_GROUP_NAMES).exclude(name=target_name)
         if stale.exists():
             user.groups.remove(*stale)
         user.groups.add(target_group)

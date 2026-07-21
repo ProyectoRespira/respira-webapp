@@ -45,11 +45,11 @@ Sessions are the only authentication mechanism for the backoffice — there are
 no API tokens for admin users. Session behavior is environment-aware via
 environment variables (all defined in `backend/backend/settings.py`):
 
-| Setting | Env var | Default | Notes |
-|---|---|---|---|
-| `SESSION_COOKIE_AGE` | `BACKEND_SESSION_COOKIE_AGE` | `28800` (8h) | Session lifetime in seconds. |
-| `SESSION_EXPIRE_AT_BROWSER_CLOSE` | `BACKEND_SESSION_EXPIRE_AT_BROWSER_CLOSE` | `false` | If `true`, the session cookie is deleted when the browser closes, regardless of `SESSION_COOKIE_AGE`. |
-| `SESSION_SAVE_EVERY_REQUEST` | `BACKEND_SESSION_SAVE_EVERY_REQUEST` | `false` | If `true`, the session expiry is refreshed on every request (sliding session) instead of only on write. |
+| Setting                           | Env var                                   | Default      | Notes                                                                                                   |
+| --------------------------------- | ----------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------- |
+| `SESSION_COOKIE_AGE`              | `BACKEND_SESSION_COOKIE_AGE`              | `28800` (8h) | Session lifetime in seconds.                                                                            |
+| `SESSION_EXPIRE_AT_BROWSER_CLOSE` | `BACKEND_SESSION_EXPIRE_AT_BROWSER_CLOSE` | `false`      | If `true`, the session cookie is deleted when the browser closes, regardless of `SESSION_COOKIE_AGE`.   |
+| `SESSION_SAVE_EVERY_REQUEST`      | `BACKEND_SESSION_SAVE_EVERY_REQUEST`      | `false`      | If `true`, the session expiry is refreshed on every request (sliding session) instead of only on write. |
 
 Sessions are stored in the database (Django's default `db` backend via
 `django.contrib.sessions`), so logging out or expiring a session invalidates
@@ -63,13 +63,13 @@ configuration is needed when deploying — only `BACKEND_DEBUG` needs to be set
 correctly per environment. Each flag can still be overridden individually if
 a specific deployment needs to diverge from the default:
 
-| Setting | Env var | Default |
-|---|---|---|
-| `SESSION_COOKIE_SECURE` | `BACKEND_SESSION_COOKIE_SECURE` | `true` when `DEBUG=false`, else `false` |
-| `CSRF_COOKIE_SECURE` | `BACKEND_CSRF_COOKIE_SECURE` | `true` when `DEBUG=false`, else `false` |
-| `SESSION_COOKIE_HTTPONLY` | — (always on) | `true` — client-side JS can never read the session cookie |
-| `SESSION_COOKIE_SAMESITE` | `BACKEND_SESSION_COOKIE_SAMESITE` | `Lax` |
-| `CSRF_COOKIE_SAMESITE` | `BACKEND_CSRF_COOKIE_SAMESITE` | `Lax` |
+| Setting                   | Env var                           | Default                                                   |
+| ------------------------- | --------------------------------- | --------------------------------------------------------- |
+| `SESSION_COOKIE_SECURE`   | `BACKEND_SESSION_COOKIE_SECURE`   | `true` when `DEBUG=false`, else `false`                   |
+| `CSRF_COOKIE_SECURE`      | `BACKEND_CSRF_COOKIE_SECURE`      | `true` when `DEBUG=false`, else `false`                   |
+| `SESSION_COOKIE_HTTPONLY` | — (always on)                     | `true` — client-side JS can never read the session cookie |
+| `SESSION_COOKIE_SAMESITE` | `BACKEND_SESSION_COOKIE_SAMESITE` | `Lax`                                                     |
+| `CSRF_COOKIE_SAMESITE`    | `BACKEND_CSRF_COOKIE_SAMESITE`    | `Lax`                                                     |
 
 ## CSRF protection
 
@@ -113,12 +113,12 @@ separate layers:
   with their role, and `accounts/permissions.py` is the single source of
   truth for what each role's group can do:
 
-  | Role | `api.stations` / `api.regions` | `accounts.user` / `accounts.role` |
-  |---|---|---|
-  | **Viewer** | view only | no access |
-  | **Editor** | view, change | no access |
-  | **Admin** | add, change, delete, view | view only |
-  | **Superadmin** | full access | full access |
+  | Role           | `api.stations` / `api.regions` | `accounts.user` / `accounts.role` |
+  | -------------- | ------------------------------ | --------------------------------- |
+  | **Viewer**     | view only                      | no access                         |
+  | **Editor**     | view, change                   | no access                         |
+  | **Admin**      | add, change, delete, view      | view only                         |
+  | **Superadmin** | full access                    | full access                       |
 
   Run `python manage.py sync_roles` after migrations (or whenever
   `ROLE_GROUP_PERMISSIONS` changes) to (re)apply this matrix to the
@@ -173,9 +173,9 @@ Per environment, confirm:
 
 ## Automated test coverage
 
-| Area | Test file |
-|---|---|
+| Area                                  | Test file                                 |
+| ------------------------------------- | ----------------------------------------- |
 | Login/logout/session/redirects/errors | `backend/accounts/tests_auth_workflow.py` |
-| Backend/middleware/session config | `backend/accounts/tests_auth_config.py` |
-| RBAC enforcement | `backend/accounts/tests_rbac.py` |
-| Public vs. admin separation | `backend/accounts/tests_separation.py` |
+| Backend/middleware/session config     | `backend/accounts/tests_auth_config.py`   |
+| RBAC enforcement                      | `backend/accounts/tests_rbac.py`          |
+| Public vs. admin separation           | `backend/accounts/tests_separation.py`    |

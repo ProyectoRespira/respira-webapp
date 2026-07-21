@@ -20,9 +20,7 @@ class AuthConfigurationTests(TestCase):
         self.assertTrue(settings.SESSION_COOKIE_HTTPONLY)
 
     def test_csrf_middleware_enabled(self):
-        self.assertIn(
-            "django.middleware.csrf.CsrfViewMiddleware", settings.MIDDLEWARE
-        )
+        self.assertIn("django.middleware.csrf.CsrfViewMiddleware", settings.MIDDLEWARE)
 
     def test_session_middleware_enabled(self):
         self.assertIn(
@@ -49,9 +47,7 @@ class SessionLifecycleTests(TestCase):
                 "next": reverse("admin:index"),
             },
         )
-        self.assertEqual(
-            str(self.client.session["_auth_user_id"]), str(self.admin.pk)
-        )
+        self.assertEqual(str(self.client.session["_auth_user_id"]), str(self.admin.pk))
 
     def test_session_invalidated_on_logout(self):
         self.client.force_login(self.admin)

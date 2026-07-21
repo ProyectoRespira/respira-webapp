@@ -20,8 +20,11 @@ class AuthWorkflowTests(TestCase):
     def test_login_success(self):
         response = self.client.post(
             reverse("admin:login"),
-            {"username": "admin@example.com", "password": STRONG_PW,
-             "next": reverse("admin:index")},
+            {
+                "username": "admin@example.com",
+                "password": STRONG_PW,
+                "next": reverse("admin:index"),
+            },
         )
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], reverse("admin:index"))
@@ -109,7 +112,9 @@ class PasswordManagementTests(TestCase):
         )
         self.target.refresh_from_db()
         self.assertNotEqual(self.target.password, new_pw)
-        self.assertTrue(self.target.password.startswith(("pbkdf2_", "argon2", "bcrypt")))
+        self.assertTrue(
+            self.target.password.startswith(("pbkdf2_", "argon2", "bcrypt"))
+        )
 
     def test_user_can_authenticate_after_reset(self):
         new_pw = "brand-New-Pw-7788"
@@ -118,7 +123,7 @@ class PasswordManagementTests(TestCase):
             {"password1": new_pw, "password2": new_pw},
         )
         fresh = Client()
-        response = fresh.post(
+        fresh.post(
             reverse("admin:login"),
             {
                 "username": "member@example.com",

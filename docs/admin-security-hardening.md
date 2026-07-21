@@ -26,14 +26,14 @@ How it's wired in:
 
 Configuration:
 
-| Setting | Env var | Default | Meaning |
-|---|---|---|---|
-| `AXES_ENABLED` | `BACKEND_AXES_ENABLED` | `true` | Master on/off switch. |
-| `AXES_FAILURE_LIMIT` | `BACKEND_AXES_FAILURE_LIMIT` | `5` | Failed attempts allowed before lockout. |
-| `AXES_COOLOFF_TIME` | `BACKEND_AXES_COOLOFF_HOURS` | `1` (hour) | How long a lockout lasts before it auto-resets. |
-| `AXES_RESET_ON_SUCCESS` | — (fixed) | `true` | A successful login before hitting the limit clears the failure counter. |
-| `AXES_LOCKOUT_PARAMETERS` | — (fixed) | `["username", "ip_address"]` | Lockout key: the specific username+IP pair, not the IP alone (would collide behind NAT/shared proxies) nor the username alone (would let one attacker lock out a legitimate user from any IP). |
-| `AXES_LOCKOUT_TEMPLATE` | — (fixed) | `None` | No custom lockout page; axes' default response is used (HTTP 403). |
+| Setting                   | Env var                      | Default                      | Meaning                                                                                                                                                                                        |
+| ------------------------- | ---------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AXES_ENABLED`            | `BACKEND_AXES_ENABLED`       | `true`                       | Master on/off switch.                                                                                                                                                                          |
+| `AXES_FAILURE_LIMIT`      | `BACKEND_AXES_FAILURE_LIMIT` | `5`                          | Failed attempts allowed before lockout.                                                                                                                                                        |
+| `AXES_COOLOFF_TIME`       | `BACKEND_AXES_COOLOFF_HOURS` | `1` (hour)                   | How long a lockout lasts before it auto-resets.                                                                                                                                                |
+| `AXES_RESET_ON_SUCCESS`   | — (fixed)                    | `true`                       | A successful login before hitting the limit clears the failure counter.                                                                                                                        |
+| `AXES_LOCKOUT_PARAMETERS` | — (fixed)                    | `["username", "ip_address"]` | Lockout key: the specific username+IP pair, not the IP alone (would collide behind NAT/shared proxies) nor the username alone (would let one attacker lock out a legitimate user from any IP). |
+| `AXES_LOCKOUT_TEMPLATE`   | — (fixed)                    | `None`                       | No custom lockout page; axes' default response is used (HTTP 403).                                                                                                                             |
 
 Behavior: after `AXES_FAILURE_LIMIT` failed attempts for the same
 username+IP, further attempts — including ones with the correct password —
@@ -78,12 +78,12 @@ served from when running behind a reverse proxy.
 These default to **on** whenever `BACKEND_DEBUG=false` and off in local HTTP
 development — no per-environment code changes needed, only `BACKEND_DEBUG`:
 
-| Setting | Env var | Default in production |
-|---|---|---|
-| `SECURE_SSL_REDIRECT` | `BACKEND_SECURE_SSL_REDIRECT` | `true` — HTTP requests are redirected to HTTPS. |
-| `SECURE_HSTS_SECONDS` | `BACKEND_SECURE_HSTS_SECONDS` | `31536000` (1 year) — tells browsers to only ever use HTTPS for this domain. |
-| `SECURE_HSTS_INCLUDE_SUBDOMAINS` | `BACKEND_SECURE_HSTS_INCLUDE_SUBDOMAINS` | `true` |
-| `SECURE_HSTS_PRELOAD` | `BACKEND_SECURE_HSTS_PRELOAD` | `true` |
+| Setting                          | Env var                                  | Default in production                                                        |
+| -------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------- |
+| `SECURE_SSL_REDIRECT`            | `BACKEND_SECURE_SSL_REDIRECT`            | `true` — HTTP requests are redirected to HTTPS.                              |
+| `SECURE_HSTS_SECONDS`            | `BACKEND_SECURE_HSTS_SECONDS`            | `31536000` (1 year) — tells browsers to only ever use HTTPS for this domain. |
+| `SECURE_HSTS_INCLUDE_SUBDOMAINS` | `BACKEND_SECURE_HSTS_INCLUDE_SUBDOMAINS` | `true`                                                                       |
+| `SECURE_HSTS_PRELOAD`            | `BACKEND_SECURE_HSTS_PRELOAD`            | `true`                                                                       |
 
 If the app runs behind a reverse proxy that terminates TLS,
 `BACKEND_SECURE_PROXY_SSL_HEADER` (also defaulting to `true` in production)
@@ -122,9 +122,9 @@ defaults above satisfy Django's own security checklist.
 
 ## Automated test coverage
 
-| Area | Test file |
-|---|---|
-| Axes configuration, rate limiting | `backend/accounts/tests_security.py::SecuritySettingsTests`, `LoginRateLimitTests` |
-| Password policy | `backend/accounts/tests_security.py::PasswordPolicyTests` |
-| Clickjacking / content-type sniffing / cookie flags | `backend/accounts/tests_security.py::SecuritySettingsTests` |
-| Session/CSRF middleware presence | `backend/accounts/tests_auth_config.py::AuthConfigurationTests` |
+| Area                                                | Test file                                                                          |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Axes configuration, rate limiting                   | `backend/accounts/tests_security.py::SecuritySettingsTests`, `LoginRateLimitTests` |
+| Password policy                                     | `backend/accounts/tests_security.py::PasswordPolicyTests`                          |
+| Clickjacking / content-type sniffing / cookie flags | `backend/accounts/tests_security.py::SecuritySettingsTests`                        |
+| Session/CSRF middleware presence                    | `backend/accounts/tests_auth_config.py::AuthConfigurationTests`                    |

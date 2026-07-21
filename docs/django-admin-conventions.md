@@ -26,11 +26,11 @@ This base class provides two things:
 
 1. **Shared presentation defaults**, applied to every module automatically:
 
-   | Attribute | Value | Why |
-   |---|---|---|
-   | `list_per_page` | `50` | Consistent pagination across all changelists. |
-   | `empty_value_display` | `"—"` | Consistent placeholder for blank/null fields instead of Django's default `-`. |
-   | `preserve_filters` | `True` | Filters survive navigating in and out of a record, so operators don't lose their place in a filtered list. |
+   | Attribute             | Value  | Why                                                                                                        |
+   | --------------------- | ------ | ---------------------------------------------------------------------------------------------------------- |
+   | `list_per_page`       | `50`   | Consistent pagination across all changelists.                                                              |
+   | `empty_value_display` | `"—"`  | Consistent placeholder for blank/null fields instead of Django's default `-`.                              |
+   | `preserve_filters`    | `True` | Filters survive navigating in and out of a record, so operators don't lose their place in a filtered list. |
 
 2. **Explicit permission hooks** (`has_view_permission`,
    `has_add_permission`, `has_change_permission`, `has_delete_permission`,
