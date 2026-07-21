@@ -37,3 +37,7 @@ jobs:
       - name: Run backend tests
         run: python manage.py test
         working-directory: backend
+        env:
+          # Non-production run: keeps SECURE_SSL_REDIRECT/HSTS off so the
+          # Django test client (plain HTTP) isn't redirected with 301s.
+          BACKEND_DEBUG: "true"
