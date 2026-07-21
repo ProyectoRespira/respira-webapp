@@ -492,7 +492,9 @@ class StationViewset(ModelViewSet):
     http_method_names = ["get"]
 
     def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
+        queryset = self.get_queryset().filter(
+            latitude__isnull=False, longitude__isnull=False
+        )
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 

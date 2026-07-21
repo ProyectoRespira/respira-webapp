@@ -41,7 +41,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl -s -o /dev/null -w '%{http_code}' http://localhost:${BACKEND_PORT}/api/health/ | grep -q 200",
+          "curl -s -o /dev/null -w '%{http_code}' http://localhost:${BACKEND_PORT:-8000}/api/health/ | grep -q 200",
         ]
       interval: 10s
       timeout: 5s
