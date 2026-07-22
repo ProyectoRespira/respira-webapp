@@ -1,12 +1,57 @@
 import os
 import uuid
 
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
 
 def _column_env_or_default(key: str, default: str) -> str:
     return (os.getenv(key) or "").strip() or default
+
+
+class UserRole(models.TextChoices):
+    VIEWER = "viewer", "Viewer"
+    ADMIN = "admin", "Admin"
+    SUPERADMIN = "superadmin", "Superadmin"
+
+
+class UserProfile(models.Model):
+    """Platform role attached to a standard Django auth user.
+
+    Kept as a separate additive model (rather than swapping AUTH_USER_MODEL) so
+    the feature deploys onto an already-migrated database without rewriting the
+    existing auth history.
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile",
+    )
+    role = models.CharField(
+        max_length=20, choices=UserRole.choices, default=UserRole.VIEWER
+    )
+
+    class Meta:
+        db_table = "user_profile"
+
+    def __str__(self):
+        return f"{self.user} ({self.role})"
+
+
+def user_role(user) -> str:
+    """Return the effective platform role of an auth user.
+
+    Falls back to ``superadmin`` for Django superusers without a profile (so the
+    bootstrap superuser can manage the platform) and ``viewer`` otherwise.
+    """
+    profile = getattr(user, "profile", None)
+    if profile is not None:
+        return profile.role
+    if getattr(user, "is_superuser", False):
+        return UserRole.SUPERADMIN
+    return UserRole.VIEWER
 
 
 class Regions(models.Model):
