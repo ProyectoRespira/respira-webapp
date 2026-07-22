@@ -777,8 +777,8 @@ class AdminUserManagementTests(TestCase):
         self.viewer.save(update_fields=["is_active"])
         response = self.client.get(self.list_url, {"is_active": "false"})
         ids = {u["id"] for u in response.json()["results"]}
-        self.assertIn(self.viewer.id, ids)
-        self.assertNotIn(self.admin.id, ids)
+        self.assertIn(str(self.viewer.id), ids)
+        self.assertNotIn(str(self.admin.id), ids)
 
     def test_list_is_paginated(self):
         self.client.force_authenticate(self.admin)
