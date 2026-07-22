@@ -582,3 +582,207 @@ class BackendEndpointTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["region_id"], self.region.id)
         mock_get.assert_not_called()
+
+
+class AdminUserManagementTests(TestCase):
+    """Tests for the /api/admin/users/ administrative CRUD endpoints."""
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from api.models import UserProfile
+
+        self.User = get_user_model()
+        self.UserProfile = UserProfile
+        self.client = APIClient()
+
+        self.list_url = reverse("admin-users-list")
+
+        self.superadmin = self._make_user("super@example.com", "superadmin")
+        self.admin = self._make_user("admin@example.com", "admin")
+        self.viewer = self._make_user("viewer@example.com", "viewer")
+
+    def _make_user(self, email, role, password="S3ed!Pass99"):
+        user = self.User.objects.create_user(
+            username=email, email=email, password=password
+        )
+        self.UserProfile.objects.create(user=user, role=role)
+        return user
+
+    def _role_of(self, user):
+        return self.User.objects.get(pk=user.pk).profile.role
+
+    def _detail_url(self, user_id):
+        return reverse("admin-users-detail", args=[user_id])
+
+    # --- Permissions ---------------------------------------------------
+
+    def test_unauthenticated_request_is_rejected(self):
+        response = self.client.get(self.list_url)
+        self.assertIn(response.status_code, (401, 403))
+
+    def test_viewer_cannot_manage_users(self):
+        self.client.force_authenticate(self.viewer)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_admin_can_list_users(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("results", response.json())
+
+    # --- Create --------------------------------------------------------
+
+    def test_admin_creates_user_and_password_is_hashed(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            self.list_url,
+            {
+                "email": "new@example.com",
+                "password": "Br4nd!New99",
+                "first_name": "New",
+                "last_name": "User",
+                "role": "viewer",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertNotIn("password", response.json())
+
+        created = self.User.objects.get(email="new@example.com")
+        self.assertNotEqual(created.password, "Br4nd!New99")
+        self.assertTrue(created.password.startswith("pbkdf2_"))
+        self.assertTrue(created.check_password("Br4nd!New99"))
+
+        # Appears in subsequent list requests
+        list_response = self.client.get(self.list_url, {"email": "new@example.com"})
+        emails = [u["email"] for u in list_response.json()["results"]]
+        self.assertIn("new@example.com", emails)
+
+    def test_duplicate_email_is_rejected(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            self.list_url,
+            {"email": "viewer@example.com", "password": "An0ther!Pass99"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("email", response.json())
+
+    def test_weak_password_is_rejected(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            self.list_url,
+            {"email": "weak@example.com", "password": "123"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("password", response.json())
+
+    # --- Superadmin role restriction ----------------------------------
+
+    def test_admin_cannot_assign_superadmin_role_on_create(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            self.list_url,
+            {
+                "email": "wannabe@example.com",
+                "password": "W4nna!Pass99",
+                "role": "superadmin",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("role", response.json())
+
+    def test_superadmin_can_assign_superadmin_role(self):
+        self.client.force_authenticate(self.superadmin)
+        response = self.client.post(
+            self.list_url,
+            {
+                "email": "promoted@example.com",
+                "password": "Pr0mo!Pass99",
+                "role": "superadmin",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(
+            self.User.objects.get(email="promoted@example.com").profile.role,
+            "superadmin",
+        )
+
+    def test_admin_cannot_promote_existing_user_to_superadmin(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.patch(
+            self._detail_url(self.viewer.id), {"role": "superadmin"}, format="json"
+        )
+        self.assertEqual(response.status_code, 400)
+
+    # --- Update --------------------------------------------------------
+
+    def test_admin_updates_profile_and_role(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.patch(
+            self._detail_url(self.viewer.id),
+            {"first_name": "Updated", "role": "admin"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        # Response must reflect the new role immediately, not a stale profile.
+        self.assertEqual(response.json()["role"], "admin")
+        self.viewer.refresh_from_db()
+        self.assertEqual(self.viewer.first_name, "Updated")
+        self.assertEqual(self._role_of(self.viewer), "admin")
+
+    def test_update_password_is_hashed(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.patch(
+            self._detail_url(self.viewer.id),
+            {"password": "Ch4nged!Pass99"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.viewer.refresh_from_db()
+        self.assertTrue(self.viewer.check_password("Ch4nged!Pass99"))
+
+    # --- Delete (soft) -------------------------------------------------
+
+    def test_delete_deactivates_user(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.delete(self._detail_url(self.viewer.id))
+        self.assertEqual(response.status_code, 204)
+        self.viewer.refresh_from_db()
+        self.assertFalse(self.viewer.is_active)
+        # Row still exists (soft delete)
+        self.assertTrue(self.User.objects.filter(id=self.viewer.id).exists())
+
+    def test_admin_cannot_delete_own_account(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.delete(self._detail_url(self.admin.id))
+        self.assertEqual(response.status_code, 403)
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_active)
+
+    # --- Filtering & pagination ---------------------------------------
+
+    def test_filter_by_role_and_active_status(self):
+        self.client.force_authenticate(self.admin)
+
+        response = self.client.get(self.list_url, {"role": "viewer"})
+        roles = {u["role"] for u in response.json()["results"]}
+        self.assertEqual(roles, {"viewer"})
+
+        self.viewer.is_active = False
+        self.viewer.save(update_fields=["is_active"])
+        response = self.client.get(self.list_url, {"is_active": "false"})
+        ids = {u["id"] for u in response.json()["results"]}
+        self.assertIn(self.viewer.id, ids)
+        self.assertNotIn(self.admin.id, ids)
+
+    def test_list_is_paginated(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(self.list_url)
+        body = response.json()
+        for key in ("count", "next", "previous", "results"):
+            self.assertIn(key, body)
