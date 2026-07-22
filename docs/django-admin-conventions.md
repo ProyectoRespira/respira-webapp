@@ -40,8 +40,29 @@ This base class provides two things:
    permissions are resolved through each user's role → `auth.Group` →
    model permissions, per `accounts/permissions.py`.
 
-`api/admin.py`'s `StationsAdmin` and `RegionsAdmin` are the reference
+`api/admin.py`'s `StationsViewer` and `RegionsViewer` are the reference
 implementation of this pattern today.
+
+### Read-only modules (externally-managed data)
+
+For models owned by another system — e.g. `stations` / `regions`, which the
+dbt gold pipeline writes — extend **`ReadOnlyModelAdmin`** (a subclass of
+`RoleBasedModelAdmin`) instead. It disables add/change/delete for **everyone**
+(even superusers), so records can't be edited into a state the pipeline will
+overwrite; `has_view_permission` still follows the role matrix, so the data is
+visible per role but immutable from the admin:
+
+```python
+from accounts.admin_base import ReadOnlyModelAdmin
+
+@admin.register(Stations)
+class StationsViewer(ReadOnlyModelAdmin):
+    ...
+```
+
+Editable operational data (on/off toggles, contact metadata) belongs in
+admin-owned models such as the future Station Override / Station Details — not
+in the reflected pipeline tables.
 
 ## Standard `ModelAdmin` attributes
 
@@ -51,7 +72,7 @@ which are less useful for an operational backoffice):
 ### `list_display`
 
 Show the columns an operator needs to identify a record and its state at a
-glance — not every field. Example (`StationsAdmin`):
+glance — not every field. Example (`StationsViewer`):
 
 ```python
 list_display = ("name", "region", "is_station_on", "is_pattern_station")
@@ -76,7 +97,7 @@ Add the field(s) an operator would type into the search box — names, codes,
 emails. Example:
 
 ```python
-search_fields = ("name",)               # StationsAdmin
+search_fields = ("name",)               # StationsViewer
 search_fields = ("email", "username")   # UserAdmin
 ```
 

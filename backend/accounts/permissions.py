@@ -20,17 +20,22 @@ from __future__ import annotations
 ROLE_GROUP_PERMISSIONS: dict[str, object] = {
     # Superadmin: unrestricted administrative access.
     "superadmin": "__all__",
-    # Admin: manage station-related models, read administrative config.
+    # Admin: read station-related models (the reflected dbt tables are
+    # read-only; editing will happen on future override/details models),
+    # read administrative config.
     "admin": {
-        ("api", "stations"): ["add", "change", "delete", "view"],
-        ("api", "regions"): ["add", "change", "delete", "view"],
+        ("api", "stations"): ["view"],
+        ("api", "regions"): ["view"],
         ("accounts", "user"): ["view"],
         ("accounts", "role"): ["view"],
     },
-    # Editor: modify operational data, no administrative configuration.
+    # Editor: currently view-only on operational data. The reflected dbt tables
+    # (stations/regions) are read-only for everyone; the Editor's edit
+    # capability will be granted later on the future override/details models,
+    # not on these tables.
     "editor": {
-        ("api", "stations"): ["change", "view"],
-        ("api", "regions"): ["change", "view"],
+        ("api", "stations"): ["view"],
+        ("api", "regions"): ["view"],
     },
     # Viewer: read-only on operational data.
     "viewer": {

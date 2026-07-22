@@ -39,3 +39,27 @@ class RoleBasedModelAdmin(admin.ModelAdmin):
 
     def has_module_permission(self, request):
         return super().has_module_permission(request)
+
+
+class ReadOnlyModelAdmin(RoleBasedModelAdmin):
+    """Admin for models owned by an external system (e.g. the dbt gold
+    pipeline that writes ``stations`` / ``regions``).
+
+    View-only: add/change/delete are disabled for **everyone**, so records
+    can never be edited from the admin into a state the pipeline will overwrite
+    on its next run. Visibility still follows the role matrix through
+    ``has_view_permission`` — a user needs the ``view_*`` permission to see the
+    data, but nobody (not even a superuser) can mutate it here.
+
+    Editable operational data belongs in admin-owned models such as the future
+    Station Details / Station Override, not in the reflected pipeline tables.
+    """
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

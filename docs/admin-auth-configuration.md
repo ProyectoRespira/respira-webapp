@@ -116,9 +116,17 @@ separate layers:
   | Role           | `api.stations` / `api.regions` | `accounts.user` / `accounts.role` |
   | -------------- | ------------------------------ | --------------------------------- |
   | **Viewer**     | view only                      | no access                         |
-  | **Editor**     | view, change                   | no access                         |
-  | **Admin**      | add, change, delete, view      | view only                         |
+  | **Editor**     | view only                      | no access                         |
+  | **Admin**      | view only                      | view only                         |
   | **Superadmin** | full access                    | full access                       |
+
+  > `api.stations` / `api.regions` are written by the dbt gold pipeline, so
+  > they are **read-only in the admin for every role** (registered with
+  > `ReadOnlyModelAdmin` as `StationsViewer` / `RegionsViewer`). Edit
+  > capability for operators will arrive later on admin-owned override/details
+  > models, not on these reflected tables. `Superadmin` retains all model
+  > permissions at the permission layer, but the read-only admin still blocks
+  > edits to these two tables in the UI.
 
   Run `python manage.py sync_roles` after migrations (or whenever
   `ROLE_GROUP_PERMISSIONS` changes) to (re)apply this matrix to the
