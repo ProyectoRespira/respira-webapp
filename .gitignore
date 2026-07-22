@@ -184,6 +184,7 @@ vite.config.ts.timestamp-*
 
 # Docker Compose
 docker-compose.override.yml
+docker-compose.test.yml
 .env.demo
 .env.prod
 .env.local
