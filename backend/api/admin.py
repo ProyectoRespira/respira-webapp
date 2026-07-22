@@ -4,6 +4,7 @@ from accounts.admin_base import ReadOnlyModelAdmin
 
 from .models import Regions, Stations
 
+
 @admin.register(Regions)
 class RegionsViewer(ReadOnlyModelAdmin):
     list_display = ("name", "region_code", "has_weather_data", "has_pattern_station")

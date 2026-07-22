@@ -137,16 +137,12 @@ class ReadOnlyAdminEnforcementTests(TestCase):
 
     def test_view_permission_follows_role_matrix(self):
         viewer = self._user_with_role("viewer", "viewer@example.com")
-        self.assertTrue(
-            self.stations_admin.has_view_permission(self._request(viewer))
-        )
+        self.assertTrue(self.stations_admin.has_view_permission(self._request(viewer)))
 
         norole = User.objects.create_user(
             email="norole@example.com", password="pw-Str0ng!42"
         )
-        self.assertFalse(
-            self.stations_admin.has_view_permission(self._request(norole))
-        )
+        self.assertFalse(self.stations_admin.has_view_permission(self._request(norole)))
         self.assertFalse(
             self.stations_admin.has_module_permission(self._request(norole))
         )
