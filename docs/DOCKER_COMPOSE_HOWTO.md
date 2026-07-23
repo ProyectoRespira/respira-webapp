@@ -102,3 +102,21 @@ docker compose down -v  # also removes volumes
 **Stale code changes:** Rebuild with `docker compose up -d --build`.
 
 For detailed environment variables, see [backend-env-vars.md](../backend-env-vars.md).
+
+## Certificate Renewal (Production)
+
+Use the utility script to run certbot renewal and reload nginx:
+
+```bash
+./utils/certbot-maintenance.sh renew
+```
+
+Check certificate expiry (UTC end date + remaining days):
+
+```bash
+./utils/certbot-maintenance.sh check-expiry your-domain.example
+```
+
+For a complete systemd service/timer setup, see [certbot-renewal.md](./certbot-renewal.md).
+
+Production deploy workflow also attempts to configure and enable the timer automatically on the server when passwordless `sudo` is available.
