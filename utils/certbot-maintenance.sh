@@ -59,6 +59,13 @@ check_expiry() {
     exit 1
   fi
 
+  case "$cert_name" in
+    *[!A-Za-z0-9.-]*|*/*|*\\*|*..*)
+      log_err "Error: invalid cert_name '$cert_name'."
+      exit 1
+      ;;
+  esac
+
   cert_file="$PROJECT_ROOT/certbot/conf/live/$cert_name/fullchain.pem"
   if [ ! -f "$cert_file" ]; then
     log_err "Error: certificate file not found at $cert_file"

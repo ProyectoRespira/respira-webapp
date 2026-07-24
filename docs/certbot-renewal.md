@@ -45,6 +45,8 @@ For monitoring and operational checks:
 ./utils/certbot-maintenance.sh check-expiry your-domain.example
 ```
 
+The `cert_name` argument must be a plain certificate directory name, without path separators or traversal sequences.
+
 Example output includes:
 - Expiration timestamp (UTC)
 - Remaining days
