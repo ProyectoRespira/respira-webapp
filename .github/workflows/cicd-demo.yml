@@ -382,12 +382,6 @@ jobs:
             "$ENV_FILE" \
             "$DEPLOY_USER@$DEPLOY_HOST:$COMPOSE_PATH/.env.demo"
 
-          scp -i "$KEY_PATH" \
-            -o StrictHostKeyChecking=yes \
-            -o UserKnownHostsFile=~/.ssh/known_hosts \
-            -r utils \
-            "$DEPLOY_USER@$DEPLOY_HOST:$COMPOSE_PATH/"
-
       - name: Deploy over SSH
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -424,34 +418,6 @@ jobs:
             -f docker-compose.remote.demo.yml \
             --env-file .env.demo \
             up -d --pull always --remove-orphans
-
-          if sudo -n true >/dev/null 2>&1; then
-            service_src="$COMPOSE_PATH/utils/systemd/respira-certbot-renew.service.template"
-            timer_src="$COMPOSE_PATH/utils/systemd/respira-certbot-renew.timer"
-
-            if [ ! -f "$service_src" ] || [ ! -f "$timer_src" ]; then
-              echo "Missing certbot systemd templates under $COMPOSE_PATH/utils/systemd"
-              exit 1
-            fi
-
-            sudo install -d -m 0755 /etc/systemd/system
-
-            sed "s|__COMPOSE_PATH__|$COMPOSE_PATH|g" "$service_src" \
-              | sudo tee /etc/systemd/system/respira-certbot-renew.service >/dev/null
-
-            sudo cp "$timer_src" /etc/systemd/system/respira-certbot-renew.timer
-            printf 'RESPIRA_COMPOSE_PATH=%s\n' "$COMPOSE_PATH" \
-              | sudo tee /etc/default/respira-certbot-renew >/dev/null
-
-            sudo systemctl daemon-reload
-            sudo systemctl enable --now respira-certbot-renew.timer
-            sudo systemctl restart respira-certbot-renew.timer
-            sudo systemctl is-enabled respira-certbot-renew.timer
-            sudo systemctl is-active respira-certbot-renew.timer
-          else
-            echo "Passwordless sudo is required to configure certbot renewal timer."
-            exit 1
-          fi
 
           timeout_seconds=600
           interval_seconds=10

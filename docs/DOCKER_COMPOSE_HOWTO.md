@@ -117,6 +117,8 @@ Check certificate expiry (UTC end date + remaining days):
 ./utils/certbot-maintenance.sh check-expiry your-domain.example
 ```
 
-For a complete systemd service/timer setup, see [certbot-renewal.md](./certbot-renewal.md).
+Troubleshooting output is appended to `logs/certbot-maintenance.log` by default. Set `CERTBOT_MAINTENANCE_LOG` to use a different path.
 
-Production deploy workflow also attempts to configure and enable the timer automatically on the server when passwordless `sudo` is available.
+The `renew` command is a renewal check: it runs Certbot, but only certificates that are close enough to expiry are actually renewed.
+
+For a complete systemd service/timer setup, see [certbot-renewal.md](./certbot-renewal.md).

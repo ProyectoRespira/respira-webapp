@@ -7,6 +7,7 @@ This project stores Let's Encrypt assets on the host and mounts them into both s
 - `certbot/www` -> shared ACME webroot (`/var/www/certbot`)
 
 Use the utility script at `utils/certbot-maintenance.sh` to keep certificates updated.
+It writes to `logs/certbot-maintenance.log` by default, or to the path in `CERTBOT_MAINTENANCE_LOG` if that environment variable is set.
 
 ## 1) Initial certificate issuance (one-time)
 
@@ -33,7 +34,8 @@ The renewal flow runs certbot and then reloads nginx:
 ./utils/certbot-maintenance.sh renew
 ```
 
-This is safe to run frequently. Certbot renews only when needed.
+This is safe to run frequently. It does not force a new certificate every time; Certbot only renews certificates that are close enough to expiry.
+All command output is appended to the maintenance log file for troubleshooting.
 
 ## 3) Expiry check command
 
@@ -49,7 +51,7 @@ Example output includes:
 
 ## 4) Recommended automation with systemd timer
 
-The repository includes templates in `utils/systemd/`:
+The repository includes templates in `utils/systemd/` for manual host installation:
 
 - `respira-certbot-renew.service.template`
 - `respira-certbot-renew.timer`
@@ -110,6 +112,12 @@ Inspect status and logs:
 ```bash
 systemctl list-timers respira-certbot-renew.timer
 journalctl -u respira-certbot-renew.service -n 100 --no-pager
+```
+
+The script log file is also useful for troubleshooting:
+
+```bash
+tail -n 100 logs/certbot-maintenance.log
 ```
 
 ## 5) Suggested alert threshold
