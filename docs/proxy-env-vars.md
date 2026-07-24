@@ -27,6 +27,28 @@ These tell nginx where to route backend and frontend traffic.
 
 ---
 
+## Django Admin IP Allowlist
+
+Controls who can reach Django Admin (`/admin/`) through nginx.
+
+| Variable                        | Required | Default | Where used                                                   | Notes                                                                                                  |
+| ------------------------------- | -------- | ------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `PROXY_ADMIN_ALLOWED_IP_RANGES` | No       | `""`    | `docker-compose.yml` (proxy env), `proxy/entrypoint.sh`, all nginx templates | Comma-separated IP/CIDR entries. Generates nginx `allow ...;` rules for `/admin/` and appends `deny all;`. If empty, `/admin/` is blocked by default. |
+
+Format examples:
+
+- `PROXY_ADMIN_ALLOWED_IP_RANGES=203.0.113.10/32`
+- `PROXY_ADMIN_ALLOWED_IP_RANGES=203.0.113.0/24,198.51.100.0/24`
+- `PROXY_ADMIN_ALLOWED_IP_RANGES=2001:db8:abcd::/48`
+
+Tips:
+
+- Use `/32` for a single IPv4 host and `/128` for a single IPv6 host.
+- Keep the list minimal (office/VPN egress ranges only).
+- Redeploy or restart the proxy after changing this value.
+
+---
+
 ## TLS
 
 Required when using the `production` or `development` build targets.

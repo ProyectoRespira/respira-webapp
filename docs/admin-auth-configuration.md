@@ -176,7 +176,10 @@ Per environment, confirm:
    served from.
 4. `python manage.py check --deploy` runs clean (see
    [`admin-security-hardening.md`](./admin-security-hardening.md)).
-5. `python manage.py migrate && python manage.py sync_roles` has been run so
+5. `PROXY_ADMIN_ALLOWED_IP_RANGES` (nginx) is set to the specific office/VPN
+  egress IP/CIDR ranges that may access `/admin/` (see
+  [`proxy-env-vars.md`](./proxy-env-vars.md)).
+6. `python manage.py migrate && python manage.py sync_roles` has been run so
    role groups exist with the correct permissions.
 
 ## Automated test coverage
