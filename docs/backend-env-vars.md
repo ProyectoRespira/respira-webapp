@@ -86,6 +86,80 @@ Override these only if your database schema uses different column names than the
 
 ---
 
+## Admin — Default Superuser (bootstrap)
+
+If both variables are set, `entrypoint.sh` runs `manage.py bootstrap_superuser`
+on start and creates this Django Admin superuser. Idempotent: an existing
+account is never modified (its password is not reset), so it is safe on every
+deploy. Leave unset to skip. Intended to seed the first `/admin/` login on
+staging/production — change the password after first login.
+
+| Variable                     | Required | Default | Where used                                            | Notes                                                       |
+| ---------------------------- | -------- | ------- | ----------------------------------------------------- | ----------------------------------------------------------- |
+| `BACKEND_SUPERUSER_EMAIL`    | No       | —       | `accounts/management/commands/bootstrap_superuser.py` | Email/login of the superuser to create.                     |
+| `BACKEND_SUPERUSER_PASSWORD` | No       | —       | `accounts/management/commands/bootstrap_superuser.py` | Password for that superuser. Use a strong value; rotate it. |
+
+---
+
+## Admin — Authentication & Sessions (optional)
+
+Session and cookie behaviour for the `/admin/` backoffice. Secure cookie flags
+default to **on whenever `BACKEND_DEBUG=false`**, so most of these can stay unset
+in production. See `docs/admin-auth-configuration.md`.
+
+| Variable                                  | Required                | Default              | Where used                    | Notes                                                                     |
+| ----------------------------------------- | ----------------------- | -------------------- | ----------------------------- | ------------------------------------------------------------------------- |
+| `BACKEND_CSRF_TRUSTED_ORIGINS`            | Yes behind HTTPS proxy  | `""` (empty)         | `backend/backend/settings.py` | Comma-separated HTTPS origins trusted for admin POSTs. Required behind the proxy or login is rejected. |
+| `BACKEND_SESSION_COOKIE_AGE`              | No                      | `28800` (8h)         | `backend/backend/settings.py` | Session lifetime in seconds.                                              |
+| `BACKEND_SESSION_EXPIRE_AT_BROWSER_CLOSE` | No                      | `false`              | `backend/backend/settings.py` | Delete the session cookie when the browser closes.                       |
+| `BACKEND_SESSION_SAVE_EVERY_REQUEST`      | No                      | `false`              | `backend/backend/settings.py` | Refresh session expiry on every request (sliding session).              |
+| `BACKEND_SESSION_COOKIE_SECURE`           | No                      | `true` when not DEBUG | `backend/backend/settings.py` | Send the session cookie over HTTPS only.                                 |
+| `BACKEND_CSRF_COOKIE_SECURE`              | No                      | `true` when not DEBUG | `backend/backend/settings.py` | Send the CSRF cookie over HTTPS only.                                    |
+| `BACKEND_SESSION_COOKIE_SAMESITE`         | No                      | `Lax`                | `backend/backend/settings.py` | SameSite policy for the session cookie.                                  |
+| `BACKEND_CSRF_COOKIE_SAMESITE`            | No                      | `Lax`                | `backend/backend/settings.py` | SameSite policy for the CSRF cookie.                                     |
+
+---
+
+## Admin — Security Hardening (optional)
+
+Login rate limiting (django-axes), password policy and HTTPS/HSTS. Production
+values default from `BACKEND_DEBUG`; override only to diverge. See
+`docs/admin-security-hardening.md`.
+
+| Variable                                 | Required | Default               | Where used                    | Notes                                                            |
+| ---------------------------------------- | -------- | --------------------- | ----------------------------- | ---------------------------------------------------------------- |
+| `BACKEND_AXES_ENABLED`                   | No       | `true`                | `backend/backend/settings.py` | Master switch for login rate limiting.                           |
+| `BACKEND_AXES_FAILURE_LIMIT`             | No       | `5`                   | `backend/backend/settings.py` | Failed logins before lockout.                                    |
+| `BACKEND_AXES_COOLOFF_HOURS`             | No       | `1`                   | `backend/backend/settings.py` | Lockout duration in hours.                                       |
+| `BACKEND_PASSWORD_MIN_LENGTH`            | No       | `10`                  | `backend/backend/settings.py` | Minimum password length.                                         |
+| `BACKEND_PASSWORD_REQUIRE_SPECIAL`       | No       | `true`                | `backend/backend/settings.py` | Require a special character in passwords.                        |
+| `BACKEND_SECURE_SSL_REDIRECT`            | No       | `true` when not DEBUG | `backend/backend/settings.py` | Redirect HTTP to HTTPS.                                          |
+| `BACKEND_SECURE_HSTS_SECONDS`            | No       | `31536000` when not DEBUG | `backend/backend/settings.py` | HSTS max-age (0 disables).                                    |
+| `BACKEND_SECURE_HSTS_INCLUDE_SUBDOMAINS` | No       | `true` when not DEBUG | `backend/backend/settings.py` | Apply HSTS to subdomains.                                        |
+| `BACKEND_SECURE_HSTS_PRELOAD`            | No       | `true` when not DEBUG | `backend/backend/settings.py` | Set the HSTS preload flag.                                       |
+| `BACKEND_SECURE_PROXY_SSL_HEADER`        | No       | `true` when not DEBUG | `backend/backend/settings.py` | Trust `X-Forwarded-Proto` from the TLS-terminating proxy.        |
+| `BACKEND_X_FRAME_OPTIONS`                | No       | `DENY`                | `backend/backend/settings.py` | Clickjacking protection header value.                            |
+
+---
+
+## Admin — Email / Password Reset (optional)
+
+Enables Django's email password-reset flow when SMTP is configured. In dev
+(`BACKEND_DEBUG=true`) emails print to the console. See
+`docs/admin-password-management.md`.
+
+| Variable                     | Required | Default                                     | Where used                    | Notes                                             |
+| ---------------------------- | -------- | ------------------------------------------- | ----------------------------- | ------------------------------------------------- |
+| `BACKEND_EMAIL_BACKEND`      | No       | console (dev) / SMTP (prod)                 | `backend/backend/settings.py` | Django email backend dotted path.                 |
+| `BACKEND_EMAIL_HOST`         | No       | `""`                                        | `backend/backend/settings.py` | SMTP host.                                        |
+| `BACKEND_EMAIL_PORT`         | No       | `587`                                       | `backend/backend/settings.py` | SMTP port.                                        |
+| `BACKEND_EMAIL_HOST_USER`    | No       | `""`                                        | `backend/backend/settings.py` | SMTP username.                                    |
+| `BACKEND_EMAIL_HOST_PASSWORD`| No       | `""`                                        | `backend/backend/settings.py` | SMTP password.                                    |
+| `BACKEND_EMAIL_USE_TLS`      | No       | `true`                                      | `backend/backend/settings.py` | Use STARTTLS.                                     |
+| `BACKEND_DEFAULT_FROM_EMAIL` | No       | `no-reply@proyectorespira.net`              | `backend/backend/settings.py` | Default From address for outgoing admin emails.   |
+
+---
+
 ## Build-Time Variables
 
 | Variable         | Required | Default              | Where used                   | Notes                                                                         |
