@@ -6,4 +6,4 @@ After=docker.service
 [Service]
 Type=oneshot
 EnvironmentFile=-/etc/default/respira-certbot-renew
-ExecStart=/bin/sh -lc 'set -eu; COMPOSE_PATH="${RESPIRA_COMPOSE_PATH:-__COMPOSE_PATH__}"; cd "$COMPOSE_PATH"; ./utils/certbot-maintenance.sh renew'
+ExecStart=/bin/sh -lc 'set -eu; COMPOSE_PATH="${RESPIRA_COMPOSE_PATH:-__COMPOSE_PATH__}"; cd "$COMPOSE_PATH"; set -- --project-root "$COMPOSE_PATH"; if [ -n "${RESPIRA_CERTBOT_LOG_FILE:-}" ]; then set -- "$@" --log-file "$RESPIRA_CERTBOT_LOG_FILE"; fi; ./utils/certbot-maintenance.sh "$@" renew'

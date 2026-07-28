@@ -111,13 +111,27 @@ Use the utility script to run certbot renewal and reload nginx:
 ./utils/certbot-maintenance.sh renew
 ```
 
+If the compose project root is not the repository root you are currently in, pass it explicitly:
+
+```bash
+./utils/certbot-maintenance.sh --project-root /absolute/path/to/respira-webapp renew
+```
+
 Check certificate expiry (UTC end date + remaining days):
 
 ```bash
-./utils/certbot-maintenance.sh check-expiry your-domain.example
+./utils/certbot-maintenance.sh check-expiry --cert-name your-domain.example
 ```
 
-Troubleshooting output is appended to `logs/certbot-maintenance.log` by default. Set `CERTBOT_MAINTENANCE_LOG` to use a different path.
+By default, the script first looks for `./certbot/conf` relative to your current working directory, then falls back to the repository's `certbot/conf`.
+
+If certificate files are stored outside the default `./certbot/conf`, run:
+
+```bash
+./utils/certbot-maintenance.sh check-expiry --cert-name your-domain.example --certbot-config-dir /absolute/path/to/certbot/conf
+```
+
+Troubleshooting output is appended to `<project-root>/logs/certbot-maintenance.log` by default. Pass `--log-file /custom/path.log` to use a different path.
 
 The `renew` command is a renewal check: it runs Certbot, but only certificates that are close enough to expiry are actually renewed.
 

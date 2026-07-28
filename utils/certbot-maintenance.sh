@@ -2,9 +2,18 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
-PROJECT_ROOT=$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)
-COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yml"
-LOG_FILE="${CERTBOT_MAINTENANCE_LOG:-$PROJECT_ROOT/logs/certbot-maintenance.log}"
+CURRENT_DIR=$(pwd)
+DEFAULT_PROJECT_ROOT=$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)
+PROJECT_ROOT="$DEFAULT_PROJECT_ROOT"
+DEFAULT_LOG_FILE_OVERRIDE="${CERTBOT_MAINTENANCE_LOG:-}"
+if [ -n "$DEFAULT_LOG_FILE_OVERRIDE" ]; then
+  LOG_FILE="$DEFAULT_LOG_FILE_OVERRIDE"
+else
+  LOG_FILE="$PROJECT_ROOT/logs/certbot-maintenance.log"
+fi
+LOG_FILE_FLAG_SET=false
+CERTBOT_CONFIG_DIR=
+CERT_NAME=
 
 init_log_file() {
   log_dir=$(dirname -- "$LOG_FILE")
@@ -24,21 +33,69 @@ log_err() {
 usage() {
   cat <<'EOF'
 Usage:
-  utils/certbot-maintenance.sh renew
-  utils/certbot-maintenance.sh check-expiry <cert_name>
+  utils/certbot-maintenance.sh [--project-root PATH] [--log-file PATH] renew
+  utils/certbot-maintenance.sh [--project-root PATH] [--log-file PATH] [--certbot-config-dir PATH] check-expiry --cert-name NAME
 
 Commands:
   renew                 Run Certbot renewal and reload Nginx proxy.
   check-expiry          Print certificate expiration date for monitoring.
 
+Options:
+  --project-root PATH       Compose project root. Default: script parent directory.
+  --log-file PATH           Maintenance log file path. Default: <project-root>/logs/certbot-maintenance.log
+  --certbot-config-dir PATH Base directory containing live/<cert_name>/fullchain.pem
+  --cert-name NAME          Certificate directory name for check-expiry
+
 Examples:
   ./utils/certbot-maintenance.sh renew
-  ./utils/certbot-maintenance.sh check-expiry example.com
+  ./utils/certbot-maintenance.sh --project-root /srv/respira renew
+  ./utils/certbot-maintenance.sh check-expiry --cert-name example.com
+  ./utils/certbot-maintenance.sh check-expiry --cert-name example.com --certbot-config-dir /absolute/path/to/certbot/conf
 EOF
 }
 
+resolve_user_path() {
+  input_path=${1:-}
+
+  case "$input_path" in
+    /*)
+      printf '%s\n' "$input_path"
+      ;;
+    *)
+      printf '%s\n' "$CURRENT_DIR/$input_path"
+      ;;
+  esac
+}
+
+resolve_certbot_config_dir() {
+  input_dir=${1:-}
+
+  if [ -z "$input_dir" ]; then
+    if [ -d "$CURRENT_DIR/certbot/conf" ]; then
+      printf '%s\n' "$CURRENT_DIR/certbot/conf"
+      return 0
+    fi
+
+    printf '%s\n' "$PROJECT_ROOT/certbot/conf"
+    return 0
+  fi
+
+  resolve_user_path "$input_dir"
+}
+
+require_option_value() {
+  option_name=${1:-}
+  option_value=${2:-}
+
+  if [ -z "$option_value" ]; then
+    log_err "Error: $option_name requires a value."
+    usage
+    exit 1
+  fi
+}
+
 run_compose() {
-  docker compose -f "$COMPOSE_FILE" "$@"
+  docker compose -f "$PROJECT_ROOT/docker-compose.yml" "$@"
 }
 
 renew() {
@@ -53,6 +110,7 @@ renew() {
 
 check_expiry() {
   cert_name=${1:-}
+  certbot_config_dir=$(resolve_certbot_config_dir "$CERTBOT_CONFIG_DIR")
   if [ -z "$cert_name" ]; then
     log_err "Error: cert_name is required for check-expiry."
     usage
@@ -66,7 +124,7 @@ check_expiry() {
       ;;
   esac
 
-  cert_file="$PROJECT_ROOT/certbot/conf/live/$cert_name/fullchain.pem"
+  cert_file="$certbot_config_dir/live/$cert_name/fullchain.pem"
   if [ ! -f "$cert_file" ]; then
     log_err "Error: certificate file not found at $cert_file"
     exit 1
@@ -83,14 +141,71 @@ check_expiry() {
   log "[cert] Days remaining: $days_left"
 }
 
-command=${1:-}
+command=
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    renew|check-expiry)
+      if [ -n "$command" ]; then
+        log_err "Error: multiple commands provided."
+        usage
+        exit 1
+      fi
+      command="$1"
+      shift
+      ;;
+    --project-root)
+      require_option_value "$1" "${2:-}"
+      PROJECT_ROOT=$(resolve_user_path "$2")
+      shift 2
+      ;;
+    --log-file)
+      require_option_value "$1" "${2:-}"
+      LOG_FILE=$(resolve_user_path "$2")
+      LOG_FILE_FLAG_SET=true
+      shift 2
+      ;;
+    --certbot-config-dir)
+      require_option_value "$1" "${2:-}"
+      CERTBOT_CONFIG_DIR="$2"
+      shift 2
+      ;;
+    --cert-name)
+      require_option_value "$1" "${2:-}"
+      CERT_NAME="$2"
+      shift 2
+      ;;
+    -h|--help|help)
+      command=help
+      shift
+      ;;
+    *)
+      if [ "$command" = "check-expiry" ] && [ -z "$CERT_NAME" ]; then
+        CERT_NAME="$1"
+        shift
+      elif [ "$command" = "check-expiry" ] && [ -z "$CERTBOT_CONFIG_DIR" ]; then
+        CERTBOT_CONFIG_DIR="$1"
+        shift
+      else
+        log_err "Error: unknown argument '$1'"
+        usage
+        exit 1
+      fi
+      ;;
+  esac
+done
+
+if [ "$LOG_FILE_FLAG_SET" != "true" ] && [ -z "$DEFAULT_LOG_FILE_OVERRIDE" ]; then
+  LOG_FILE="$PROJECT_ROOT/logs/certbot-maintenance.log"
+fi
+
 init_log_file
 case "$command" in
   renew)
     renew
     ;;
   check-expiry)
-    check_expiry "${2:-}"
+    check_expiry "$CERT_NAME"
     ;;
   -h|--help|help|"")
     usage

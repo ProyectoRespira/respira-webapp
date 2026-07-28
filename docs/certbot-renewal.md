@@ -7,7 +7,8 @@ This project stores Let's Encrypt assets on the host and mounts them into both s
 - `certbot/www` -> shared ACME webroot (`/var/www/certbot`)
 
 Use the utility script at `utils/certbot-maintenance.sh` to keep certificates updated.
-It writes to `logs/certbot-maintenance.log` by default, or to the path in `CERTBOT_MAINTENANCE_LOG` if that environment variable is set.
+It writes to `<project-root>/logs/certbot-maintenance.log` by default, or to the path passed with `--log-file`.
+For `check-expiry`, it reads certificates from `./certbot/conf` relative to the current working directory when present, otherwise it falls back to `<project-root>/certbot/conf`. You can also pass `--certbot-config-dir` explicitly.
 
 ## 1) Initial certificate issuance (one-time)
 
@@ -34,6 +35,12 @@ The renewal flow runs certbot and then reloads nginx:
 ./utils/certbot-maintenance.sh renew
 ```
 
+If the compose project lives elsewhere, pass it explicitly:
+
+```bash
+./utils/certbot-maintenance.sh --project-root /absolute/path/to/respira-webapp renew
+```
+
 This is safe to run frequently. It does not force a new certificate every time; Certbot only renews certificates that are close enough to expiry.
 All command output is appended to the maintenance log file for troubleshooting.
 
@@ -42,8 +49,16 @@ All command output is appended to the maintenance log file for troubleshooting.
 For monitoring and operational checks:
 
 ```bash
-./utils/certbot-maintenance.sh check-expiry your-domain.example
+./utils/certbot-maintenance.sh check-expiry --cert-name your-domain.example
 ```
+
+If your Let's Encrypt files live outside the default `./certbot/conf`, pass the base directory explicitly:
+
+```bash
+./utils/certbot-maintenance.sh check-expiry --cert-name your-domain.example --certbot-config-dir /absolute/path/to/certbot/conf
+```
+
+Relative paths are resolved from the directory where you run the command.
 
 The `cert_name` argument must be a plain certificate directory name, without path separators or traversal sequences.
 
@@ -70,7 +85,7 @@ After=docker.service
 [Service]
 Type=oneshot
 EnvironmentFile=-/etc/default/respira-certbot-renew
-ExecStart=/bin/sh -lc 'set -eu; COMPOSE_PATH="${RESPIRA_COMPOSE_PATH:-/workspaces/respira-webapp}"; cd "$COMPOSE_PATH"; ./utils/certbot-maintenance.sh renew'
+ExecStart=/bin/sh -lc 'set -eu; COMPOSE_PATH="${RESPIRA_COMPOSE_PATH:-/workspaces/respira-webapp}"; cd "$COMPOSE_PATH"; set -- --project-root "$COMPOSE_PATH"; if [ -n "${RESPIRA_CERTBOT_LOG_FILE:-}" ]; then set -- "$@" --log-file "$RESPIRA_CERTBOT_LOG_FILE"; fi; ./utils/certbot-maintenance.sh "$@" renew'
 ```
 
 Create timer unit `/etc/systemd/system/respira-certbot-renew.timer`:
@@ -107,6 +122,8 @@ Then edit:
 
 ```bash
 RESPIRA_COMPOSE_PATH=/absolute/path/to/compose/project
+# Optional: override the renewal log file path
+# RESPIRA_CERTBOT_LOG_FILE=/var/log/respira-certbot.log
 ```
 
 Inspect status and logs:
@@ -122,12 +139,18 @@ The script log file is also useful for troubleshooting:
 tail -n 100 logs/certbot-maintenance.log
 ```
 
+Or if you chose a custom path:
+
+```bash
+./utils/certbot-maintenance.sh --project-root /absolute/path/to/respira-webapp --log-file /var/log/respira-certbot.log renew
+```
+
 ## 5) Suggested alert threshold
 
 Alert if remaining lifetime is less than 20 days. A simple check is:
 
 ```bash
-./utils/certbot-maintenance.sh check-expiry your-domain.example
+./utils/certbot-maintenance.sh check-expiry --cert-name your-domain.example
 ```
 
 Integrate this command into your monitoring platform or a scheduled host check.
