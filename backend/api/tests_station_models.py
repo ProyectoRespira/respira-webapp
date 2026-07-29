@@ -5,12 +5,12 @@ what matters here is that the schema persists every documented field and that
 the uniqueness rules hold at the database level.
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 
-from .models import Regions, StationDetails, Stations
+from .models import Regions, StationDetails, StationOverride, Stations
 
 
 class StationDetailsModelTests(TestCase):
@@ -97,3 +97,77 @@ class StationDetailsModelTests(TestCase):
         details = StationDetails.objects.create(station=self.station)
 
         self.assertEqual(str(details), "Details for Respira: Villa Morra")
+
+
+class StationOverrideModelTests(TestCase):
+    """StationOverride replaces station_status_seed.csv, whose rows were
+    ``station_code,status,note`` — the same shape this model persists."""
+
+    def test_every_documented_field_persists(self):
+        override = StationOverride.objects.create(
+            station_code="mades_open_ic08p0002",
+            field="status",
+            value="inactive",
+            note="Costanera Asunción: shut down by MADES request",
+        )
+
+        override.refresh_from_db()
+        self.assertEqual(override.station_code, "mades_open_ic08p0002")
+        self.assertEqual(override.field, "status")
+        self.assertEqual(override.value, "inactive")
+        self.assertEqual(
+            override.note, "Costanera Asunción: shut down by MADES request"
+        )
+        self.assertIsNotNone(override.change_date)
+        self.assertFalse(override.processed)
+
+    def test_note_is_optional(self):
+        override = StationOverride.objects.create(
+            station_code="airelibre_d87553", field="status", value="inactive"
+        )
+
+        self.assertEqual(override.note, "")
+
+    def test_same_station_and_field_cannot_be_overridden_twice(self):
+        StationOverride.objects.create(
+            station_code="airelibre_d87553", field="status", value="inactive"
+        )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                StationOverride.objects.create(
+                    station_code="airelibre_d87553", field="status", value="active"
+                )
+
+    def test_a_station_can_override_several_distinct_fields(self):
+        StationOverride.objects.create(
+            station_code="airelibre_d87553", field="status", value="inactive"
+        )
+        StationOverride.objects.create(
+            station_code="airelibre_d87553",
+            field="is_pattern_station",
+            value="true",
+        )
+
+        self.assertEqual(
+            StationOverride.objects.filter(station_code="airelibre_d87553").count(), 2
+        )
+
+    def test_overrides_are_listed_most_recent_first(self):
+        older = StationOverride.objects.create(
+            station_code="a", field="status", value="inactive"
+        )
+        newer = StationOverride.objects.create(
+            station_code="b", field="status", value="active"
+        )
+        older.change_date = newer.change_date - timedelta(days=1)
+        older.save(update_fields=["change_date"])
+
+        self.assertEqual(list(StationOverride.objects.all()), [newer, older])
+
+    def test_str_describes_the_override(self):
+        override = StationOverride.objects.create(
+            station_code="airelibre_d87553", field="status", value="inactive"
+        )
+
+        self.assertEqual(str(override), "airelibre_d87553: status = inactive")

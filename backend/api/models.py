@@ -138,6 +138,42 @@ class StationDetails(models.Model):
         return f"Details for {self.station.name}"
 
 
+class StationOverride(models.Model):
+    """An operational override of a station field, editable from the admin.
+
+    Replaces ``station_status_seed.csv`` in respira-data: instead of committing
+    a CSV and running dbt for every operational change, an operator creates a
+    row here and the pipeline consumes it.
+
+    Stations are addressed by ``station_code`` — the pipeline's stable natural
+    key — rather than by ``stations.id``, which dbt regenerates from a
+    ``row_number()`` on every run.
+
+    ``processed`` is set by the pipeline once it has picked the change up, so it
+    is system-managed and read-only in the admin.
+    """
+
+    station_code = models.CharField(max_length=255, db_index=True)
+    field = models.CharField(max_length=255)
+    value = models.CharField(max_length=255)
+    note = models.TextField(blank=True)
+    change_date = models.DateTimeField(default=timezone.now)
+    processed = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "station_overrides"
+        ordering = ("-change_date",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["station_code", "field"],
+                name="uniq_station_override_code_field",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.station_code}: {self.field} = {self.value}"
+
+
 class RegionReadings(models.Model):
     region = models.ForeignKey("Regions", on_delete=models.DO_NOTHING)
     date_utc = models.DateTimeField()
