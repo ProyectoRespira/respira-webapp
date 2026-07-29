@@ -66,6 +66,9 @@ class Regions(models.Model):
     class Meta:
         db_table = "regions"
 
+    def __str__(self):
+        return self.name
+
 
 class Stations(models.Model):
     name = models.CharField(max_length=255)
@@ -80,9 +83,59 @@ class Stations(models.Model):
     class Meta:
         db_table = "stations"
 
+    def __str__(self):
+        return self.name
+
     @property
     def coordinates(self):
         return (self.latitude, self.longitude)
+
+
+class StationDetails(models.Model):
+    """Operational and contact information for a station, owned by the backend.
+
+    Kept out of ``stations`` — which the dbt gold pipeline rewrites on every run
+    — so operators can edit it from the admin without the next run overwriting
+    it. Replaces the operational Google Spreadsheet.
+
+    ``db_constraint=False``: dbt materializes ``stations`` as a table and drops
+    and recreates it on every run, so a physical FOREIGN KEY would either break
+    that run or be dropped with CASCADE. The one-to-one relationship (and its
+    unique index) is enforced at the Django level instead.
+
+    Note that ``stations.id`` is itself derived from a ``row_number()`` in dbt
+    (``int_station_id_map``), so ids shift when a station is added. Re-linking
+    details after such a shift requires exposing the stable ``station_code`` on
+    the gold ``stations`` model — tracked separately in respira-data.
+    """
+
+    station = models.OneToOneField(
+        "Stations",
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        related_name="details",
+    )
+    serial_number = models.CharField(max_length=255, blank=True)
+    sensor_type = models.CharField(max_length=255, blank=True)
+    model = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=255, blank=True)
+    specific_location = models.CharField(max_length=255, blank=True)
+    locality = models.CharField(max_length=255, blank=True)
+    environment_type = models.CharField(max_length=255, blank=True)
+    connectivity = models.CharField(max_length=255, blank=True)
+    power_source = models.CharField(max_length=255, blank=True)
+    installation_date = models.DateField(blank=True, null=True)
+    responsible = models.CharField(max_length=255, blank=True)
+    contact_info = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "station_details"
+        verbose_name = "station details"
+        verbose_name_plural = "station details"
+
+    def __str__(self):
+        return f"Details for {self.station.name}"
 
 
 class RegionReadings(models.Model):
