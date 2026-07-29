@@ -15,32 +15,42 @@ from __future__ import annotations
 # Permission matrix: role slug -> either "__all__" or a mapping of
 # (app_label, model_name) -> list of actions (add / change / delete / view).
 #
-# "Operational data" = api.stations, api.regions.
+# "Reflected dbt tables" = api.stations, api.regions — read-only for everyone.
+# "Admin-owned station data" = api.stationdetails, api.stationoverride — the
+# models that replace the operational spreadsheet and the status seed CSV, and
+# the only station data that is editable from the backoffice.
 # "Administrative configuration" = accounts.user, accounts.role.
+#
+# Note that `change_stationdetails` also gates opening a station's change page
+# (see api.admin.StationsViewer), since the details are edited inline there.
 ROLE_GROUP_PERMISSIONS: dict[str, object] = {
     # Superadmin: unrestricted administrative access.
     "superadmin": "__all__",
-    # Admin: read station-related models (the reflected dbt tables are
-    # read-only; editing will happen on future override/details models),
+    # Admin: read the reflected dbt tables, manage the admin-owned station data,
     # read administrative config.
     "admin": {
         ("api", "stations"): ["view"],
         ("api", "regions"): ["view"],
+        ("api", "stationdetails"): ["add", "change", "view"],
+        ("api", "stationoverride"): ["add", "change", "delete", "view"],
         ("accounts", "user"): ["view"],
         ("accounts", "role"): ["view"],
     },
-    # Editor: currently view-only on operational data. The reflected dbt tables
-    # (stations/regions) are read-only for everyone; the Editor's edit
-    # capability will be granted later on the future override/details models,
-    # not on these tables.
+    # Editor: edits the operational station data, but never the reflected dbt
+    # tables (which are read-only for everyone) and never administrative config.
+    # No delete on overrides — retiring one is an Admin decision.
     "editor": {
         ("api", "stations"): ["view"],
         ("api", "regions"): ["view"],
+        ("api", "stationdetails"): ["add", "change", "view"],
+        ("api", "stationoverride"): ["add", "change", "view"],
     },
     # Viewer: read-only on operational data.
     "viewer": {
         ("api", "stations"): ["view"],
         ("api", "regions"): ["view"],
+        ("api", "stationdetails"): ["view"],
+        ("api", "stationoverride"): ["view"],
     },
 }
 
