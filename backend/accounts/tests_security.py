@@ -1,3 +1,6 @@
+from unittest import mock
+
+import backend.settings as project_settings
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -11,6 +14,32 @@ STRONG_PW = "pw-Str0ng!42"
 
 
 class SecuritySettingsTests(TestCase):
+    def test_blank_numeric_env_uses_default(self):
+        with mock.patch.dict("os.environ", {"BACKEND_PASSWORD_MIN_LENGTH": "   "}):
+            self.assertEqual(
+                project_settings._env_int("BACKEND_PASSWORD_MIN_LENGTH", 10), 10
+            )
+
+    def test_blank_string_env_uses_default(self):
+        with mock.patch.dict("os.environ", {"BACKEND_SESSION_COOKIE_SAMESITE": ""}):
+            self.assertEqual(
+                project_settings._env_str("BACKEND_SESSION_COOKIE_SAMESITE", "Lax"),
+                "Lax",
+            )
+
+    def test_whitespace_string_env_uses_default(self):
+        with mock.patch.dict("os.environ", {"BACKEND_SESSION_COOKIE_SAMESITE": "   "}):
+            self.assertEqual(
+                project_settings._env_str("BACKEND_SESSION_COOKIE_SAMESITE", "Lax"),
+                "Lax",
+            )
+
+    def test_whitespace_bool_env_uses_default(self):
+        with mock.patch.dict("os.environ", {"BACKEND_SECURE_SSL_REDIRECT": "   "}):
+            self.assertTrue(
+                project_settings._env_bool("BACKEND_SECURE_SSL_REDIRECT", True)
+            )
+
     def test_clickjacking_protection_denies_framing(self):
         self.assertEqual(settings.X_FRAME_OPTIONS, "DENY")
         self.assertIn(
