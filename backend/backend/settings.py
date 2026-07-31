@@ -24,9 +24,12 @@ def _quote_postgres_identifier(identifier: str) -> str:
 
 def _env_bool(key: str, default: bool) -> bool:
     value = os.getenv(key)
-    if value is None or value == "":
+    if value is None:
         return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
+    normalized = value.strip()
+    if normalized == "":
+        return default
+    return normalized.lower() in {"1", "true", "yes", "on"}
 
 
 def _env_int(key: str, default: int) -> int:
@@ -38,9 +41,12 @@ def _env_int(key: str, default: int) -> int:
 
 def _env_str(key: str, default: str) -> str:
     value = os.getenv(key)
-    if value is None or value == "":
+    if value is None:
         return default
-    return value
+    normalized = value.strip()
+    if normalized == "":
+        return default
+    return normalized
 
 
 def _env_list(key: str) -> list[str]:

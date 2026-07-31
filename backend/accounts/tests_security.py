@@ -27,6 +27,19 @@ class SecuritySettingsTests(TestCase):
                 "Lax",
             )
 
+    def test_whitespace_string_env_uses_default(self):
+        with mock.patch.dict("os.environ", {"BACKEND_SESSION_COOKIE_SAMESITE": "   "}):
+            self.assertEqual(
+                project_settings._env_str("BACKEND_SESSION_COOKIE_SAMESITE", "Lax"),
+                "Lax",
+            )
+
+    def test_whitespace_bool_env_uses_default(self):
+        with mock.patch.dict("os.environ", {"BACKEND_SECURE_SSL_REDIRECT": "   "}):
+            self.assertTrue(
+                project_settings._env_bool("BACKEND_SECURE_SSL_REDIRECT", True)
+            )
+
     def test_clickjacking_protection_denies_framing(self):
         self.assertEqual(settings.X_FRAME_OPTIONS, "DENY")
         self.assertIn(

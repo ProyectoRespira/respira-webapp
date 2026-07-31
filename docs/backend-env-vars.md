@@ -171,6 +171,6 @@ Enables Django's email password-reset flow when SMTP is configured. In dev
 ## Notes
 
 - The `BACKEND_CORS_ALLOWED_ORIGINS` variable name is what Django settings reads. Do not use `CORS_ALLOWED_ORIGINS` — it will be silently ignored.
-- Optional backend settings may be either omitted or left blank. The backend treats blank values for optional string and integer settings as unset and falls back to the documented defaults.
+- Optional backend settings may be either omitted or left blank. The backend treats blank (including whitespace-only) values for optional string, integer, and boolean settings as unset and falls back to the documented defaults.
 - `docker-compose.yml` passes many optional vars with `${VAR:-}` syntax, so Compose resolves missing values to empty strings before the container starts. The backend settings layer normalizes those empty strings back to the built-in defaults.
 - Example env files are templates, not safe deploy-ready configs. Replace placeholder secrets such as `BACKEND_SECRET_KEY`, database passwords, bootstrap admin passwords, and SMTP/API credentials before any shared or production deployment.
