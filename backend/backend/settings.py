@@ -29,6 +29,20 @@ def _env_bool(key: str, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_int(key: str, default: int) -> int:
+    value = os.getenv(key)
+    if value is None or value.strip() == "":
+        return default
+    return int(value)
+
+
+def _env_str(key: str, default: str) -> str:
+    value = os.getenv(key)
+    if value is None or value == "":
+        return default
+    return value
+
+
 def _env_list(key: str) -> list[str]:
     return [item.strip() for item in os.getenv(key, "").split(",") if item.strip()]
 
@@ -197,7 +211,7 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
         "OPTIONS": {
-            "min_length": int(os.getenv("BACKEND_PASSWORD_MIN_LENGTH", "10")),
+            "min_length": _env_int("BACKEND_PASSWORD_MIN_LENGTH", 10),
         },
     },
     {
@@ -234,7 +248,7 @@ LOGIN_REDIRECT_URL = "admin:index"
 
 # Session management (environment-aware).
 # Default session lifetime: 8 hours. Sessions are stored in the database.
-SESSION_COOKIE_AGE = int(os.getenv("BACKEND_SESSION_COOKIE_AGE", str(60 * 60 * 8)))
+SESSION_COOKIE_AGE = _env_int("BACKEND_SESSION_COOKIE_AGE", 60 * 60 * 8)
 SESSION_EXPIRE_AT_BROWSER_CLOSE = _env_bool(
     "BACKEND_SESSION_EXPIRE_AT_BROWSER_CLOSE", False
 )
@@ -250,8 +264,8 @@ SESSION_COOKIE_SECURE = _env_bool(
 )
 CSRF_COOKIE_SECURE = _env_bool("BACKEND_CSRF_COOKIE_SECURE", _secure_cookies_default)
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = os.getenv("BACKEND_SESSION_COOKIE_SAMESITE", "Lax")
-CSRF_COOKIE_SAMESITE = os.getenv("BACKEND_CSRF_COOKIE_SAMESITE", "Lax")
+SESSION_COOKIE_SAMESITE = _env_str("BACKEND_SESSION_COOKIE_SAMESITE", "Lax")
+CSRF_COOKIE_SAMESITE = _env_str("BACKEND_CSRF_COOKIE_SAMESITE", "Lax")
 
 # Origins trusted for CSRF-protected admin POSTs when served over HTTPS behind a
 # proxy (e.g. https://proyectorespira.net). Configure per deployment.
@@ -269,11 +283,11 @@ EMAIL_BACKEND = os.getenv(
     else "django.core.mail.backends.smtp.EmailBackend",
 )
 EMAIL_HOST = os.getenv("BACKEND_EMAIL_HOST", "")
-EMAIL_PORT = int(os.getenv("BACKEND_EMAIL_PORT", "587"))
+EMAIL_PORT = _env_int("BACKEND_EMAIL_PORT", 587)
 EMAIL_HOST_USER = os.getenv("BACKEND_EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("BACKEND_EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = _env_bool("BACKEND_EMAIL_USE_TLS", True)
-DEFAULT_FROM_EMAIL = os.getenv(
+DEFAULT_FROM_EMAIL = _env_str(
     "BACKEND_DEFAULT_FROM_EMAIL", "no-reply@proyectorespira.net"
 )
 
@@ -282,8 +296,8 @@ DEFAULT_FROM_EMAIL = os.getenv(
 # Locks an identity out after repeated failed logins to blunt brute-force
 # attacks on the admin login page. See docs/admin-security-hardening.md.
 AXES_ENABLED = _env_bool("BACKEND_AXES_ENABLED", True)
-AXES_FAILURE_LIMIT = int(os.getenv("BACKEND_AXES_FAILURE_LIMIT", "5"))
-AXES_COOLOFF_TIME = int(os.getenv("BACKEND_AXES_COOLOFF_HOURS", "1"))  # hours
+AXES_FAILURE_LIMIT = _env_int("BACKEND_AXES_FAILURE_LIMIT", 5)
+AXES_COOLOFF_TIME = _env_int("BACKEND_AXES_COOLOFF_HOURS", 1)  # hours
 AXES_RESET_ON_SUCCESS = True
 AXES_LOCKOUT_PARAMETERS = ["username", "ip_address"]
 AXES_LOCKOUT_TEMPLATE = None
@@ -291,16 +305,14 @@ AXES_LOCKOUT_TEMPLATE = None
 
 # Security hardening (environment-aware)
 # Clickjacking protection: deny framing of admin pages entirely.
-X_FRAME_OPTIONS = os.getenv("BACKEND_X_FRAME_OPTIONS", "DENY")
+X_FRAME_OPTIONS = _env_str("BACKEND_X_FRAME_OPTIONS", "DENY")
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
 # The following HTTPS protections are enabled by default in production
 # (DEBUG off) and can be tuned per environment. They are off in local HTTP dev.
 _prod = not DEBUG
 SECURE_SSL_REDIRECT = _env_bool("BACKEND_SECURE_SSL_REDIRECT", _prod)
-SECURE_HSTS_SECONDS = int(
-    os.getenv("BACKEND_SECURE_HSTS_SECONDS", "31536000" if _prod else "0")
-)
+SECURE_HSTS_SECONDS = _env_int("BACKEND_SECURE_HSTS_SECONDS", 31536000 if _prod else 0)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = _env_bool(
     "BACKEND_SECURE_HSTS_INCLUDE_SUBDOMAINS", _prod
 )
