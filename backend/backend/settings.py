@@ -65,14 +65,19 @@ SECRET_KEY = os.getenv("BACKEND_SECRET_KEY", "respira-backend-dev-secret-key")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("BACKEND_DEBUG", "false").lower() == "true"
 
-ALLOWED_HOSTS = [
+_default_allowed_hosts = [
     "127.0.0.1",
     "localhost",
+    "backend",
     "testserver",
     "159.65.227.146",
     "proyectorespira.net",
     ".proyectorespira.net",
 ]
+
+ALLOWED_HOSTS = list(
+    dict.fromkeys(_default_allowed_hosts + _env_list("BACKEND_ALLOWED_HOSTS"))
+)
 
 # Application definition
 

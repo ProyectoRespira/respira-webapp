@@ -8,6 +8,7 @@ services:
       BACKEND_DEBUG: ${BACKEND_DEBUG:-false}
       BACKEND_PORT: ${BACKEND_PORT:-8000}
       BACKEND_RUN_MIGRATIONS: ${BACKEND_RUN_MIGRATIONS:-true}
+      BACKEND_ALLOWED_HOSTS: ${BACKEND_ALLOWED_HOSTS:-}
       BACKEND_CORS_ALLOWED_ORIGINS: ${BACKEND_CORS_ALLOWED_ORIGINS:-}
       # Admin auth & sessions (optional; secure defaults follow BACKEND_DEBUG)
       BACKEND_SESSION_COOKIE_AGE: ${BACKEND_SESSION_COOKIE_AGE:-}
@@ -73,7 +74,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl -s -o /dev/null -w '%{http_code}' http://localhost:${BACKEND_PORT:-8000}/api/health/ | grep -q 200",
+          "curl -fsS -H 'X-Forwarded-Proto: https' http://localhost:${BACKEND_PORT:-8000}/api/health/ >/dev/null",
         ]
       interval: 10s
       timeout: 5s
