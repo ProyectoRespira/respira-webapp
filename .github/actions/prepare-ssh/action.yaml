@@ -97,23 +97,37 @@ runs:
 
         # Fail early if known_hosts content doesn't include the configured deploy host.
         host_match_found=false
-        while IFS= read -r host_field _; do
-          [ -z "$host_field" ] && continue
-          case "$host_field" in
-            \#*) continue ;;
-          esac
+        host_candidates=()
+        normalized_deploy_host="$DEPLOY_HOST_VALUE"
 
-          host_field="${host_field#@*}"
-          IFS=',' read -r -a host_patterns <<< "$host_field"
+        # Normalize common secret formats without weakening strict host checking.
+        normalized_deploy_host="$(printf '%s' "$normalized_deploy_host" | tr -d '\r' | xargs)"
+        normalized_deploy_host="${normalized_deploy_host#ssh://}"
+        normalized_deploy_host="${normalized_deploy_host%%/*}"
+        if [[ "$normalized_deploy_host" == *@* ]]; then
+          normalized_deploy_host="${normalized_deploy_host#*@}"
+        fi
 
-          for pattern in "${host_patterns[@]}"; do
-            [ -z "$pattern" ] && continue
-            if [[ "$pattern" == "$DEPLOY_HOST_VALUE" || "$pattern" == "[$DEPLOY_HOST_VALUE]:*" ]]; then
-              host_match_found=true
-              break 2
-            fi
-          done
-        done < ~/.ssh/known_hosts
+        # Support DEPLOY_HOST values like:
+        # - host
+        # - host:port
+        # - [host]:port
+        if [[ "$normalized_deploy_host" =~ ^\[([^]]+)\]:([0-9]+)$ ]]; then
+          host_candidates+=("$normalized_deploy_host")
+          host_candidates+=("${BASH_REMATCH[1]}")
+        elif [[ "$normalized_deploy_host" =~ ^([^:]+):([0-9]+)$ ]]; then
+          host_candidates+=("[${BASH_REMATCH[1]}]:${BASH_REMATCH[2]}")
+          host_candidates+=("${BASH_REMATCH[1]}")
+        else
+          host_candidates+=("$normalized_deploy_host")
+        fi
+
+        for candidate in "${host_candidates[@]}"; do
+          if ssh-keygen -F "$candidate" -f ~/.ssh/known_hosts >/dev/null 2>&1; then
+            host_match_found=true
+            break
+          fi
+        done
 
         if [ "$host_match_found" != true ]; then
           echo "DEPLOY_HOST_KEY does not contain an entry for deploy host '$DEPLOY_HOST_VALUE'."
