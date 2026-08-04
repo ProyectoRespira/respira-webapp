@@ -95,6 +95,32 @@ runs:
           exit 1
         fi
 
+        # Fail early if known_hosts content doesn't include the configured deploy host.
+        host_match_found=false
+        while IFS= read -r host_field _; do
+          [ -z "$host_field" ] && continue
+          case "$host_field" in
+            \#*) continue ;;
+          esac
+
+          host_field="${host_field#@*}"
+          IFS=',' read -r -a host_patterns <<< "$host_field"
+
+          for pattern in "${host_patterns[@]}"; do
+            [ -z "$pattern" ] && continue
+            if [[ "$pattern" == "$DEPLOY_HOST_VALUE" || "$pattern" == "[$DEPLOY_HOST_VALUE]:*" ]]; then
+              host_match_found=true
+              break 2
+            fi
+          done
+        done < ~/.ssh/known_hosts
+
+        if [ "$host_match_found" != true ]; then
+          echo "DEPLOY_HOST_KEY does not contain an entry for deploy host '$DEPLOY_HOST_VALUE'."
+          echo "Provide a known_hosts line for that host (or host:port) in DEPLOY_HOST_KEY."
+          exit 1
+        fi
+
         echo "SSH key and host verification material prepared successfully."
 
         echo "key_path=$tmp_key" >> "$GITHUB_OUTPUT"
