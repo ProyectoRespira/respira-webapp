@@ -1,0 +1,77 @@
+name: Demo Validate Migration Credentials
+description: Validate dedicated migration DB connection secrets.
+
+inputs:
+  migration_db_user:
+    description: Dedicated migration DB user
+    required: true
+  migration_db_password:
+    description: Dedicated migration DB password
+    required: true
+  migration_db_name:
+    description: Dedicated migration DB database name
+    required: true
+  migration_db_schema:
+    description: Dedicated migration DB schema list (comma-separated)
+    required: true
+  migration_db_host:
+    description: Dedicated migration DB host
+    required: true
+  migration_db_port:
+    description: Dedicated migration DB port
+    required: false
+    default: "5432"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Validate migration credentials
+      shell: bash
+      env:
+        MIGRATION_DB_USER: ${{ inputs.migration_db_user }}
+        MIGRATION_DB_PASSWORD: ${{ inputs.migration_db_password }}
+        MIGRATION_DB_NAME: ${{ inputs.migration_db_name }}
+        MIGRATION_DB_SCHEMA: ${{ inputs.migration_db_schema }}
+        MIGRATION_DB_HOST: ${{ inputs.migration_db_host }}
+        MIGRATION_DB_PORT: ${{ inputs.migration_db_port }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "$MIGRATION_DB_USER" ]; then
+          echo "Missing BACKEND_POSTGRES_MIGRATION_USER secret in GitHub repository/environment."
+          exit 1
+        fi
+
+        if [ -z "$MIGRATION_DB_PASSWORD" ]; then
+          echo "Missing BACKEND_POSTGRES_MIGRATION_PASSWORD secret in GitHub repository/environment."
+          exit 1
+        fi
+
+        if [ -z "$MIGRATION_DB_NAME" ]; then
+          echo "Missing BACKEND_POSTGRES_MIGRATION_DB secret in GitHub repository/environment."
+          exit 1
+        fi
+
+        if [ -z "$MIGRATION_DB_SCHEMA" ]; then
+          echo "Missing BACKEND_POSTGRES_MIGRATION_SCHEMA secret in GitHub repository/environment."
+          exit 1
+        fi
+
+        if [ -z "$MIGRATION_DB_HOST" ]; then
+          echo "Missing BACKEND_POSTGRES_MIGRATION_HOST secret in GitHub repository/environment."
+          exit 1
+        fi
+
+        if [ -z "$MIGRATION_DB_PORT" ]; then
+          echo "Missing BACKEND_POSTGRES_MIGRATION_PORT secret in GitHub repository/environment."
+          exit 1
+        fi
+
+        echo "::add-mask::$MIGRATION_DB_USER"
+        echo "::add-mask::$MIGRATION_DB_PASSWORD"
+        echo "::add-mask::$MIGRATION_DB_NAME"
+        echo "::add-mask::$MIGRATION_DB_SCHEMA"
+        echo "::add-mask::$MIGRATION_DB_HOST"
+        echo "::add-mask::$MIGRATION_DB_PORT"
+
+        echo "Dedicated migration DB credentials validated successfully."

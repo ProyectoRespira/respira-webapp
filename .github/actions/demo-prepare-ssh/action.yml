@@ -1,0 +1,95 @@
+name: "Demo Prepare SSH"
+
+description: "Validate deploy SSH secrets and prepare key and known_hosts for strict host checking."
+
+inputs:
+  deploy_host:
+    description: Demo deployment host
+    required: true
+  deploy_user:
+    description: Demo deployment user
+    required: true
+  deploy_ssh_key:
+    description: Private SSH key used for deployment
+    required: true
+  deploy_host_key:
+    description: Host key entry for ~/.ssh/known_hosts
+    required: true
+
+outputs:
+  key_path:
+    description: Path to the prepared private SSH key file
+    value: ${{ steps.prepare.outputs.key_path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Prepare SSH files
+      id: prepare
+      shell: bash
+      env:
+        DEPLOY_HOST_VALUE: ${{ inputs.deploy_host }}
+        DEPLOY_USER_VALUE: ${{ inputs.deploy_user }}
+        DEPLOY_SSH_KEY_VALUE: ${{ inputs.deploy_ssh_key }}
+        DEPLOY_HOST_KEY_VALUE: ${{ inputs.deploy_host_key }}
+      run: |
+        set -euo pipefail
+
+        echo "::add-mask::$DEPLOY_HOST_VALUE"
+        echo "::add-mask::$DEPLOY_USER_VALUE"
+        echo "::add-mask::$DEPLOY_SSH_KEY_VALUE"
+        echo "::add-mask::$DEPLOY_HOST_KEY_VALUE"
+
+        if [ -z "$DEPLOY_HOST_VALUE" ]; then
+          echo "Missing DEPLOY_HOST secret for demo environment."
+          exit 1
+        fi
+
+        if [ -z "$DEPLOY_USER_VALUE" ]; then
+          echo "Missing DEPLOY_USER secret for demo environment."
+          exit 1
+        fi
+
+        if [ -z "$DEPLOY_SSH_KEY_VALUE" ]; then
+          echo "Missing DEPLOY_SSH_KEY secret for demo environment."
+          exit 1
+        fi
+
+        if [ -z "$DEPLOY_HOST_KEY_VALUE" ]; then
+          echo "Missing DEPLOY_HOST_KEY secret for demo environment."
+          exit 1
+        fi
+
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+
+        tmp_key="$RUNNER_TEMP/deploy_ssh_key"
+        if printf '%s' "$DEPLOY_SSH_KEY_VALUE" | grep -q '\\n'; then
+          printf '%b' "$DEPLOY_SSH_KEY_VALUE" > "$tmp_key"
+        else
+          printf '%s\n' "$DEPLOY_SSH_KEY_VALUE" > "$tmp_key"
+        fi
+        chmod 600 "$tmp_key"
+
+        if ! grep -q 'BEGIN .*PRIVATE KEY' "$tmp_key"; then
+          echo "DEPLOY_SSH_KEY does not look like a valid private key for demo environment."
+          exit 1
+        fi
+
+        if ! ssh-keygen -y -f "$tmp_key" >/dev/null 2>&1; then
+          echo "DEPLOY_SSH_KEY could not be parsed for demo environment."
+          echo "It may be malformed, for a different key type, or encrypted with a passphrase."
+          exit 1
+        fi
+
+        printf '%s\n' "$DEPLOY_HOST_KEY_VALUE" > ~/.ssh/known_hosts
+        chmod 600 ~/.ssh/known_hosts
+
+        if ! ssh-keygen -l -f ~/.ssh/known_hosts >/dev/null 2>&1; then
+          echo "DEPLOY_HOST_KEY is not a valid known_hosts entry."
+          exit 1
+        fi
+
+        echo "SSH key and host verification material prepared successfully."
+
+        echo "key_path=$tmp_key" >> "$GITHUB_OUTPUT"
