@@ -1,13 +1,13 @@
-name: "Demo Prepare SSH"
+name: "Prepare SSH"
 
 description: "Validate deploy SSH secrets and prepare key and known_hosts for strict host checking."
 
 inputs:
   deploy_host:
-    description: Demo deployment host
+    description: Deployment host
     required: true
   deploy_user:
-    description: Demo deployment user
+    description: Deployment user
     required: true
   deploy_ssh_key:
     description: Private SSH key used for deployment
@@ -15,6 +15,10 @@ inputs:
   deploy_host_key:
     description: Host key entry for ~/.ssh/known_hosts
     required: true
+  environment_label:
+    description: Environment label used in validation messages
+    required: false
+    default: target
 
 outputs:
   key_path:
@@ -32,6 +36,7 @@ runs:
         DEPLOY_USER_VALUE: ${{ inputs.deploy_user }}
         DEPLOY_SSH_KEY_VALUE: ${{ inputs.deploy_ssh_key }}
         DEPLOY_HOST_KEY_VALUE: ${{ inputs.deploy_host_key }}
+        ENVIRONMENT_LABEL: ${{ inputs.environment_label }}
       run: |
         set -euo pipefail
 
@@ -41,22 +46,22 @@ runs:
         echo "::add-mask::$DEPLOY_HOST_KEY_VALUE"
 
         if [ -z "$DEPLOY_HOST_VALUE" ]; then
-          echo "Missing DEPLOY_HOST secret for demo environment."
+          echo "Missing DEPLOY_HOST secret for ${ENVIRONMENT_LABEL} environment."
           exit 1
         fi
 
         if [ -z "$DEPLOY_USER_VALUE" ]; then
-          echo "Missing DEPLOY_USER secret for demo environment."
+          echo "Missing DEPLOY_USER secret for ${ENVIRONMENT_LABEL} environment."
           exit 1
         fi
 
         if [ -z "$DEPLOY_SSH_KEY_VALUE" ]; then
-          echo "Missing DEPLOY_SSH_KEY secret for demo environment."
+          echo "Missing DEPLOY_SSH_KEY secret for ${ENVIRONMENT_LABEL} environment."
           exit 1
         fi
 
         if [ -z "$DEPLOY_HOST_KEY_VALUE" ]; then
-          echo "Missing DEPLOY_HOST_KEY secret for demo environment."
+          echo "Missing DEPLOY_HOST_KEY secret for ${ENVIRONMENT_LABEL} environment."
           exit 1
         fi
 
@@ -72,12 +77,12 @@ runs:
         chmod 600 "$tmp_key"
 
         if ! grep -q 'BEGIN .*PRIVATE KEY' "$tmp_key"; then
-          echo "DEPLOY_SSH_KEY does not look like a valid private key for demo environment."
+          echo "DEPLOY_SSH_KEY does not look like a valid private key for ${ENVIRONMENT_LABEL} environment."
           exit 1
         fi
 
         if ! ssh-keygen -y -f "$tmp_key" >/dev/null 2>&1; then
-          echo "DEPLOY_SSH_KEY could not be parsed for demo environment."
+          echo "DEPLOY_SSH_KEY could not be parsed for ${ENVIRONMENT_LABEL} environment."
           echo "It may be malformed, for a different key type, or encrypted with a passphrase."
           exit 1
         fi

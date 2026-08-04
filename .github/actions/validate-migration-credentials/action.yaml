@@ -1,5 +1,5 @@
-name: Demo Validate Migration Credentials
-description: Validate dedicated migration DB connection secrets.
+name: "Validate Migration Credentials"
+description: "Validate dedicated migration DB connection secrets."
 
 inputs:
   migration_db_user:
@@ -21,9 +21,13 @@ inputs:
     description: Dedicated migration DB port
     required: false
     default: "5432"
+  environment_label:
+    description: Environment label used in validation messages
+    required: false
+    default: target
 
 runs:
-  using: "composite"
+  using: composite
   steps:
     - name: Validate migration credentials
       shell: bash
@@ -34,36 +38,37 @@ runs:
         MIGRATION_DB_SCHEMA: ${{ inputs.migration_db_schema }}
         MIGRATION_DB_HOST: ${{ inputs.migration_db_host }}
         MIGRATION_DB_PORT: ${{ inputs.migration_db_port }}
+        ENVIRONMENT_LABEL: ${{ inputs.environment_label }}
       run: |
         set -euo pipefail
 
         if [ -z "$MIGRATION_DB_USER" ]; then
-          echo "Missing BACKEND_POSTGRES_MIGRATION_USER secret in GitHub repository/environment."
+          echo "Missing BACKEND_POSTGRES_MIGRATION_USER secret in GitHub repository/environment for ${ENVIRONMENT_LABEL}."
           exit 1
         fi
 
         if [ -z "$MIGRATION_DB_PASSWORD" ]; then
-          echo "Missing BACKEND_POSTGRES_MIGRATION_PASSWORD secret in GitHub repository/environment."
+          echo "Missing BACKEND_POSTGRES_MIGRATION_PASSWORD secret in GitHub repository/environment for ${ENVIRONMENT_LABEL}."
           exit 1
         fi
 
         if [ -z "$MIGRATION_DB_NAME" ]; then
-          echo "Missing BACKEND_POSTGRES_MIGRATION_DB secret in GitHub repository/environment."
+          echo "Missing BACKEND_POSTGRES_MIGRATION_DB secret in GitHub repository/environment for ${ENVIRONMENT_LABEL}."
           exit 1
         fi
 
         if [ -z "$MIGRATION_DB_SCHEMA" ]; then
-          echo "Missing BACKEND_POSTGRES_MIGRATION_SCHEMA secret in GitHub repository/environment."
+          echo "Missing BACKEND_POSTGRES_MIGRATION_SCHEMA secret in GitHub repository/environment for ${ENVIRONMENT_LABEL}."
           exit 1
         fi
 
         if [ -z "$MIGRATION_DB_HOST" ]; then
-          echo "Missing BACKEND_POSTGRES_MIGRATION_HOST secret in GitHub repository/environment."
+          echo "Missing BACKEND_POSTGRES_MIGRATION_HOST secret in GitHub repository/environment for ${ENVIRONMENT_LABEL}."
           exit 1
         fi
 
         if [ -z "$MIGRATION_DB_PORT" ]; then
-          echo "Missing BACKEND_POSTGRES_MIGRATION_PORT secret in GitHub repository/environment."
+          echo "Missing BACKEND_POSTGRES_MIGRATION_PORT secret in GitHub repository/environment for ${ENVIRONMENT_LABEL}."
           exit 1
         fi
 
@@ -74,4 +79,4 @@ runs:
         echo "::add-mask::$MIGRATION_DB_HOST"
         echo "::add-mask::$MIGRATION_DB_PORT"
 
-        echo "Dedicated migration DB credentials validated successfully."
+        echo "Dedicated migration DB credentials validated successfully for ${ENVIRONMENT_LABEL}."

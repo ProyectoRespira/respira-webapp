@@ -254,23 +254,27 @@ jobs:
 
       - name: Prepare SSH
         id: setup_ssh
-        uses: ./.github/actions/demo-prepare-ssh
+        uses: ./.github/actions/prepare-ssh
         with:
           deploy_host: ${{ secrets.DEPLOY_HOST }}
           deploy_user: ${{ secrets.DEPLOY_USER }}
           deploy_ssh_key: ${{ secrets.DEPLOY_SSH_KEY }}
           deploy_host_key: ${{ secrets.DEPLOY_HOST_KEY }}
+          environment_label: demo
 
       - name: Prepare env file
         id: write_env
-        uses: ./.github/actions/demo-prepare-env
+        uses: ./.github/actions/prepare-env
         with:
           env_file_b64: ${{ secrets.ENV_FILE_DEMO }}
+          environment_label: demo
+          env_secret_name: ENV_FILE_DEMO
+          env_file_suffix: env-demo
           required_keys: |
             BACKEND_SECRET_KEY
 
       - name: Validate dedicated migration DB credentials
-        uses: ./.github/actions/demo-validate-migration-credentials
+        uses: ./.github/actions/validate-migration-credentials
         with:
           migration_db_user: ${{ secrets['BACKEND_POSTGRES_MIGRATION_USER'] }}
           migration_db_password: ${{ secrets['BACKEND_POSTGRES_MIGRATION_PASSWORD'] }}
@@ -278,6 +282,7 @@ jobs:
           migration_db_schema: ${{ secrets['BACKEND_POSTGRES_MIGRATION_SCHEMA'] }}
           migration_db_host: ${{ secrets['BACKEND_POSTGRES_MIGRATION_HOST'] }}
           migration_db_port: ${{ secrets['BACKEND_POSTGRES_MIGRATION_PORT'] || '5432' }}
+          environment_label: demo
 
       - name: Copy compose and env files to server
         env:
@@ -481,18 +486,22 @@ jobs:
 
       - name: Prepare SSH
         id: setup_ssh
-        uses: ./.github/actions/demo-prepare-ssh
+        uses: ./.github/actions/prepare-ssh
         with:
           deploy_host: ${{ secrets.DEPLOY_HOST }}
           deploy_user: ${{ secrets.DEPLOY_USER }}
           deploy_ssh_key: ${{ secrets.DEPLOY_SSH_KEY }}
           deploy_host_key: ${{ secrets.DEPLOY_HOST_KEY }}
+          environment_label: demo
 
       - name: Prepare env file
         id: write_env
-        uses: ./.github/actions/demo-prepare-env
+        uses: ./.github/actions/prepare-env
         with:
           env_file_b64: ${{ secrets.ENV_FILE_DEMO }}
+          environment_label: demo
+          env_secret_name: ENV_FILE_DEMO
+          env_file_suffix: env-demo
           required_keys: |
             BACKEND_SECRET_KEY
             BACKEND_POSTGRES_DB
