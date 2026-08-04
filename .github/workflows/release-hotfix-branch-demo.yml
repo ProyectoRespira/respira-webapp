@@ -177,9 +177,36 @@ jobs:
           subject-digest: ${{ steps.push_proxy.outputs.digest }}
           push-to-registry: true
 
+  authorize-demo:
+    name: Authorize Demo Deployment Actor
+    needs: validate
+    if: ${{ github.repository == 'ProyectoRespira/respira-webapp' }}
+    runs-on: ubuntu-latest
+    environment: Demo
+    steps:
+      - name: Check authorization
+        shell: bash
+        env:
+          ALLOWED_USERS_DEMO: ${{ vars.DEPLOY_ALLOWED_USERS_DEMO }}
+          CURRENT_USER: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$ALLOWED_USERS_DEMO" ]; then
+            echo "DEPLOY_ALLOWED_USERS_DEMO variable is not configured"
+            exit 1
+          fi
+
+          if echo "$ALLOWED_USERS_DEMO" | grep -Eq '(^|[[:space:],])'"$CURRENT_USER"'([[:space:],]|$)'; then
+            echo "User $CURRENT_USER is authorized to deploy to Demo"
+          else
+            echo "User $CURRENT_USER is NOT authorized to deploy to Demo"
+            exit 1
+          fi
+
   migrate-demo:
     name: Run Demo Django Migrations
-    needs: [validate, publish]
+    needs: [validate, publish, authorize-demo]
     if: ${{ github.repository == 'ProyectoRespira/respira-webapp' }}
     runs-on: ubuntu-latest
     environment: Demo
@@ -411,31 +438,11 @@ jobs:
 
   deploy-demo:
     name: Deploy to Demo Server
-    needs: [validate, publish, migrate-demo]
+    needs: [validate, publish, authorize-demo, migrate-demo]
     if: ${{ github.repository == 'ProyectoRespira/respira-webapp' }}
     runs-on: ubuntu-latest
     environment: Demo
     steps:
-      - name: Check authorization
-        shell: bash
-        env:
-          ALLOWED_USERS_DEMO: ${{ vars.DEPLOY_ALLOWED_USERS_DEMO }}
-          CURRENT_USER: ${{ github.actor }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "$ALLOWED_USERS_DEMO" ]; then
-            echo "DEPLOY_ALLOWED_USERS_DEMO variable is not configured"
-            exit 1
-          fi
-
-          if echo "$ALLOWED_USERS_DEMO" | grep -Eq '(^|[[:space:],])'"$CURRENT_USER"'([[:space:],]|$)'; then
-            echo "User $CURRENT_USER is authorized to deploy to Demo"
-          else
-            echo "User $CURRENT_USER is NOT authorized to deploy to Demo"
-            exit 1
-          fi
-
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
