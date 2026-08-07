@@ -1,5 +1,5 @@
 import React from "react";
-import { getColorRange } from "../../utils";
+import { getColorRange, isValidAqi } from "../../utils";
 import { ResponsiveBar } from "@nivo/bar";
 import { timeFormat } from "d3-time-format";
 import { scaleTime } from "d3-scale";
@@ -24,29 +24,55 @@ const formatDateToTimezone = (date: Date) => {
   return new Date(date.getTime() + (tzOffset - 60) * 60000);
 };
 
-export const BarChart = ({ data }: { data: BarDatum[] }) => {
+export const BarChart = ({
+  data,
+  emptyLabel,
+}: {
+  data?: BarDatum[];
+  emptyLabel?: string;
+}) => {
+  // Regions and stations without readings have no forecast series at all.
+  // Reading `data[0].timestamp` off an empty or absent series throws, so bail
+  // out before any of the derived scales are built.
+  const points = React.useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  const hasData = points.length > 0;
+
   const maxValue = React.useMemo(() => {
-    return Math.max(...data.map((d: BarDatum) => d.value));
-  }, [data]);
+    if (points.length === 0) return 0;
+    return Math.max(...points.map((d: BarDatum) => d.value));
+  }, [points]);
 
   const timeScaleTicks: string[] = React.useMemo(() => {
+    if (points.length === 0) return [];
     const scale = scaleTime().domain([
-      new Date(data[0].timestamp),
-      new Date(data[data.length - 1].timestamp),
+      new Date(points[0].timestamp),
+      new Date(points[points.length - 1].timestamp),
     ]);
-    const ticks = scale.ticks(data.length > 6 ? 6 : 10);
+    const ticks = scale.ticks(points.length > 6 ? 6 : 10);
     return ticks.map((tick) => formatter(formatDateToTimezone(tick)));
-  }, [data]);
+  }, [points]);
+
+  if (!hasData) {
+    return (
+      <div className="flex h-full w-full items-center justify-center rounded-md border border-dashed border-[#ECECEC]">
+        <p className="text-center font-sans text-xs text-lightgray">
+          {emptyLabel ?? "—"}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <ResponsiveBar
-      data={data}
+      data={points}
       motionConfig="wobbly"
       keys={["value"]}
       indexBy="timestamp"
       padding={0.05}
       enableGridY={false}
-      colors={(datum) => getColorRange(datum.value || 0)}
+      colors={(datum) =>
+        getColorRange(isValidAqi(datum.value) ? datum.value : 0)
+      }
       enableLabel={false}
       margin={{ top: maxValue > 300 ? 30 : 15, right: 0, bottom: 25, left: 0 }}
       axisLeft={null}

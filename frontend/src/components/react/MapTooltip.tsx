@@ -1,5 +1,5 @@
 import * as React from "react";
-import { getAQIIndex } from "../../utils";
+import { getAQIIndex, isValidAqi } from "../../utils";
 import { AQI } from "../../data/cards";
 import { useStore } from "@nanostores/react";
 import { region } from "../../store/map";
@@ -10,8 +10,11 @@ import { type UIKey } from "../../i18n/ui";
 export const MapTooltip = () => {
   const data = useStore(region);
   const t = useClientTranslations();
+  // A region with no active stations has no average AQI, so there is nothing to
+  // label — render no tooltip rather than asking `getAQIIndex` to classify an
+  // absent value (it throws, which used to unmount the map).
   const card = React.useMemo(() => {
-    if (!data) {
+    if (!isValidAqi(data?.aqi)) {
       return undefined;
     }
     return AQI[getAQIIndex(data.aqi)];
@@ -26,7 +29,7 @@ export const MapTooltip = () => {
             </p>
             <div className={`bg-${card.color} h-4 w-4`} />
           </div>
-          {data.aqi >= 50 && (
+          {(data?.aqi ?? 0) >= 50 && (
             <button
               type="button"
               onClick={() => toggleRecommendationsModal(true)}

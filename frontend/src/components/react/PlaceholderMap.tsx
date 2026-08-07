@@ -4,7 +4,12 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useStore } from "@nanostores/react";
 import Pin from "./Pin";
 
-import { getColorRange, parseBbox, expandBounds } from "../../utils";
+import {
+  getColorRange,
+  isValidAqi,
+  parseBbox,
+  expandBounds,
+} from "../../utils";
 import { statisticsSelectedStation } from "../../store/statistics";
 import { regionMeta } from "../../store/map";
 import { MAP_FALLBACK } from "../../data/constants";
@@ -47,7 +52,9 @@ const PlaceHolderMap = () => {
             anchor="center"
           >
             <Pin
-              fill={getColorRange(data.aqi_pm2_5 || 0)}
+              fill={getColorRange(
+                isValidAqi(data.aqi_pm2_5) ? data.aqi_pm2_5 : 0,
+              )}
               value={data.aqi_pm2_5}
             />
           </Marker>

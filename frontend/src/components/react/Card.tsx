@@ -5,6 +5,8 @@ import {
   loadingRegion,
   loadingStations,
   region,
+  regionHasNoData,
+  regionMeta,
   selectedStationError,
   selectedStationId,
 } from "../../store/map";
@@ -14,7 +16,7 @@ import { AQICard } from "./AQICardReactive";
 import { isBackendAvailable } from "../../store/store";
 import { selectedStation } from "../../store/map";
 import { AQI } from "../../data/cards";
-import { getAQIIndex } from "../../utils";
+import { getAQIIndex, isValidAqi } from "../../utils";
 import {
   toggleRecommendationsModal,
   toggleShareModal,
@@ -34,6 +36,8 @@ export const Card = (props: CardProps) => {
   const station = useStore(selectedStation);
   const stationId = useStore(selectedStationId);
   const data = useStore(region);
+  const noRegionData = useStore(regionHasNoData);
+  const currentRegion = useStore(regionMeta);
   const loadingMean = useStore(loadingRegion);
   const loadingStns = useStore(loadingStations);
   const stationError = useStore(selectedStationError);
@@ -75,6 +79,14 @@ export const Card = (props: CardProps) => {
     }
     return false;
   }, [station, stationId, stationError, isLoadingData]);
+
+  // A region with no active stations is an expected state, not a failure: the
+  // backend answered, it just has no readings to report. Kept separate from the
+  // error branch so the user is told there are no sensors here rather than that
+  // something broke.
+  const noDataForRegion = !stationId && noRegionData && !data;
+
+  const currentAqi = station ? station.aqi : data?.aqi;
 
   const handleSharing = async () => {
     if (navigator.share) {
@@ -134,13 +146,27 @@ export const Card = (props: CardProps) => {
           <span className="sr-only">{t("stats.loading")}</span>
         </div>
       )}
-      {!dataAvailable && !loading && backendAvailable && (
-        <div className="w-full h-full content-center justify-center m-auto">
-          <p className="font-bold text-lg text-center">
-            ⚠️ {t("card.dataError")}
-          </p>
-        </div>
-      )}
+      {!dataAvailable &&
+        !loading &&
+        backendAvailable &&
+        (noDataForRegion ? (
+          <div className="w-full h-full content-center justify-center m-auto space-y-2">
+            <p className="font-bold text-lg text-center font-serif">
+              {t("card.noDataTitle")}
+            </p>
+            <p className="text-center text-sm text-lightgray">
+              {currentRegion?.name
+                ? `${currentRegion.name}: ${t("card.noActiveStations")}`
+                : t("card.noActiveStations")}
+            </p>
+          </div>
+        ) : (
+          <div className="w-full h-full content-center justify-center m-auto">
+            <p className="font-bold text-lg text-center">
+              ⚠️ {t("card.dataError")}
+            </p>
+          </div>
+        ))}
       {dataAvailable && !loading && (
         <>
           {props.header}
@@ -148,17 +174,24 @@ export const Card = (props: CardProps) => {
             {!station ? t("card.generalMean") : station.name}
           </h6>
           <div>
-            <Slider value={station ? station.aqi : data.aqi} />
+            <Slider value={currentAqi} />
             <div className="mt-6">
-              <AQICard
-                card={AQI[getAQIIndex(station ? station.aqi : data?.aqi || 0)]}
-              />
+              {isValidAqi(currentAqi) ? (
+                <AQICard card={AQI[getAQIIndex(currentAqi)]} />
+              ) : (
+                <div className="w-full rounded-xl border border-dashed border-lightgray p-10 text-center">
+                  <p className="font-sans text-sm text-lightgray">
+                    {t("card.noAqi")}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
           {props.header_forecast_six}
           <div className="h-[100px] w-full">
             <Chart
-              data={station ? station.forecast_6h : data.forecast_6h}
+              data={station ? station.forecast_6h : data?.forecast_6h}
+              emptyLabel={t("chart.noForecast")}
               // TODO: Refactor as wrapper component
               // @ts-expect-error - Astro directive, not a React prop
               client:only="react"
@@ -167,7 +200,8 @@ export const Card = (props: CardProps) => {
           {props.header_forecast_twelve}
           <div className="h-[100px] w-full pb-2">
             <Chart
-              data={station ? station.forecast_12h : data.forecast_12h}
+              data={station ? station.forecast_12h : data?.forecast_12h}
+              emptyLabel={t("chart.noForecast")}
               // TODO: Refactor as wrapper component
               // @ts-expect-error - Astro directive, not a React prop
               client:only="react"

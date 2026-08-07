@@ -22,8 +22,9 @@ import {
 import { initRegionDetection } from "../../store/geolocation";
 import Pin from "./Pin";
 
-import { getColorRange, parseBbox } from "../../utils";
+import { getColorRange, isValidAqi, parseBbox } from "../../utils";
 import { MapTooltip } from "./MapTooltip";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { getPixelOffsets } from "../../utils/markerOffset";
 
 import { MAP_FALLBACK } from "../../data/constants";
@@ -117,8 +118,10 @@ const MapComponent = () => {
     undefined,
   );
 
+  // `data` only ever holds active, mappable stations (the store drops the rest),
+  // so a region with none simply renders no markers.
   const pins = React.useMemo(() => {
-    if (!data) return [];
+    if (!data || data.length === 0) return [];
     const offsets = getPixelOffsets(data);
     return data.map((station, index) => {
       const offset = offsets[index];
@@ -139,7 +142,9 @@ const MapComponent = () => {
           {/* Constant pixel offset keeps co-located sensors separated at any zoom */}
           <div style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}>
             <Pin
-              fill={getColorRange(station?.aqi_pm2_5 ?? 0)}
+              fill={getColorRange(
+                isValidAqi(station?.aqi_pm2_5) ? station.aqi_pm2_5 : 0,
+              )}
               value={station?.aqi_pm2_5 ?? -1}
             />
           </div>
@@ -243,7 +248,12 @@ const MapComponent = () => {
         )}
         <GeolocateControl position="bottom-right" showAccuracyCircle={false} />
         <NavigationControl position="bottom-right" />
-        <MapTooltip />
+        {/* The tooltip is data-driven and sits inside the map, so a throw here
+            unmounts the map itself. Contain it: worst case the label is
+            missing, the map stays pannable. */}
+        <ErrorBoundary label="MapTooltip">
+          <MapTooltip />
+        </ErrorBoundary>
       </Map>
     </div>
   );
