@@ -14,7 +14,7 @@ import { AQICard } from "./AQICardReactive";
 import { isBackendAvailable } from "../../store/store";
 import { selectedStation } from "../../store/map";
 import { AQI } from "../../data/cards";
-import { getAQIIndex } from "../../utils";
+import { getAQIIndex, isValidAqi } from "../../utils";
 import {
   toggleRecommendationsModal,
   toggleShareModal,
@@ -76,6 +76,8 @@ export const Card = (props: CardProps) => {
     return false;
   }, [station, stationId, stationError, isLoadingData]);
 
+  const currentAqi = station ? station.aqi : data?.aqi;
+
   const handleSharing = async () => {
     if (navigator.share) {
       try {
@@ -105,8 +107,8 @@ export const Card = (props: CardProps) => {
     >
       {!backendAvailable && backendAvailable !== undefined && (
         <div className="w-full h-full content-center justify-center m-auto">
-          <p className="font-bold text-lg text-center">
-            ⚠️ {t("card.backendError")}
+          <p className="font-bold text-lg text-center font-serif">
+            {t("card.backendError")}
           </p>
         </div>
       )}
@@ -134,10 +136,18 @@ export const Card = (props: CardProps) => {
           <span className="sr-only">{t("stats.loading")}</span>
         </div>
       )}
+      {/* One message covers every "nothing to show here" case — a region with
+          no active sensors, a station with no readings, a request that did not
+          come back. Splitting them into separate copy asked the user to care
+          about a distinction they cannot act on differently: in all of them the
+          next step is the same, keep browsing the map. */}
       {!dataAvailable && !loading && backendAvailable && (
-        <div className="w-full h-full content-center justify-center m-auto">
-          <p className="font-bold text-lg text-center">
-            ⚠️ {t("card.dataError")}
+        <div className="w-full h-full content-center justify-center m-auto space-y-2">
+          <p className="font-bold text-lg text-center font-serif">
+            {t("card.noDataTitle")}
+          </p>
+          <p className="text-center text-sm text-lightgray">
+            {t("card.noActiveStations")}
           </p>
         </div>
       )}
@@ -148,17 +158,24 @@ export const Card = (props: CardProps) => {
             {!station ? t("card.generalMean") : station.name}
           </h6>
           <div>
-            <Slider value={station ? station.aqi : data.aqi} />
+            <Slider value={currentAqi} />
             <div className="mt-6">
-              <AQICard
-                card={AQI[getAQIIndex(station ? station.aqi : data?.aqi || 0)]}
-              />
+              {isValidAqi(currentAqi) ? (
+                <AQICard card={AQI[getAQIIndex(currentAqi)]} />
+              ) : (
+                <div className="w-full rounded-xl border border-dashed border-lightgray p-10 text-center">
+                  <p className="font-sans text-sm text-lightgray">
+                    {t("card.noAqi")}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
           {props.header_forecast_six}
           <div className="h-[100px] w-full">
             <Chart
-              data={station ? station.forecast_6h : data.forecast_6h}
+              data={station ? station.forecast_6h : data?.forecast_6h}
+              emptyLabel={t("chart.noForecast")}
               // TODO: Refactor as wrapper component
               // @ts-expect-error - Astro directive, not a React prop
               client:only="react"
@@ -167,7 +184,8 @@ export const Card = (props: CardProps) => {
           {props.header_forecast_twelve}
           <div className="h-[100px] w-full pb-2">
             <Chart
-              data={station ? station.forecast_12h : data.forecast_12h}
+              data={station ? station.forecast_12h : data?.forecast_12h}
+              emptyLabel={t("chart.noForecast")}
               // TODO: Refactor as wrapper component
               // @ts-expect-error - Astro directive, not a React prop
               client:only="react"
