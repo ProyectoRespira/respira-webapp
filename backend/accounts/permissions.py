@@ -16,31 +16,40 @@ from __future__ import annotations
 # (app_label, model_name) -> list of actions (add / change / delete / view).
 #
 # "Operational data" = api.stations, api.regions.
+# "Editorial content" = api.faqcategory, api.faqquestion (public FAQ page).
 # "Administrative configuration" = accounts.user, accounts.role.
 ROLE_GROUP_PERMISSIONS: dict[str, object] = {
     # Superadmin: unrestricted administrative access.
     "superadmin": "__all__",
     # Admin: read station-related models (the reflected dbt tables are
     # read-only; editing will happen on future override/details models),
-    # read administrative config.
+    # read administrative config, full control of editorial content.
     "admin": {
         ("api", "stations"): ["view"],
         ("api", "regions"): ["view"],
+        ("api", "faqcategory"): ["add", "change", "delete", "view"],
+        ("api", "faqquestion"): ["add", "change", "delete", "view"],
         ("accounts", "user"): ["view"],
         ("accounts", "role"): ["view"],
     },
-    # Editor: currently view-only on operational data. The reflected dbt tables
-    # (stations/regions) are read-only for everyone; the Editor's edit
-    # capability will be granted later on the future override/details models,
-    # not on these tables.
+    # Editor: view-only on operational data — the reflected dbt tables
+    # (stations/regions) are read-only for everyone, and the Editor's edit
+    # capability on those will land on the future override/details models.
+    # Editorial content is where the Editor role actually edits: add and change
+    # FAQ entries, but not delete (removing a published answer is destructive;
+    # `is_published` is the reversible way to take one down).
     "editor": {
         ("api", "stations"): ["view"],
         ("api", "regions"): ["view"],
+        ("api", "faqcategory"): ["add", "change", "view"],
+        ("api", "faqquestion"): ["add", "change", "view"],
     },
-    # Viewer: read-only on operational data.
+    # Viewer: read-only on operational data and editorial content.
     "viewer": {
         ("api", "stations"): ["view"],
         ("api", "regions"): ["view"],
+        ("api", "faqcategory"): ["view"],
+        ("api", "faqquestion"): ["view"],
     },
 }
 

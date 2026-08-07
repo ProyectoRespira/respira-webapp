@@ -8,6 +8,7 @@ import requests
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.db.models import Prefetch
 from django.db.models.functions import TruncDate, TruncMonth, TruncWeek
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
@@ -20,6 +21,8 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from .models import (
+    FaqCategory,
+    FaqQuestion,
     InferenceResults,
     InferenceRuns,
     RegionReadings,
@@ -34,6 +37,7 @@ from .serializers import (
     AdminUserCreateSerializer,
     AdminUserSerializer,
     AdminUserUpdateSerializer,
+    FaqCategorySerializer,
     ForecastSerializer,
     HealthSerializer,
     MapSerializer,
@@ -662,3 +666,36 @@ class AdminUserViewSet(ModelViewSet):
         if instance == request.user:
             raise PermissionDenied("You cannot delete your own account.")
         return super().destroy(request, *args, **kwargs)
+
+
+@extend_schema(
+    responses=FaqCategorySerializer(many=True),
+    description=(
+        "Published FAQ categories with their published questions, ordered for "
+        "display. Every question carries all supported languages; untranslated "
+        "fields fall back to Spanish."
+    ),
+)
+class FaqListView(generics.ListAPIView):
+    """Public, read-only feed for the /recursos page.
+
+    Unpublished categories and questions are filtered out here rather than in
+    the frontend, so a draft is never shipped to the browser.
+    """
+
+    serializer_class = FaqCategorySerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return (
+            FaqCategory.objects.filter(is_published=True)
+            .prefetch_related(
+                Prefetch(
+                    "questions",
+                    queryset=FaqQuestion.objects.filter(is_published=True).order_by(
+                        "order", "id"
+                    ),
+                )
+            )
+            .order_by("order", "id")
+        )
