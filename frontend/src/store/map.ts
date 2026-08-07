@@ -97,27 +97,85 @@ export const setSelectedRegion = (id: string) => {
 
 export const errorRegion = atom<string | undefined>(undefined);
 export const loadingRegion = atom<boolean>(false);
+// True when the backend answered normally but the region simply has nothing to
+// show (no active stations, so no readings and no forecast). Kept apart from
+// `errorRegion` so the UI can render an empty state instead of an error.
+export const regionHasNoData = atom<boolean>(false);
 
-export const fetchRegion = async (regionId: string) => {
+export type REGION_AQI = {
+  aqi: number;
+  forecast_6h: FORECAST[];
+  forecast_12h: FORECAST[];
+};
+
+const isForecastSeries = (value: unknown): value is FORECAST[] =>
+  Array.isArray(value) &&
+  value.every(
+    (point) =>
+      !!point &&
+      typeof point === "object" &&
+      typeof (point as FORECAST).value === "number" &&
+      Number.isFinite((point as FORECAST).value),
+  );
+
+// The endpoint answers 404 with an `{ error }` body for a region with no
+// readings. That body is a truthy object, so it used to flow downstream as if
+// it were region data and blew up on the first `data.aqi` read. Anything that
+// isn't a complete, usable payload becomes `undefined` here instead.
+const parseRegionPayload = (payload: unknown): REGION_AQI | undefined => {
+  if (!payload || typeof payload !== "object") return undefined;
+  const { aqi, forecast_6h, forecast_12h } = payload as Record<string, unknown>;
+  if (typeof aqi !== "number" || !Number.isFinite(aqi) || aqi < 0) {
+    return undefined;
+  }
+  if (!isForecastSeries(forecast_6h) || !isForecastSeries(forecast_12h)) {
+    return undefined;
+  }
+  return { aqi, forecast_6h, forecast_12h };
+};
+
+export const fetchRegion = async (
+  regionId: string,
+): Promise<REGION_AQI | undefined> => {
   loadingRegion.set(true);
+  // Reset per-request so moving from a sensorless region back to a populated
+  // one clears the previous empty/error state instead of latching it.
+  errorRegion.set(undefined);
+  regionHasNoData.set(false);
   try {
     const backendUrl = await getBackendUrl();
     const activeRegionId = await getActiveRegionId(regionId);
     const response = await fetch(
       backendUrl + `/map?entity=region&id=${activeRegionId}`,
     );
-    loadingRegion.set(false);
-    return response.json();
+
+    if (response.status === 404) {
+      // Expected for a region with zero active stations — not a failure.
+      regionHasNoData.set(true);
+      return undefined;
+    }
+    if (!response.ok) {
+      errorRegion.set("There has been an error getting the region.");
+      return undefined;
+    }
+
+    const parsed = parseRegionPayload(await response.json());
+    if (!parsed) {
+      regionHasNoData.set(true);
+      return undefined;
+    }
+    return parsed;
   } catch {
-    loadingRegion.set(false);
     errorRegion.set("There has been an error getting the region.");
     return undefined;
+  } finally {
+    loadingRegion.set(false);
   }
 };
 
 export const region = computed(
   [isBackendAvailable, selectedRegionId],
-  (backendAvailable, regionId) =>
+  (backendAvailable, regionId): Task<REGION_AQI | undefined> =>
     task(async () => {
       if (!backendAvailable) {
         return undefined;
@@ -283,29 +341,55 @@ export const regionMeta = computed(
 export const errorStations = atom<string | undefined>(undefined);
 export const loadingStations = atom<boolean>(false);
 
-export const fetchStations = async () => {
+// A station is only mappable with a finite lat/lon pair; anything else would
+// hand NaN to maplibre, which throws and takes the map down with it.
+const isMappableStation = (station: unknown): station is STATION => {
+  if (!station || typeof station !== "object") return false;
+  const { coordinates } = station as STATION;
+  return (
+    Array.isArray(coordinates) &&
+    coordinates.length >= 2 &&
+    coordinates
+      .slice(0, 2)
+      .every((n) => typeof n === "number" && Number.isFinite(n))
+  );
+};
+
+export const fetchStations = async (): Promise<STATION[] | undefined> => {
   loadingStations.set(true);
+  errorStations.set(undefined);
   try {
     const backendUrl = await getBackendUrl();
     const stationsPromise = await fetch(backendUrl + `/stations`);
+    if (!stationsPromise.ok) {
+      errorStations.set("Error getting the stations");
+      return undefined;
+    }
     const s = await stationsPromise.json();
-    const availableStations = s.filter(
-      (v: STATION) => v.is_station_on && !EXCLUDED_STATIONS.includes(v.id),
+    // An empty list is a valid answer (every region may be offline) — only a
+    // non-list is a failure.
+    if (!Array.isArray(s)) {
+      errorStations.set("Error getting the stations");
+      return undefined;
+    }
+    return s.filter(
+      (v: STATION) =>
+        isMappableStation(v) &&
+        v.is_station_on &&
+        !EXCLUDED_STATIONS.includes(v.id),
     );
-    loadingStations.set(false);
-
-    return availableStations;
   } catch (err) {
-    loadingStations.set(false);
     console.log("Error on fetching station data", err);
     errorStations.set("Error getting the stations");
     return undefined;
+  } finally {
+    loadingStations.set(false);
   }
 };
 
 export const stations = computed(
   isBackendAvailable,
-  (backendAvailable): Task<STATION[]> =>
+  (backendAvailable): Task<STATION[] | undefined> =>
     task(async () => {
       if (!backendAvailable) {
         return undefined;
@@ -314,14 +398,18 @@ export const stations = computed(
     }),
 );
 
-export const fetchForecast = async (id: number) => {
+export const fetchForecast = async (
+  id: number,
+): Promise<STATION_FORECAST | undefined> => {
   try {
     const backendUrl = await getBackendUrl();
     const forecast = await fetch(backendUrl + `/map?entity=station&id=${id}`);
     if (forecast.status !== 200) {
       return undefined;
     }
-    return forecast.json();
+    // Same shape as the region payload — reject partial responses so the card
+    // never renders an AQI or a chart from missing values.
+    return parseRegionPayload(await forecast.json());
   } catch (err) {
     console.log("Error on fetching forecast data", err);
     errorStations.set(`Error getting forecast of station ${id}`);
@@ -338,7 +426,11 @@ export const selectedStationError = atom<boolean>(false);
 
 export const selectedStation = computed(
   [isBackendAvailable, selectedStationId, stations],
-  (backendAvailable, id, stations): Task<STATION & STATION_FORECAST> =>
+  (
+    backendAvailable,
+    id,
+    stations,
+  ): Task<(STATION & STATION_FORECAST) | undefined> =>
     task(async () => {
       selectedStationError.set(false);
 
@@ -350,12 +442,19 @@ export const selectedStation = computed(
         selectedStationError.set(true);
         return undefined;
       }
+      // The station may have gone offline since it was selected, in which case
+      // it is no longer in the active list — fall back rather than merging a
+      // forecast onto a missing station.
+      const station = stations.find((s: STATION) => s.id === id);
+      if (!station) {
+        selectedStationError.set(true);
+        return undefined;
+      }
       const stationForecast = await fetchForecast(id);
       if (!stationForecast) {
         selectedStationError.set(true);
         return undefined;
       }
-      const station = stations.filter((s: STATION) => s.id === id)[0];
       return { ...station, ...stationForecast };
     }),
 );

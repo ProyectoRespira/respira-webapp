@@ -1,5 +1,12 @@
 import { AQI_COLORS } from "./data/constants";
 
+// `getAQIIndex` throws on anything that isn't a usable AQI. Regions with no
+// active stations have no AQI at all, so every render path that can receive an
+// absent value must narrow it with this guard first — a throw inside render
+// unmounts the whole island (that is how a sensorless region blanked the map).
+export const isValidAqi = (aqi: unknown): aqi is number =>
+  typeof aqi === "number" && Number.isFinite(aqi) && aqi >= 0;
+
 export const getAQIIndex = (aqi: number): number => {
   const ranges: [number, number][] = [
     [0, 50],
