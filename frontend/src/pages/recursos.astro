@@ -8,7 +8,6 @@ import Typography from "../components/atoms/Typography.astro";
 import SensorImage from "../assets/sensor.png";
 import { FAQ_EDU_CARDS, parseAnswer } from "../data/faq";
 import { getFaqCategories } from "../store/faq";
-import { getRuntimeConfig } from "../store/runtime-config";
 import { getLangFromLocals, useTranslations } from "../i18n/utils";
 
 // Built from design_handoff_faqs/. Categories and questions are edited in the
@@ -21,7 +20,6 @@ const lang = getLangFromLocals(Astro.locals);
 const t = useTranslations(lang);
 
 const faqCategories = await getFaqCategories();
-const { contactMail } = await getRuntimeConfig();
 
 // Section horizontal padding, straight from the handoff's spacing tokens.
 const GUTTER = "px-[clamp(20px,5vw,64px)]";
@@ -266,14 +264,6 @@ const searchStrings = {
           class="flex min-h-[44px] items-center rounded-[9px] border-[1.5px] border-basedark px-[22px] py-[13px] font-sans text-sm font-bold text-white transition-colors hover:bg-basedark hover:text-near_black focus:outline-none focus-visible:ring-2 focus-visible:ring-green"
         >
           {t("faq.cta.secondary")}
-        </a>
-        <a
-          href={`https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=${contactMail}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          class="flex min-h-[44px] items-center rounded-[9px] px-2 py-[13px] font-sans text-sm font-semibold text-white underline transition-colors hover:text-green focus:outline-none focus-visible:ring-2 focus-visible:ring-green"
-        >
-          {t("faq.cta.tertiary")}
         </a>
       </div>
     </div>
