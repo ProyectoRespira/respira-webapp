@@ -97,10 +97,6 @@ export const setSelectedRegion = (id: string) => {
 
 export const errorRegion = atom<string | undefined>(undefined);
 export const loadingRegion = atom<boolean>(false);
-// True when the backend answered normally but the region simply has nothing to
-// show (no active stations, so no readings and no forecast). Kept apart from
-// `errorRegion` so the UI can render an empty state instead of an error.
-export const regionHasNoData = atom<boolean>(false);
 
 export type REGION_AQI = {
   aqi: number;
@@ -139,9 +135,8 @@ export const fetchRegion = async (
 ): Promise<REGION_AQI | undefined> => {
   loadingRegion.set(true);
   // Reset per-request so moving from a sensorless region back to a populated
-  // one clears the previous empty/error state instead of latching it.
+  // one clears the previous error instead of latching it.
   errorRegion.set(undefined);
-  regionHasNoData.set(false);
   try {
     const backendUrl = await getBackendUrl();
     const activeRegionId = await getActiveRegionId(regionId);
@@ -149,9 +144,9 @@ export const fetchRegion = async (
       backendUrl + `/map?entity=region&id=${activeRegionId}`,
     );
 
+    // 404 is how the endpoint reports a region with zero active stations, so it
+    // is an expected empty result and not worth recording as an error.
     if (response.status === 404) {
-      // Expected for a region with zero active stations — not a failure.
-      regionHasNoData.set(true);
       return undefined;
     }
     if (!response.ok) {
@@ -159,12 +154,9 @@ export const fetchRegion = async (
       return undefined;
     }
 
-    const parsed = parseRegionPayload(await response.json());
-    if (!parsed) {
-      regionHasNoData.set(true);
-      return undefined;
-    }
-    return parsed;
+    // An incomplete payload is treated as "nothing to show" rather than being
+    // passed on — that is the bug this whole path exists to prevent.
+    return parseRegionPayload(await response.json());
   } catch {
     errorRegion.set("There has been an error getting the region.");
     return undefined;
@@ -402,7 +394,14 @@ export const fetchForecast = async (
   try {
     const backendUrl = await getBackendUrl();
     const forecast = await fetch(backendUrl + `/map?entity=station&id=${id}`);
-    if (forecast.status !== 200) {
+    // The endpoint uses 4xx for every "nothing to report" case — no readings,
+    // no forecast, station manually shut down. Those are expected, so they
+    // return empty without being recorded as errors.
+    if (forecast.status >= 400 && forecast.status < 500) {
+      return undefined;
+    }
+    if (!forecast.ok) {
+      errorStations.set(`Error getting forecast of station ${id}`);
       return undefined;
     }
     // Same shape as the region payload — reject partial responses so the card
@@ -442,7 +441,7 @@ export const selectedStation = computed(
       }
       // The station may have gone offline since it was selected, in which case
       // it is no longer in the active list — fall back rather than merging a
-      // forecast onto a missing station.
+      // forecast onto a missing station. That is an expected gap, not a fault.
       const station = stations.find((s: STATION) => s.id === id);
       if (!station) {
         selectedStationError.set(true);

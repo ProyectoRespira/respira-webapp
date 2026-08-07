@@ -5,8 +5,6 @@ import {
   loadingRegion,
   loadingStations,
   region,
-  regionHasNoData,
-  regionMeta,
   selectedStationError,
   selectedStationId,
 } from "../../store/map";
@@ -36,8 +34,6 @@ export const Card = (props: CardProps) => {
   const station = useStore(selectedStation);
   const stationId = useStore(selectedStationId);
   const data = useStore(region);
-  const noRegionData = useStore(regionHasNoData);
-  const currentRegion = useStore(regionMeta);
   const loadingMean = useStore(loadingRegion);
   const loadingStns = useStore(loadingStations);
   const stationError = useStore(selectedStationError);
@@ -80,12 +76,6 @@ export const Card = (props: CardProps) => {
     return false;
   }, [station, stationId, stationError, isLoadingData]);
 
-  // A region with no active stations is an expected state, not a failure: the
-  // backend answered, it just has no readings to report. Kept separate from the
-  // error branch so the user is told there are no sensors here rather than that
-  // something broke.
-  const noDataForRegion = !stationId && noRegionData && !data;
-
   const currentAqi = station ? station.aqi : data?.aqi;
 
   const handleSharing = async () => {
@@ -117,8 +107,8 @@ export const Card = (props: CardProps) => {
     >
       {!backendAvailable && backendAvailable !== undefined && (
         <div className="w-full h-full content-center justify-center m-auto">
-          <p className="font-bold text-lg text-center">
-            ⚠️ {t("card.backendError")}
+          <p className="font-bold text-lg text-center font-serif">
+            {t("card.backendError")}
           </p>
         </div>
       )}
@@ -146,27 +136,21 @@ export const Card = (props: CardProps) => {
           <span className="sr-only">{t("stats.loading")}</span>
         </div>
       )}
-      {!dataAvailable &&
-        !loading &&
-        backendAvailable &&
-        (noDataForRegion ? (
-          <div className="w-full h-full content-center justify-center m-auto space-y-2">
-            <p className="font-bold text-lg text-center font-serif">
-              {t("card.noDataTitle")}
-            </p>
-            <p className="text-center text-sm text-lightgray">
-              {currentRegion?.name
-                ? `${currentRegion.name}: ${t("card.noActiveStations")}`
-                : t("card.noActiveStations")}
-            </p>
-          </div>
-        ) : (
-          <div className="w-full h-full content-center justify-center m-auto">
-            <p className="font-bold text-lg text-center">
-              ⚠️ {t("card.dataError")}
-            </p>
-          </div>
-        ))}
+      {/* One message covers every "nothing to show here" case — a region with
+          no active sensors, a station with no readings, a request that did not
+          come back. Splitting them into separate copy asked the user to care
+          about a distinction they cannot act on differently: in all of them the
+          next step is the same, keep browsing the map. */}
+      {!dataAvailable && !loading && backendAvailable && (
+        <div className="w-full h-full content-center justify-center m-auto space-y-2">
+          <p className="font-bold text-lg text-center font-serif">
+            {t("card.noDataTitle")}
+          </p>
+          <p className="text-center text-sm text-lightgray">
+            {t("card.noActiveStations")}
+          </p>
+        </div>
+      )}
       {dataAvailable && !loading && (
         <>
           {props.header}
