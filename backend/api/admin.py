@@ -69,6 +69,31 @@ class StationsViewer(RoleBasedModelAdmin):
     list_filter = ("is_station_on", "is_pattern_station", "region")
     search_fields = ("name",)
     ordering = ("name",)
+    readonly_fields = (
+        "name",
+        "region",
+        "latitude",
+        "longitude",
+        "is_station_on",
+        "is_pattern_station",
+    )
+    fieldsets = (
+        (None, {"fields": ("name", "region")}),
+        ("Coordinates", {"fields": ("latitude", "longitude")}),
+        ("Status", {"fields": ("is_station_on", "is_pattern_station")}),
+    )
+    inlines = (StationDetailsInline,)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        # Opens the station page for editing its inline details only; the
+        # station's own fields stay read-only regardless.
+        return request.user.has_perm("api.change_stationdetails")
 
 
 class UntranslatedListFilter(admin.SimpleListFilter):
@@ -191,31 +216,6 @@ class FaqQuestionAdmin(RoleBasedModelAdmin):
         if not missing:
             return "—"
         return ", ".join(lang.upper() for lang in sorted(missing))
-    readonly_fields = (
-        "name",
-        "region",
-        "latitude",
-        "longitude",
-        "is_station_on",
-        "is_pattern_station",
-    )
-    fieldsets = (
-        (None, {"fields": ("name", "region")}),
-        ("Coordinates", {"fields": ("latitude", "longitude")}),
-        ("Status", {"fields": ("is_station_on", "is_pattern_station")}),
-    )
-    inlines = (StationDetailsInline,)
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        # Opens the station page for editing its inline details only; the
-        # station's own fields stay read-only regardless.
-        return request.user.has_perm("api.change_stationdetails")
 
 
 @admin.register(StationOverride)
