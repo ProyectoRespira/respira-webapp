@@ -103,9 +103,15 @@ class UserRoleGroupSignalTests(TestCase):
 
 
 class ReadOnlyAdminEnforcementTests(TestCase):
-    """Stations/Regions are dbt-managed, so their admin is read-only for every
-    role. The role matrix still governs visibility and is enforced at Django's
-    permission layer (which will drive the future editable station models)."""
+    """The dbt-managed tables stay immutable in the admin, by two mechanisms.
+
+    Regions has no editable child, so its admin denies add/change/delete for
+    every role. Stations must allow the change *page* to open, because
+    StationDetails is edited inline there — its own fields are protected by
+    ``readonly_fields`` instead, and add/delete stay denied for everyone.
+
+    The role matrix still governs visibility and is enforced at Django's
+    permission layer."""
 
     def setUp(self):
         sync_role_groups()
@@ -124,16 +130,50 @@ class ReadOnlyAdminEnforcementTests(TestCase):
         request.user = user
         return request
 
-    def test_stations_regions_read_only_for_all_roles(self):
-        # No role — not even superadmin — can add/change/delete the reflected
-        # dbt tables through the admin.
+    def test_regions_read_only_for_all_roles(self):
+        # No role — not even superadmin — can add/change/delete regions.
         for slug in ("viewer", "editor", "admin", "superadmin"):
             user = self._user_with_role(slug, f"{slug}@example.com")
             request = self._request(user)
-            for model_admin in (self.stations_admin, self.regions_admin):
-                self.assertFalse(model_admin.has_add_permission(request), slug)
-                self.assertFalse(model_admin.has_change_permission(request), slug)
-                self.assertFalse(model_admin.has_delete_permission(request), slug)
+            self.assertFalse(self.regions_admin.has_add_permission(request), slug)
+            self.assertFalse(self.regions_admin.has_change_permission(request), slug)
+            self.assertFalse(self.regions_admin.has_delete_permission(request), slug)
+
+    def test_stations_cannot_be_added_or_deleted_by_any_role(self):
+        for slug in ("viewer", "editor", "admin", "superadmin"):
+            user = self._user_with_role(slug, f"{slug}@example.com")
+            request = self._request(user)
+            self.assertFalse(self.stations_admin.has_add_permission(request), slug)
+            self.assertFalse(self.stations_admin.has_delete_permission(request), slug)
+
+    def test_station_change_page_follows_the_details_permission(self):
+        # The station page opens only to edit its inline details, so change
+        # access tracks `change_stationdetails` and not `change_stations`.
+        for slug in ("editor", "admin", "superadmin"):
+            user = self._user_with_role(slug, f"{slug}@example.com")
+            self.assertTrue(
+                self.stations_admin.has_change_permission(self._request(user)), slug
+            )
+
+        viewer = self._user_with_role("viewer", "viewer-change@example.com")
+        self.assertFalse(
+            self.stations_admin.has_change_permission(self._request(viewer))
+        )
+
+    def test_station_own_fields_are_never_editable(self):
+        # Whatever the role, none of the dbt-written columns can be edited: the
+        # admin exposes them all as read-only.
+        self.assertEqual(
+            set(self.stations_admin.readonly_fields),
+            {
+                "name",
+                "region",
+                "latitude",
+                "longitude",
+                "is_station_on",
+                "is_pattern_station",
+            },
+        )
 
     def test_view_permission_follows_role_matrix(self):
         viewer = self._user_with_role("viewer", "viewer@example.com")
@@ -148,9 +188,9 @@ class ReadOnlyAdminEnforcementTests(TestCase):
         )
 
     def test_permission_matrix_enforced_at_permission_layer(self):
-        # The role->group matrix still grants model permissions (which will
-        # govern the future editable Station Details / Station Override models),
-        # independently of the read-only admin above.
+        # The role->group matrix grants model permissions independently of the
+        # admin classes above: nobody gets write access on the reflected dbt
+        # tables, whatever their role.
         editor = self._user_with_role("editor", "editor@example.com")
         self.assertTrue(editor.has_perm("api.view_stations"))
         self.assertFalse(editor.has_perm("api.change_stations"))
@@ -163,3 +203,23 @@ class ReadOnlyAdminEnforcementTests(TestCase):
         admin_user = self._user_with_role("admin", "admin@example.com")
         self.assertTrue(admin_user.has_perm("api.view_stations"))
         self.assertFalse(admin_user.has_perm("api.delete_stations"))
+
+    def test_admin_owned_station_models_are_editable_per_role(self):
+        # Station Details / Station Override are backend-owned, so unlike the
+        # reflected tables they carry real write permissions.
+        for slug in ("editor", "admin"):
+            user = self._user_with_role(slug, f"{slug}-owned@example.com")
+            self.assertTrue(user.has_perm("api.change_stationdetails"), slug)
+            self.assertTrue(user.has_perm("api.add_stationoverride"), slug)
+            self.assertTrue(user.has_perm("api.change_stationoverride"), slug)
+
+        # Retiring an override is an Admin decision.
+        editor = self._user_with_role("editor", "editor-delete@example.com")
+        self.assertFalse(editor.has_perm("api.delete_stationoverride"))
+        admin_user = self._user_with_role("admin", "admin-delete@example.com")
+        self.assertTrue(admin_user.has_perm("api.delete_stationoverride"))
+
+        viewer = self._user_with_role("viewer", "viewer-owned@example.com")
+        self.assertTrue(viewer.has_perm("api.view_stationdetails"))
+        self.assertFalse(viewer.has_perm("api.change_stationdetails"))
+        self.assertFalse(viewer.has_perm("api.change_stationoverride"))
