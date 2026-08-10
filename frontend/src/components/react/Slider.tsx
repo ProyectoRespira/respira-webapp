@@ -1,23 +1,28 @@
 import * as React from "react";
 import SliderPin from "../react/SliderPin";
-import { getAQIIndex, getColorRange } from "../../utils";
+import { getAQIIndex, getColorRange, isValidAqi } from "../../utils";
 
 const calculateOffset = (value: number) => {
   const index = getAQIIndex(value);
   return index * (100 / 6) + 10;
 };
 
-export const Slider = ({ value }: { value: number }) => {
+export const Slider = ({ value }: { value?: number }) => {
+  // Without a reading there is no position on the scale — show the bare scale
+  // instead of the pin, and never hand an absent value to `getAQIIndex`.
+  const hasValue = isValidAqi(value);
   return (
     <div className="relative ">
-      <div className={"flex flex-row absolute w-[86%] -mt-[1.5rem]"}>
-        <div
-          style={{
-            width: `calc(${calculateOffset(value)}% - 25px)`,
-          }}
-        />
-        <SliderPin value={value} fill={getColorRange(value)} />
-      </div>
+      {hasValue && (
+        <div className={"flex flex-row absolute w-[86%] -mt-[1.5rem]"}>
+          <div
+            style={{
+              width: `calc(${calculateOffset(value)}% - 25px)`,
+            }}
+          />
+          <SliderPin value={value} fill={getColorRange(value)} />
+        </div>
+      )}
       <div className="flex flex-row mt-4">
         <div className="text-xs w-1/2"></div>
         <p className="text-sm font-bold w-full text-lightgray text-center">
