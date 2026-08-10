@@ -1,10 +1,18 @@
 # Django Admin — Conventions for Administrative Modules
 
-The Station Administration backoffice will keep growing (Station Details,
-Station Override, and other future modules). This document establishes the
-reusable configuration patterns every administrative `ModelAdmin` should
-follow, so new modules look and behave consistently without re-deriving
-these decisions each time.
+The Station Administration backoffice will keep growing. This document
+establishes the reusable configuration patterns every administrative
+`ModelAdmin` should follow, so new modules look and behave consistently without
+re-deriving these decisions each time.
+
+Modules registered today, in `api/admin.py`:
+
+| Module            | Base class            | Owner of the data                       |
+| ----------------- | --------------------- | --------------------------------------- |
+| `Regions`         | `ReadOnlyModelAdmin`  | dbt gold pipeline                       |
+| `Stations`        | `RoleBasedModelAdmin` | dbt gold pipeline (fields all read-only) |
+| `StationDetails`  | `StackedInline`       | backoffice — replaces the ops spreadsheet |
+| `StationOverride` | `RoleBasedModelAdmin` | backoffice — replaces `station_status_seed.csv` |
 
 ## Base class: always extend `RoleBasedModelAdmin`
 
@@ -40,13 +48,13 @@ This base class provides two things:
    permissions are resolved through each user's role → `auth.Group` →
    model permissions, per `accounts/permissions.py`.
 
-`api/admin.py`'s `StationsViewer` and `RegionsViewer` are the reference
-implementation of this pattern today.
+`api/admin.py`'s `StationOverrideAdmin` is the reference implementation of this
+pattern today.
 
 ### Read-only modules (externally-managed data)
 
-For models owned by another system — e.g. `stations` / `regions`, which the
-dbt gold pipeline writes — extend **`ReadOnlyModelAdmin`** (a subclass of
+For models owned by another system — e.g. `regions`, which the dbt gold
+pipeline writes — extend **`ReadOnlyModelAdmin`** (a subclass of
 `RoleBasedModelAdmin`) instead. It disables add/change/delete for **everyone**
 (even superusers), so records can't be edited into a state the pipeline will
 overwrite; `has_view_permission` still follows the role matrix, so the data is
@@ -55,14 +63,53 @@ visible per role but immutable from the admin:
 ```python
 from accounts.admin_base import ReadOnlyModelAdmin
 
-@admin.register(Stations)
-class StationsViewer(ReadOnlyModelAdmin):
+@admin.register(Regions)
+class RegionsViewer(ReadOnlyModelAdmin):
     ...
 ```
 
 Editable operational data (on/off toggles, contact metadata) belongs in
-admin-owned models such as the future Station Override / Station Details — not
-in the reflected pipeline tables.
+admin-owned models such as `StationOverride` / `StationDetails` — not in the
+reflected pipeline tables.
+
+### Immutable parent with an editable inline
+
+`Stations` is a special case of the above: the table is dbt-managed, but
+`StationDetails` — which *is* backoffice-owned — is edited inline on the station
+page. **Django refuses to save inlines when the parent denies change
+permission**, so `StationsViewer` cannot extend `ReadOnlyModelAdmin`. It extends
+`RoleBasedModelAdmin` and reproduces the same immutability by other means:
+
+```python
+@admin.register(Stations)
+class StationsViewer(RoleBasedModelAdmin):
+    # Every dbt-written column, so none of them can be edited.
+    readonly_fields = ("name", "region", "latitude", "longitude",
+                       "is_station_on", "is_pattern_station")
+    inlines = (StationDetailsInline,)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        # "You may open this station to edit its details" — never its own fields.
+        return request.user.has_perm("api.change_stationdetails")
+```
+
+Two rules make this safe, and both must hold for any module following this
+pattern:
+
+1. **Every** field of the parent model is listed in `readonly_fields`. Django
+   ignores POSTed values for read-only fields, so a crafted request cannot
+   modify them.
+2. Change permission is keyed on the **child** model's permission, so the parent
+   never grants write access to itself. `add`/`delete` stay denied outright.
+
+Prefer plain `ReadOnlyModelAdmin` whenever the reflected model has no editable
+child; only reach for this pattern when an inline actually needs to be saved.
 
 ## Standard `ModelAdmin` attributes
 
@@ -176,9 +223,8 @@ modules.
 
 ## Checklist for a new administrative module
 
-When adding e.g. Station Details or Station Override:
-
-- [ ] `ModelAdmin` extends `RoleBasedModelAdmin`.
+- [ ] `ModelAdmin` extends `RoleBasedModelAdmin` (or `ReadOnlyModelAdmin` for
+      pipeline-owned data).
 - [ ] `list_display` shows identifying fields + status flags, not every column.
 - [ ] `list_filter` covers boolean/status/FK fields.
 - [ ] `search_fields` covers free-text lookup fields.

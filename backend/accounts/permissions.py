@@ -17,39 +17,49 @@ from __future__ import annotations
 #
 # "Operational data" = api.stations, api.regions.
 # "Editorial content" = api.faqcategory, api.faqquestion (public FAQ page).
+# "Reflected dbt tables" = api.stations, api.regions — read-only for everyone.
+# "Admin-owned station data" = api.stationdetails, api.stationoverride — the
+# models that replace the operational spreadsheet and the status seed CSV, and
+# the only station data that is editable from the backoffice.
 # "Administrative configuration" = accounts.user, accounts.role.
+#
+# Note that `change_stationdetails` also gates opening a station's change page
+# (see api.admin.StationsViewer), since the details are edited inline there.
 ROLE_GROUP_PERMISSIONS: dict[str, object] = {
     # Superadmin: unrestricted administrative access.
     "superadmin": "__all__",
-    # Admin: read station-related models (the reflected dbt tables are
-    # read-only; editing will happen on future override/details models),
-    # read administrative config, full control of editorial content.
+    # Admin: read the reflected dbt tables, manage admin-owned station data,
+    # read administrative config, and fully manage editorial content.
     "admin": {
         ("api", "stations"): ["view"],
         ("api", "regions"): ["view"],
         ("api", "faqcategory"): ["add", "change", "delete", "view"],
         ("api", "faqquestion"): ["add", "change", "delete", "view"],
+        ("api", "stationdetails"): ["add", "change", "view"],
+        ("api", "stationoverride"): ["add", "change", "delete", "view"],
         ("accounts", "user"): ["view"],
         ("accounts", "role"): ["view"],
     },
-    # Editor: view-only on operational data — the reflected dbt tables
-    # (stations/regions) are read-only for everyone, and the Editor's edit
-    # capability on those will land on the future override/details models.
-    # Editorial content is where the Editor role actually edits: add and change
-    # FAQ entries, but not delete (removing a published answer is destructive;
-    # `is_published` is the reversible way to take one down).
+    # Editor: edits admin-owned station data and editorial content, but never
+    # the reflected dbt tables or administrative configuration. Deleting an
+    # override remains an Admin decision.
     "editor": {
         ("api", "stations"): ["view"],
         ("api", "regions"): ["view"],
         ("api", "faqcategory"): ["add", "change", "view"],
         ("api", "faqquestion"): ["add", "change", "view"],
+        ("api", "stationdetails"): ["add", "change", "view"],
+        ("api", "stationoverride"): ["add", "change", "view"],
     },
-    # Viewer: read-only on operational data and editorial content.
+    # Viewer: read-only on operational data, admin-owned station data, and
+    # editorial content.
     "viewer": {
         ("api", "stations"): ["view"],
         ("api", "regions"): ["view"],
         ("api", "faqcategory"): ["view"],
         ("api", "faqquestion"): ["view"],
+        ("api", "stationdetails"): ["view"],
+        ("api", "stationoverride"): ["view"],
     },
 }
 
