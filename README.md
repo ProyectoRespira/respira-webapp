@@ -84,6 +84,7 @@ Configuration reference for all services:
 
 Proxy templates live in `proxy/nginx.conf*.template` and are selected with `ENVIRONMENT`.
 For production certificates, use the `certbot` service and the mounted `certbot/conf` and `certbot/www` directories.
+For automated renewal and monitoring setup, see [Certbot Renewal and TLS Monitoring](docs/certbot-renewal.md).
 
 ## System architecture
 

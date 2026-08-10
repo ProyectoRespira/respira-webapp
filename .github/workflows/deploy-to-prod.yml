@@ -13,13 +13,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Deploy to Production
+  migrate:
+    name: Run Production Django Migrations
     runs-on: ubuntu-latest
     environment: Production
     steps:
       - name: Ensure main branch dispatch
+        shell: bash
         run: |
+          set -euo pipefail
+
           if [ "${GITHUB_REF_NAME}" != "main" ]; then
             echo "This workflow can only be executed from the main branch."
             echo "In GitHub Actions, set 'Use workflow from' to 'main'."
@@ -27,9 +30,12 @@ jobs:
           fi
 
       - name: Check authorization
+        shell: bash
         env:
           ALLOWED_USERS_PROD: ${{ vars.DEPLOY_ALLOWED_USERS_PROD }}
         run: |
+          set -euo pipefail
+
           ALLOWED_USERS="$ALLOWED_USERS_PROD"
 
           if [ -z "$ALLOWED_USERS" ]; then
@@ -45,72 +51,289 @@ jobs:
             exit 1
           fi
 
-      - name: Validate SSH configuration
-        id: prepare_ssh_key
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Prepare SSH
+        id: setup_ssh
+        uses: ./.github/actions/prepare-ssh
+        with:
+          deploy_host: ${{ secrets.DEPLOY_HOST }}
+          deploy_user: ${{ secrets.DEPLOY_USER }}
+          deploy_ssh_key: ${{ secrets.DEPLOY_SSH_KEY }}
+          deploy_host_key: ${{ secrets.DEPLOY_HOST_KEY }}
+          environment_label: production
+
+      - name: Prepare env file
+        id: write_env
+        uses: ./.github/actions/prepare-env
+        with:
+          env_file_b64: ${{ secrets.ENV_FILE_PROD }}
+          environment_label: production
+          env_secret_name: ENV_FILE_PROD
+          env_file_suffix: env-prod
+          required_keys: |
+            BACKEND_SECRET_KEY
+
+      - name: Validate dedicated migration DB credentials
+        uses: ./.github/actions/validate-migration-credentials
+        with:
+          migration_db_user: ${{ secrets['BACKEND_POSTGRES_MIGRATION_USER'] }}
+          migration_db_password: ${{ secrets['BACKEND_POSTGRES_MIGRATION_PASSWORD'] }}
+          migration_db_name: ${{ secrets['BACKEND_POSTGRES_MIGRATION_DB'] }}
+          migration_db_schema: ${{ secrets['BACKEND_POSTGRES_MIGRATION_SCHEMA'] }}
+          migration_db_host: ${{ secrets['BACKEND_POSTGRES_MIGRATION_HOST'] }}
+          migration_db_port: ${{ secrets['BACKEND_POSTGRES_MIGRATION_PORT'] || '5432' }}
+          environment_label: production
+
+      - name: Copy compose and env files to server
+        shell: bash
         env:
-          DEPLOY_HOST_VALUE: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER_VALUE: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_SSH_KEY_VALUE: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_WEBAPP }}
+          KEY_PATH: ${{ steps.setup_ssh.outputs.key_path }}
+          ENV_FILE: ${{ steps.write_env.outputs.env_file }}
         run: |
-          echo "::add-mask::$DEPLOY_HOST_VALUE"
-          echo "::add-mask::$DEPLOY_USER_VALUE"
-          echo "::add-mask::$DEPLOY_SSH_KEY_VALUE"
+          set -euo pipefail
 
-          if [ -z "$DEPLOY_HOST_VALUE" ]; then
-            echo "Missing DEPLOY_HOST secret for production environment."
+          echo "::group::Copy compose files to remote"
+
+          scp -i "$KEY_PATH" \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            docker-compose.yml \
+            docker-compose.remote.yml \
+            "$DEPLOY_USER@$DEPLOY_HOST:$COMPOSE_PATH/"
+          echo "::endgroup::"
+
+          echo "::group::Copy immutable prod env file to remote"
+
+          scp -i "$KEY_PATH" \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "$ENV_FILE" \
+            "$DEPLOY_USER@$DEPLOY_HOST:$COMPOSE_PATH/.env.prod"
+          echo "::endgroup::"
+
+          echo "::group::Harden env file permissions on remote"
+          ssh -i "$KEY_PATH" \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -o ConnectTimeout=30 \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "chmod 600 '$COMPOSE_PATH/.env.prod'"
+          echo "::endgroup::"
+
+      - name: Run migrations over SSH
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_WEBAPP }}
+          KEY_PATH: ${{ steps.setup_ssh.outputs.key_path }}
+          MIGRATION_DB_USER: ${{ secrets['BACKEND_POSTGRES_MIGRATION_USER'] }}
+          MIGRATION_DB_PASSWORD: ${{ secrets['BACKEND_POSTGRES_MIGRATION_PASSWORD'] }}
+          MIGRATION_DB_NAME: ${{ secrets['BACKEND_POSTGRES_MIGRATION_DB'] }}
+          MIGRATION_DB_SCHEMA: ${{ secrets['BACKEND_POSTGRES_MIGRATION_SCHEMA'] }}
+          MIGRATION_DB_HOST: ${{ secrets['BACKEND_POSTGRES_MIGRATION_HOST'] }}
+          MIGRATION_DB_PORT: ${{ secrets['BACKEND_POSTGRES_MIGRATION_PORT'] || '5432' }}
+        run: |
+          set -euo pipefail
+
+          echo "::add-mask::$MIGRATION_DB_USER"
+          echo "::add-mask::$MIGRATION_DB_PASSWORD"
+
+          migration_user_b64="$(printf '%s' "$MIGRATION_DB_USER" | base64 | tr -d '\n')"
+          migration_password_b64="$(printf '%s' "$MIGRATION_DB_PASSWORD" | base64 | tr -d '\n')"
+          migration_db_name_b64="$(printf '%s' "$MIGRATION_DB_NAME" | base64 | tr -d '\n')"
+          migration_db_schema_b64="$(printf '%s' "$MIGRATION_DB_SCHEMA" | base64 | tr -d '\n')"
+          migration_db_host_b64="$(printf '%s' "$MIGRATION_DB_HOST" | base64 | tr -d '\n')"
+          migration_db_port_b64="$(printf '%s' "$MIGRATION_DB_PORT" | base64 | tr -d '\n')"
+
+          echo "::add-mask::$MIGRATION_DB_NAME"
+          echo "::add-mask::$MIGRATION_DB_SCHEMA"
+          echo "::add-mask::$MIGRATION_DB_HOST"
+          echo "::add-mask::$MIGRATION_DB_PORT"
+
+          migration_secrets_file=""
+          cleanup_local_payload() {
+            if [ -n "$migration_secrets_file" ]; then
+              rm -f "$migration_secrets_file"
+            fi
+          }
+          trap cleanup_local_payload EXIT
+
+          migration_secrets_file="$RUNNER_TEMP/migration-db-secrets.env"
+          {
+            printf 'MIGRATION_DB_USER_B64=%s\n' "$migration_user_b64"
+            printf 'MIGRATION_DB_PASSWORD_B64=%s\n' "$migration_password_b64"
+            printf 'MIGRATION_DB_NAME_B64=%s\n' "$migration_db_name_b64"
+            printf 'MIGRATION_DB_SCHEMA_B64=%s\n' "$migration_db_schema_b64"
+            printf 'MIGRATION_DB_HOST_B64=%s\n' "$migration_db_host_b64"
+            printf 'MIGRATION_DB_PORT_B64=%s\n' "$migration_db_port_b64"
+          } > "$migration_secrets_file"
+          chmod 600 "$migration_secrets_file"
+
+          echo "::group::Upload temporary migration payload to remote"
+          ssh -i "$KEY_PATH" \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -o ConnectTimeout=30 \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "rm -f '$COMPOSE_PATH/.migration-db-secrets.env'"
+
+          scp -i "$KEY_PATH" \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "$migration_secrets_file" \
+            "$DEPLOY_USER@$DEPLOY_HOST:$COMPOSE_PATH/.migration-db-secrets.env"
+          echo "::endgroup::"
+
+          echo "::group::Execute remote Django migrations"
+          ssh -i "$KEY_PATH" \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -o ConnectTimeout=30 \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "export COMPOSE_PATH='$COMPOSE_PATH'; bash -se" <<'REMOTE_SCRIPT'
+          set -euo pipefail
+
+          compose_files="-f docker-compose.yml -f docker-compose.remote.yml"
+
+          if [ -z "$COMPOSE_PATH" ] || [ ! -d "$COMPOSE_PATH" ]; then
+            echo "Invalid DEPLOY_COMPOSE_PATH_WEBAPP configured for selected environment."
             exit 1
           fi
 
-          if [ -z "$DEPLOY_USER_VALUE" ]; then
-            echo "Missing DEPLOY_USER secret for production environment."
+          secrets_file="$COMPOSE_PATH/.migration-db-secrets.env"
+          if [ ! -f "$secrets_file" ]; then
+            echo "Missing temporary migration secrets payload on remote host."
+            exit 1
+          fi
+          chmod 600 "$secrets_file"
+          trap 'rm -f "$secrets_file"' EXIT
+
+          set -a
+          . "$secrets_file"
+          set +a
+
+          migration_db_user="$(printf '%s' "$MIGRATION_DB_USER_B64" | base64 --decode)"
+          migration_db_password="$(printf '%s' "$MIGRATION_DB_PASSWORD_B64" | base64 --decode)"
+          migration_db_name="$(printf '%s' "$MIGRATION_DB_NAME_B64" | base64 --decode)"
+          migration_db_schema="$(printf '%s' "$MIGRATION_DB_SCHEMA_B64" | base64 --decode)"
+          migration_db_host="$(printf '%s' "$MIGRATION_DB_HOST_B64" | base64 --decode)"
+          migration_db_port="$(printf '%s' "$MIGRATION_DB_PORT_B64" | base64 --decode)"
+
+          run_compose_migration() {
+            BACKEND_POSTGRES_DB="$migration_db_name" \
+            BACKEND_POSTGRES_USER="$migration_db_user" \
+            BACKEND_POSTGRES_PASSWORD="$migration_db_password" \
+            BACKEND_POSTGRES_HOST="$migration_db_host" \
+            BACKEND_POSTGRES_PORT="$migration_db_port" \
+            BACKEND_POSTGRES_SCHEMA="$migration_db_schema" \
+            BACKEND_RUN_MIGRATIONS=false \
+            docker compose \
+              $compose_files \
+              --env-file .env.prod \
+              "$@"
+          }
+
+          print_migration_diagnostics() {
+            echo "Migration diagnostics: docker compose service status"
+            run_compose_migration ps || true
+            echo "Migration diagnostics: backend logs (last 120 lines)"
+            run_compose_migration logs --tail=120 backend || true
+          }
+
+          on_migration_error() {
+            exit_code=$?
+            echo "Migration commands failed. Capturing diagnostics before exit."
+            print_migration_diagnostics
+            exit "$exit_code"
+          }
+          trap on_migration_error ERR
+
+          cd "$COMPOSE_PATH"
+
+          echo "[1/6] Pull backend image"
+          run_compose_migration pull backend
+          echo "[2/6] Show Django migration plan"
+          run_compose_migration run --rm --no-deps backend python manage.py migrate --plan
+          echo "[3/6] Apply migrations"
+          run_compose_migration run --rm --no-deps backend python manage.py migrate --noinput
+          echo "[4/6] Sync Django roles"
+          run_compose_migration run --rm --no-deps backend python manage.py sync_roles
+          echo "[5/6] Bootstrap Django superuser"
+          run_compose_migration run --rm --no-deps backend python manage.py bootstrap_superuser
+          echo "[6/6] Verify no unapplied migrations remain"
+          run_compose_migration run --rm --no-deps backend python manage.py migrate --check --noinput
+
+          echo "Django migrations completed successfully on production database."
+          REMOTE_SCRIPT
+          echo "::endgroup::"
+
+  deploy:
+    name: Deploy to Production
+    needs: [migrate]
+    runs-on: ubuntu-latest
+    environment: Production
+    steps:
+      - name: Ensure main branch dispatch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${GITHUB_REF_NAME}" != "main" ]; then
+            echo "This workflow can only be executed from the main branch."
+            echo "In GitHub Actions, set 'Use workflow from' to 'main'."
             exit 1
           fi
 
-          if [ -z "$DEPLOY_SSH_KEY_VALUE" ]; then
-            echo "Missing DEPLOY_SSH_KEY secret for production environment."
+      - name: Check authorization
+        shell: bash
+        env:
+          ALLOWED_USERS_PROD: ${{ vars.DEPLOY_ALLOWED_USERS_PROD }}
+        run: |
+          set -euo pipefail
+
+          ALLOWED_USERS="$ALLOWED_USERS_PROD"
+
+          if [ -z "$ALLOWED_USERS" ]; then
+            echo "Error: DEPLOY_ALLOWED_USERS_PROD variable not configured"
             exit 1
           fi
 
-          tmp_key="$RUNNER_TEMP/deploy_ssh_key"
-          if printf '%s' "$DEPLOY_SSH_KEY_VALUE" | grep -q '\\n'; then
-            printf '%b' "$DEPLOY_SSH_KEY_VALUE" > "$tmp_key"
+          CURRENT_USER="${{ github.actor }}"
+          if echo "$ALLOWED_USERS" | grep -qw "$CURRENT_USER"; then
+            echo "✓ User $CURRENT_USER is authorized to deploy to production"
           else
-            printf '%s\n' "$DEPLOY_SSH_KEY_VALUE" > "$tmp_key"
-          fi
-          chmod 600 "$tmp_key"
-
-          if ! grep -q 'BEGIN .*PRIVATE KEY' "$tmp_key"; then
-            echo "DEPLOY_SSH_KEY does not look like a valid private key for production environment."
+            echo "✗ User $CURRENT_USER is NOT authorized to deploy to production"
             exit 1
           fi
-
-          if ! ssh-keygen -y -f "$tmp_key" >/dev/null 2>&1; then
-            echo "DEPLOY_SSH_KEY could not be parsed for production environment."
-            echo "It may be malformed, for a different key type, or encrypted with a passphrase."
-            exit 1
-          fi
-
-          echo "key_path=$tmp_key" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Validate and write env file
+      - name: Prepare SSH
+        id: setup_ssh
+        uses: ./.github/actions/prepare-ssh
+        with:
+          deploy_host: ${{ secrets.DEPLOY_HOST }}
+          deploy_user: ${{ secrets.DEPLOY_USER }}
+          deploy_ssh_key: ${{ secrets.DEPLOY_SSH_KEY }}
+          deploy_host_key: ${{ secrets.DEPLOY_HOST_KEY }}
+          environment_label: production
+
+      - name: Prepare env file
         id: write_env
-        env:
-          ENV_FILE_B64: ${{ secrets.ENV_FILE_PROD }}
-        run: |
-          if [ -z "$ENV_FILE_B64" ]; then
-            echo "Missing ENV_FILE_PROD secret. See docs/deploy-secrets.md."
-            exit 1
-          fi
-
-          env_file="$RUNNER_TEMP/env-prod"
-          printf '%s' "$ENV_FILE_B64" | base64 --decode > "$env_file"
-
-          # Keys that must be present and non-empty in the env file.
-          # These are all vars in docker-compose.yml that have no :-default fallback.
-          required_keys=(
+        uses: ./.github/actions/prepare-env
+        with:
+          env_file_b64: ${{ secrets.ENV_FILE_PROD }}
+          environment_label: production
+          env_secret_name: ENV_FILE_PROD
+          env_file_suffix: env-prod
+          required_keys: |
             BACKEND_SECRET_KEY
             BACKEND_POSTGRES_DB
             BACKEND_POSTGRES_USER
@@ -135,66 +358,56 @@ jobs:
             SERVER_HOST
             CERT_NAME
             PROXY_PORT
-          )
-
-          missing=()
-          for key in "${required_keys[@]}"; do
-            val="$(grep -E "^${key}=" "$env_file" | cut -d= -f2- | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')"
-            if [ -z "$val" ]; then
-              missing+=("$key")
-            fi
-          done
-
-          if [ "${#missing[@]}" -gt 0 ]; then
-            echo "Missing or empty required env vars in ENV_FILE_PROD:"
-            for k in "${missing[@]}"; do echo "  - $k"; done
-            exit 1
-          fi
-
-          echo "All required env vars present."
-          echo "env_file=$env_file" >> "$GITHUB_OUTPUT"
 
       - name: Copy compose and env files to server
         id: copy_files
+        shell: bash
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_HOST_KEY: ${{ secrets.DEPLOY_HOST_KEY }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_WEBAPP }}
-          KEY_PATH: ${{ steps.prepare_ssh_key.outputs.key_path }}
+          KEY_PATH: ${{ steps.setup_ssh.outputs.key_path }}
           ENV_FILE: ${{ steps.write_env.outputs.env_file }}
         run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
+          set -euo pipefail
 
-          if [ -z "$DEPLOY_HOST_KEY" ]; then
-            echo "Missing required DEPLOY_HOST_KEY secret in Production environment."
-            exit 1
-          fi
-
-          printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-
+          echo "::group::Copy compose files to remote"
           scp -i "$KEY_PATH" \
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             docker-compose.yml \
             docker-compose.remote.yml \
             "$DEPLOY_USER@$DEPLOY_HOST:$COMPOSE_PATH/"
+          echo "::endgroup::"
 
+          echo "::group::Copy immutable prod env file to remote"
           scp -i "$KEY_PATH" \
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             "$ENV_FILE" \
             "$DEPLOY_USER@$DEPLOY_HOST:$COMPOSE_PATH/.env.prod"
+          echo "::endgroup::"
+
+          echo "::group::Harden env file permissions on remote"
+          ssh -i "$KEY_PATH" \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -o ConnectTimeout=30 \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "chmod 600 '$COMPOSE_PATH/.env.prod'"
+          echo "::endgroup::"
 
       - name: Deploy over SSH
+        shell: bash
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_WEBAPP }}
-          KEY_PATH: ${{ steps.prepare_ssh_key.outputs.key_path }}
+          KEY_PATH: ${{ steps.setup_ssh.outputs.key_path }}
         run: |
+          set -euo pipefail
+
+          echo "::group::Execute remote docker compose deploy"
           ssh -i "$KEY_PATH" \
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile=~/.ssh/known_hosts \
@@ -203,6 +416,23 @@ jobs:
             "export COMPOSE_PATH='$COMPOSE_PATH'; bash -se" <<'REMOTE_SCRIPT'
           set -euo pipefail
 
+          compose_files="-f docker-compose.yml -f docker-compose.remote.yml"
+
+          print_deploy_diagnostics() {
+            echo "Deployment diagnostics: docker compose ps"
+            docker compose $compose_files --env-file .env.prod ps || true
+            echo "Deployment diagnostics: last 120 log lines per service"
+            docker compose $compose_files --env-file .env.prod logs --tail=120 || true
+          }
+
+          on_deploy_error() {
+            exit_code=$?
+            echo "Remote deploy command failed. Capturing diagnostics before exit."
+            print_deploy_diagnostics
+            exit "$exit_code"
+          }
+          trap on_deploy_error ERR
+
           if [ -z "$COMPOSE_PATH" ] || [ ! -d "$COMPOSE_PATH" ]; then
             echo "Invalid DEPLOY_COMPOSE_PATH_WEBAPP configured for selected environment."
             exit 1
@@ -210,9 +440,12 @@ jobs:
 
           cd "$COMPOSE_PATH"
 
+          # Migrations are handled by the dedicated pre-deploy migration job.
+          # Keep the decoded env file unchanged; enforce runtime override only.
+          export BACKEND_RUN_MIGRATIONS=false
+
           docker compose \
-            -f docker-compose.yml \
-            -f docker-compose.remote.yml \
+            $compose_files \
             --env-file .env.prod \
             up -d --pull always --remove-orphans
 
@@ -221,10 +454,10 @@ jobs:
           elapsed=0
 
           while true; do
-            containers="$(docker compose ps -q)"
+            containers="$(docker compose $compose_files --env-file .env.prod ps -q)"
             if [ -z "$containers" ]; then
               echo "No containers were created by docker compose."
-              docker compose ps
+              print_deploy_diagnostics
               exit 1
             fi
 
@@ -244,7 +477,7 @@ jobs:
 
               if [ "$health" = "unhealthy" ]; then
                 echo "$name is unhealthy"
-                docker compose ps
+                print_deploy_diagnostics
                 exit 1
               fi
 
@@ -260,7 +493,7 @@ jobs:
 
             if [ "$elapsed" -ge "$timeout_seconds" ]; then
               echo "Timed out waiting for stack to become ready."
-              docker compose ps
+              print_deploy_diagnostics
               exit 1
             fi
 
@@ -272,6 +505,7 @@ jobs:
           docker image prune -af
           docker builder prune -af
           REMOTE_SCRIPT
+          echo "::endgroup::"
 
       - name: Post-deploy summary
         run: |

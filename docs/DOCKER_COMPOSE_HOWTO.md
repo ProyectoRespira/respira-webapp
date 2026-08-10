@@ -102,3 +102,37 @@ docker compose down -v  # also removes volumes
 **Stale code changes:** Rebuild with `docker compose up -d --build`.
 
 For detailed environment variables, see [backend-env-vars.md](../backend-env-vars.md).
+
+## Certificate Renewal (Production)
+
+Use the utility script to run certbot renewal and reload nginx:
+
+```bash
+./utils/certbot-maintenance.sh renew
+```
+
+If the compose project root is not the repository root you are currently in, pass it explicitly:
+
+```bash
+./utils/certbot-maintenance.sh --project-root /absolute/path/to/respira-webapp renew
+```
+
+Check certificate expiry (UTC end date + remaining days):
+
+```bash
+./utils/certbot-maintenance.sh check-expiry --cert-name your-domain.example
+```
+
+By default, the script first looks for `./certbot/conf` relative to your current working directory, then falls back to the repository's `certbot/conf`.
+
+If certificate files are stored outside the default `./certbot/conf`, run:
+
+```bash
+./utils/certbot-maintenance.sh check-expiry --cert-name your-domain.example --certbot-config-dir /absolute/path/to/certbot/conf
+```
+
+Troubleshooting output is appended to `<project-root>/logs/certbot-maintenance.log` by default. Pass `--log-file /custom/path.log` to use a different path.
+
+The `renew` command is a renewal check: it runs Certbot, but only certificates that are close enough to expiry are actually renewed.
+
+For a complete systemd service/timer setup, see [certbot-renewal.md](./certbot-renewal.md).
