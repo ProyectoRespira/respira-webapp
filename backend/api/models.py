@@ -293,3 +293,121 @@ class InferenceResults(models.Model):
 
     class Meta:
         db_table = "inference_results"
+
+
+# --- FAQ (public /recursos page) -------------------------------------------
+#
+# Admin-owned content: unlike stations/regions (written by the dbt pipeline and
+# exposed through ReadOnlyModelAdmin), these rows are created and edited from the
+# Django Admin, so they use RoleBasedModelAdmin.
+#
+# Translations are stored as one column per language rather than a separate
+# translations table. The site ships a closed set of three languages, fixed by
+# the frontend's language selector, so six columns keep the admin form a single
+# screen where a language can be neither duplicated nor silently omitted.
+
+# Must stay in sync with the frontend's `i18n/config.ts`.
+FAQ_LANGS = ("es", "en", "pt")
+FAQ_DEFAULT_LANG = "es"
+
+
+def faq_localized(instance, field: str, lang: str) -> str:
+    """Return ``<field>_<lang>``, falling back to Spanish when untranslated.
+
+    Mirrors the frontend's ``useTranslations`` fallback: a question nobody has
+    translated yet renders in Spanish instead of as an empty accordion row.
+    """
+    if lang not in FAQ_LANGS:
+        lang = FAQ_DEFAULT_LANG
+    value = (getattr(instance, f"{field}_{lang}", "") or "").strip()
+    if value:
+        return value
+    return (getattr(instance, f"{field}_{FAQ_DEFAULT_LANG}", "") or "").strip()
+
+
+def faq_localized_map(instance, field: str) -> dict[str, str]:
+    """Return ``{lang: text}`` for every supported language, fallback applied."""
+    return {lang: faq_localized(instance, field, lang) for lang in FAQ_LANGS}
+
+
+def faq_missing_langs(instance, field: str) -> list[str]:
+    """Languages where ``<field>_<lang>`` is blank (i.e. still untranslated)."""
+    return [
+        lang
+        for lang in FAQ_LANGS
+        if lang != FAQ_DEFAULT_LANG
+        and not (getattr(instance, f"{field}_{lang}", "") or "").strip()
+    ]
+
+
+class FaqCategory(models.Model):
+    """A group of FAQ questions, rendered as one section on /recursos."""
+
+    slug = models.SlugField(
+        max_length=64,
+        unique=True,
+        help_text=(
+            "Anchor used in the public URL (e.g. #sensor). Changing it breaks "
+            "links people have already shared."
+        ),
+    )
+    order = models.PositiveIntegerField(
+        default=0,
+        db_index=True,
+        help_text="Sections are shown from lowest to highest.",
+    )
+    is_published = models.BooleanField(
+        default=True,
+        help_text="Unpublished categories are hidden from the public page.",
+    )
+
+    label_es = models.CharField(max_length=120)
+    label_en = models.CharField(max_length=120, blank=True)
+    label_pt = models.CharField(max_length=120, blank=True)
+
+    class Meta:
+        db_table = "faq_category"
+        ordering = ["order", "id"]
+        verbose_name = "FAQ category"
+        verbose_name_plural = "FAQ categories"
+
+    def __str__(self):
+        return self.label_es
+
+
+class FaqQuestion(models.Model):
+    """A single question/answer pair inside a :class:`FaqCategory`.
+
+    Answers are plain text: the page renders them with ``white-space: pre-line``,
+    so a newline is a line break and a leading "• " makes a bullet. No markup is
+    interpreted, which keeps admin-authored content safe to render as-is.
+    """
+
+    category = models.ForeignKey(
+        FaqCategory, on_delete=models.CASCADE, related_name="questions"
+    )
+    order = models.PositiveIntegerField(
+        default=0,
+        db_index=True,
+        help_text="Questions are shown from lowest to highest within a category.",
+    )
+    is_published = models.BooleanField(
+        default=True,
+        help_text="Unpublished questions are hidden from the public page.",
+    )
+
+    question_es = models.CharField(max_length=300)
+    answer_es = models.TextField()
+    question_en = models.CharField(max_length=300, blank=True)
+    answer_en = models.TextField(blank=True)
+    question_pt = models.CharField(max_length=300, blank=True)
+    answer_pt = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "faq_question"
+        ordering = ["category__order", "order", "id"]
+        verbose_name = "FAQ question"
+        verbose_name_plural = "FAQ questions"
+
+    def __str__(self):
+        return self.question_es

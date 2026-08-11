@@ -22,9 +22,16 @@ export default withMT({
       base: "#F0ECEA",
       basedark: "#afa29c",
       green: "#91BE7B",
+      // Emphasis greens from the FAQ design handoff: the only greens in the
+      // system with enough contrast for text (on white and on light_green).
+      green_dark: "#4B7A3D",
+      green_darker: "#3E5A2E",
       light_green: "#C7D2A7",
       white: "#FFF",
       black: "#000",
+      // Near-black used by the design for body text and the dark CTA card;
+      // softer than pure black.
+      near_black: "#1a1a1a",
       gray: "#535353",
       lightgray: "#A1A1A1",
       cyan: "#8ADBE6",

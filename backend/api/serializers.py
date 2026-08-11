@@ -6,11 +6,14 @@ from rest_framework.validators import UniqueValidator
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 from .models import (
+    FaqCategory,
+    FaqQuestion,
     Regions,
     Stations,
     StationReadingsGold,
     UserProfile,
     UserRole,
+    faq_localized_map,
     user_role,
 )
 
@@ -251,3 +254,53 @@ class AdminUserUpdateSerializer(_RoleAssignmentMixin, serializers.ModelSerialize
 
     def to_representation(self, instance):
         return AdminUserSerializer(instance, context=self.context).data
+
+
+class FaqQuestionSerializer(serializers.ModelSerializer):
+    """Serializes a question into the `{ q: {es, en, pt}, a: {...} }` shape the
+    frontend already uses for its bundled seed, so the two are interchangeable.
+
+    The Spanish fallback is applied here rather than in the frontend so the rule
+    lives in one place; an untranslated question ships Spanish text under every
+    language key instead of an empty string.
+    """
+
+    q = serializers.SerializerMethodField()
+    a = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FaqQuestion
+        fields = ["id", "q", "a"]
+
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_q(self, obj):
+        return faq_localized_map(obj, "question")
+
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_a(self, obj):
+        return faq_localized_map(obj, "answer")
+
+
+class FaqCategorySerializer(serializers.ModelSerializer):
+    """Serializes a category with its published questions nested.
+
+    ``id`` is the slug, not the primary key: the public page uses it as the
+    anchor (``#sensor``), so it must survive rows being recreated.
+    """
+
+    id = serializers.CharField(source="slug")
+    label = serializers.SerializerMethodField()
+    questions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FaqCategory
+        fields = ["id", "label", "questions"]
+
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_label(self, obj):
+        return faq_localized_map(obj, "label")
+
+    @extend_schema_field(FaqQuestionSerializer(many=True))
+    def get_questions(self, obj):
+        published = [q for q in obj.questions.all() if q.is_published]
+        return FaqQuestionSerializer(published, many=True).data

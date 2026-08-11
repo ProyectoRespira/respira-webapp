@@ -5,6 +5,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from .views import (
     AdminUserViewSet,
+    FaqListView,
     StationViewset,
     RegionViewset,
     MapViewset,
@@ -23,6 +24,7 @@ urlpatterns = [
     path(r"map/nearest-region/", NearestRegionView.as_view(), name="nearest-region"),
     path(r"stations/nearest/", NearestStationView.as_view(), name="nearest-station"),
     path(r"", include(router.urls)),
+    path(r"faq/", FaqListView.as_view(), name="faq"),
     path(r"map/", MapViewset.as_view(), name="map"),
     path(r"health/", HealthCheckView.as_view(), name="health"),
     path(r"schema/", SpectacularAPIView.as_view(), name="schema"),

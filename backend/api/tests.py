@@ -8,6 +8,8 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 
 from .models import (
+    FaqCategory,
+    FaqQuestion,
     InferenceResults,
     InferenceRuns,
     RegionReadings,
@@ -786,3 +788,127 @@ class AdminUserManagementTests(TestCase):
         body = response.json()
         for key in ("count", "next", "previous", "results"):
             self.assertIn(key, body)
+
+
+class FaqEndpointTests(TestCase):
+    """Covers the public /api/faq/ feed: shape, ordering, publishing, fallback."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.url = reverse("faq")
+        # The seed migration already populated the table; start from a clean
+        # slate so assertions are about the rows this test creates.
+        FaqCategory.objects.all().delete()
+
+        self.category = FaqCategory.objects.create(
+            slug="sensor",
+            order=1,
+            label_es="El sensor",
+            label_en="The sensor",
+            label_pt="O sensor",
+        )
+        FaqQuestion.objects.create(
+            category=self.category,
+            order=0,
+            question_es="¿Qué mide?",
+            answer_es="PM2.5 y PM10.",
+            question_en="What does it measure?",
+            answer_en="PM2.5 and PM10.",
+            question_pt="O que mede?",
+            answer_pt="PM2.5 e PM10.",
+        )
+
+    def test_returns_categories_with_all_languages(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+        body = response.json()
+        self.assertEqual(len(body), 1)
+        # `id` is the slug, not the primary key: the public page uses it as an
+        # anchor, so it must not change when rows are recreated.
+        self.assertEqual(body[0]["id"], "sensor")
+        self.assertEqual(
+            body[0]["label"],
+            {"es": "El sensor", "en": "The sensor", "pt": "O sensor"},
+        )
+        question = body[0]["questions"][0]
+        self.assertEqual(question["q"]["en"], "What does it measure?")
+        self.assertEqual(question["a"]["pt"], "PM2.5 e PM10.")
+
+    def test_untranslated_fields_fall_back_to_spanish(self):
+        FaqQuestion.objects.create(
+            category=self.category,
+            order=1,
+            question_es="¿Necesita mantenimiento?",
+            answer_es="Sí, mantenimiento preventivo.",
+        )
+
+        question = self.client.get(self.url).json()[0]["questions"][1]
+        for lang in ("es", "en", "pt"):
+            self.assertEqual(question["q"][lang], "¿Necesita mantenimiento?")
+            self.assertEqual(question["a"][lang], "Sí, mantenimiento preventivo.")
+
+    def test_unpublished_rows_are_hidden(self):
+        hidden_question = FaqQuestion.objects.create(
+            category=self.category,
+            order=2,
+            question_es="Borrador",
+            answer_es="Sin publicar.",
+            is_published=False,
+        )
+        hidden_category = FaqCategory.objects.create(
+            slug="draft", order=2, label_es="Borrador", is_published=False
+        )
+        FaqQuestion.objects.create(
+            category=hidden_category, order=0, question_es="X", answer_es="Y"
+        )
+
+        body = self.client.get(self.url).json()
+        self.assertEqual([c["id"] for c in body], ["sensor"])
+        questions = [q["q"]["es"] for q in body[0]["questions"]]
+        self.assertNotIn(hidden_question.question_es, questions)
+
+    def test_ordering_follows_order_field(self):
+        first = FaqCategory.objects.create(
+            slug="project", order=0, label_es="Proyecto Respira"
+        )
+        FaqQuestion.objects.create(
+            category=first, order=1, question_es="Segunda", answer_es="."
+        )
+        FaqQuestion.objects.create(
+            category=first, order=0, question_es="Primera", answer_es="."
+        )
+
+        body = self.client.get(self.url).json()
+        self.assertEqual([c["id"] for c in body], ["project", "sensor"])
+        self.assertEqual(
+            [q["q"]["es"] for q in body[0]["questions"]], ["Primera", "Segunda"]
+        )
+
+    def test_answers_preserve_newlines_and_bullets(self):
+        FaqQuestion.objects.create(
+            category=self.category,
+            order=3,
+            question_es="¿Qué incluye?",
+            answer_es="Incluye:\n• Instalación.\n• Soporte.",
+        )
+        answers = [
+            q["a"]["es"] for q in self.client.get(self.url).json()[0]["questions"]
+        ]
+        self.assertIn("Incluye:\n• Instalación.\n• Soporte.", answers)
+
+    def test_endpoint_is_public(self):
+        # No credentials are set on self.client; the feed must still answer.
+        self.assertEqual(self.client.get(self.url).status_code, 200)
+
+
+class FaqSeedMigrationTests(TestCase):
+    """The seed migration should leave the FAQ populated on a fresh database."""
+
+    def test_seed_populated_the_faq(self):
+        self.assertEqual(FaqCategory.objects.count(), 6)
+        self.assertEqual(FaqQuestion.objects.count(), 31)
+        self.assertEqual(
+            list(FaqCategory.objects.order_by("order").values_list("slug", flat=True)),
+            ["project", "air-quality", "sensor", "leasing", "alerts", "privacy"],
+        )
