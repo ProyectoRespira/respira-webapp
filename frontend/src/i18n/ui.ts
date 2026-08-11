@@ -190,6 +190,29 @@ const es = {
   "resources.external.who": "(OMS) Organización Mundial de la Salud",
   "resources.external.aireLibre": "Aire Libre",
 
+  // FAQ (recursos). The questions themselves live in `data/faq.ts`.
+  "faq.badge": "Sensor Leasing",
+  "faq.heroImageAlt":
+    "Sensor de calidad del aire de Proyecto Respira, con su panel solar y el logo respira",
+  "faq.title": "Preguntas Frecuentes",
+  "faq.subtitle":
+    "Respondemos las dudas más comunes sobre el alquiler de sensores de calidad del aire: costos, instalación, mantenimiento y cómo tu institución puede empezar a monitorear hoy.",
+  "faq.nav.label": "Categorías de preguntas frecuentes",
+  "faq.search.label": "Buscar en preguntas frecuentes",
+  "faq.search.placeholder": "Buscar en preguntas frecuentes...",
+  // {q} is replaced with the text the visitor typed.
+  "faq.search.empty": 'No encontramos preguntas que coincidan con "{q}".',
+  // {n} is replaced with the number of matches.
+  "faq.search.results.one": "1 pregunta encontrada",
+  "faq.search.results.many": "{n} preguntas encontradas",
+  "faq.edu.title": "Aprendé lo esencial",
+  "faq.edu.subtitle":
+    "Contenido educativo sobre calidad del aire, pensado para escuelas y familias.",
+  "faq.cta.title": "¿Todavía tenés preguntas?",
+  "faq.cta.subtitle":
+    "Nuestro equipo puede ayudarte a evaluar si Sensor Leasing es la opción correcta para tu institución.",
+  "faq.cta.primary": "Solicitar información",
+  "faq.cta.secondary": "Agendar demo",
   // Alerts (alertas)
   "alerts.goToMap": "Ir al mapa",
 
@@ -466,6 +489,26 @@ const en: Dictionary = {
   "resources.external.who": "(WHO) World Health Organization",
   "resources.external.aireLibre": "Aire Libre",
 
+  "faq.badge": "Sensor Leasing",
+  "faq.heroImageAlt":
+    "Proyecto Respira air quality sensor, showing its solar panel and the respira logo",
+  "faq.title": "Frequently Asked Questions",
+  "faq.subtitle":
+    "We answer the most common questions about leasing air quality sensors: costs, installation, maintenance and how your institution can start monitoring today.",
+  "faq.nav.label": "Frequently asked question categories",
+  "faq.search.label": "Search the frequently asked questions",
+  "faq.search.placeholder": "Search the frequently asked questions...",
+  "faq.search.empty": 'We could not find any questions matching "{q}".',
+  "faq.search.results.one": "1 question found",
+  "faq.search.results.many": "{n} questions found",
+  "faq.edu.title": "Learn the essentials",
+  "faq.edu.subtitle":
+    "Educational content about air quality, made for schools and families.",
+  "faq.cta.title": "Still have questions?",
+  "faq.cta.subtitle":
+    "Our team can help you assess whether Sensor Leasing is the right fit for your institution.",
+  "faq.cta.primary": "Request information",
+  "faq.cta.secondary": "Schedule a demo",
   "alerts.goToMap": "Go to the map",
 
   "stats.title": "Statistics",
@@ -732,6 +775,26 @@ const pt: Dictionary = {
   "resources.external.who": "(OMS) Organização Mundial da Saúde",
   "resources.external.aireLibre": "Aire Libre",
 
+  "faq.badge": "Sensor Leasing",
+  "faq.heroImageAlt":
+    "Sensor de qualidade do ar do Proyecto Respira, com seu painel solar e o logo respira",
+  "faq.title": "Perguntas Frequentes",
+  "faq.subtitle":
+    "Respondemos às dúvidas mais comuns sobre o aluguel de sensores de qualidade do ar: custos, instalação, manutenção e como a sua instituição pode começar a monitorar hoje.",
+  "faq.nav.label": "Categorias de perguntas frequentes",
+  "faq.search.label": "Buscar nas perguntas frequentes",
+  "faq.search.placeholder": "Buscar nas perguntas frequentes...",
+  "faq.search.empty": 'Não encontramos perguntas que correspondam a "{q}".',
+  "faq.search.results.one": "1 pergunta encontrada",
+  "faq.search.results.many": "{n} perguntas encontradas",
+  "faq.edu.title": "Aprenda o essencial",
+  "faq.edu.subtitle":
+    "Conteúdo educativo sobre qualidade do ar, pensado para escolas e famílias.",
+  "faq.cta.title": "Ainda tem perguntas?",
+  "faq.cta.subtitle":
+    "Nossa equipe pode ajudar você a avaliar se o Sensor Leasing é a opção certa para a sua instituição.",
+  "faq.cta.primary": "Solicitar informações",
+  "faq.cta.secondary": "Agendar demonstração",
   "alerts.goToMap": "Ir para o mapa",
 
   "stats.title": "Estatísticas",

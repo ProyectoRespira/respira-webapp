@@ -1,86 +1,405 @@
 ---
+import { Image } from "astro:assets";
+
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Footer from "../components/atoms/Footer.astro";
 import BackTop from "../components/atoms/BackTop.astro";
-import { RESEARCH_PAPERS } from "../data/research";
-import Link from "../components/atoms/Link.astro";
-import Fiuna from "../assets/logos/fiuna_green.svg";
-import { Image } from "astro:assets";
-import { EXTERNAL_RESOURCES_IMAGES } from "../data/images";
 import Typography from "../components/atoms/Typography.astro";
+import SensorImage from "../assets/sensor.png";
+import { FAQ_EDU_CARDS, parseAnswer } from "../data/faq";
+import { getFaqCategories } from "../store/faq";
 import { getLangFromLocals, useTranslations } from "../i18n/utils";
 
-const t = useTranslations(getLangFromLocals(Astro.locals));
+// Built from design_handoff_faqs/. Categories and questions are edited in the
+// Django Admin; `getFaqCategories` caches them and falls back to the bundled
+// seed if the backend is unreachable, so this render never fails on their
+// account. The educational cards and the section headings stay in the codebase
+// (`data/faq.ts` and the `faq.*` keys in `i18n/ui.ts`) because they are part of
+// the page design, not editorial content.
+const lang = getLangFromLocals(Astro.locals);
+const t = useTranslations(lang);
+
+const faqCategories = await getFaqCategories();
+
+// Section horizontal padding, straight from the handoff's spacing tokens.
+const GUTTER = "px-[clamp(20px,5vw,64px)]";
+
+// Strings the search script needs at runtime, passed through `define:vars`.
+const searchStrings = {
+  one: t("faq.search.results.one"),
+  many: t("faq.search.results.many"),
+  empty: t("faq.search.empty"),
+};
 ---
 
 <BaseLayout>
+  <!-- HERO -->
   <section
-    class="grid md:grid-cols-2 grid-cols-1 md:p-20 p-12 gap-4 md:my-16 place-items-center"
+    class={`mx-auto grid max-w-[1100px] grid-cols-1 items-start gap-12 md:grid-cols-[1.3fr_1fr] ${GUTTER} pb-[clamp(32px,5vw,56px)] pt-[clamp(48px,8vw,88px)]`}
   >
-    <div class="md:col-span-1 sm:row-span-2 space-y-4 justify-stretch">
-      <Typography variant="h6">{t("resources.dataSourceLabel")}</Typography>
-      <Typography variant="h2">{t("resources.dataSourceTitle")}</Typography>
-      <Typography variant="p">{t("resources.dataSource.p1")}</Typography>
-      <Typography variant="p">{t("resources.dataSource.p2")}</Typography>
+    <div>
+      <p
+        class="inline-flex items-center gap-2 rounded-full bg-light_green px-[14px] py-1.5 font-sans text-[13px] font-semibold text-green_darker"
+      >
+        <span class="h-1.5 w-1.5 rounded-full bg-green_dark"></span>
+        {t("faq.badge")}
+      </p>
+      <Typography
+        variant="h1"
+        customClass="mt-5 mb-[18px] !text-[clamp(34px,5vw,52px)] !font-black !text-near_black leading-[1.1] tracking-[-0.01em]"
+      >
+        {t("faq.title")}
+      </Typography>
+      <Typography
+        variant="p"
+        color="gray"
+        customClass="max-w-[520px] !text-[18px] leading-[1.6]"
+      >
+        {t("faq.subtitle")}
+      </Typography>
     </div>
-    <div class="m-auto w-full h-full content-center justify-self-center">
-      <Image
-        alt=""
-        src={Fiuna}
-        loading="lazy"
-        class="md:min-w-80 m-auto mt-8 md:mt-0"
-      />
-    </div>
-  </section>
-  <section class="bg-black md:p-20 p-12 md:py-32 py-24">
-    <Typography variant="h2" color="white">
-      {t("resources.research.title")}
-    </Typography>
     {
-      RESEARCH_PAPERS.map((research) => (
-        <div class="py-6 md:max-w-[75%]">
-          <Link
-            text={research.title}
-            href={research.link}
-            customClass="text-lg text-white"
-            variant="light"
-          />
-          <Typography variant="p-sm" color="white" customClass="pt-2">
-            {research.authors}
-          </Typography>
+      /*
+      The sensor render's white backdrop was flood-filled to transparency, so it
+      sits directly on the page instead of inside a panel. Its housing is white
+      too, which is why the alpha had to be cut from the file rather than faked
+      with `mix-blend-multiply` — that would have tinted the product itself.
+      `order-first` on mobile keeps it above the heading; on desktop the grid
+      places it in the right column, as in the handoff.
+    */
+    }
+    <Image
+      src={SensorImage}
+      alt={t("faq.heroImageAlt")}
+      widths={[420, 700, 900]}
+      sizes="(min-width: 768px) 40vw, 100vw"
+      loading="eager"
+      class="order-first mx-auto h-auto w-full max-w-[420px] md:order-none"
+    />
+  </section>
+
+  <!-- SEARCH + CATEGORY QUICK NAV (sticky) -->
+  <div
+    class="sticky top-0 z-30 border-b border-bg-gray bg-base/95 backdrop-blur"
+  >
+    <div class={`mx-auto max-w-[1100px] ${GUTTER} pt-[14px]`}>
+      <div id="faq-search-box" data-requires-js class="relative max-w-[420px]">
+        <svg
+          class="pointer-events-none absolute left-[14px] top-1/2 h-[15px] w-[15px] -translate-y-1/2 text-lightgray"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          aria-hidden="true"
+        >
+          <circle cx="9" cy="9" r="6"></circle>
+          <path d="M13.5 13.5 18 18" stroke-linecap="round"></path>
+        </svg>
+        <input
+          id="faq-search"
+          type="search"
+          autocomplete="off"
+          placeholder={t("faq.search.placeholder")}
+          aria-label={t("faq.search.label")}
+          aria-controls="faq-sections"
+          class="w-full rounded-full border border-bg-gray bg-white py-[10px] pl-[38px] pr-[14px] font-sans text-sm text-near_black placeholder:text-lightgray focus:border-green_dark focus:outline-none focus:ring-2 focus:ring-green"
+        />
+      </div>
+    </div>
+    <nav
+      id="faq-chips"
+      aria-label={t("faq.nav.label")}
+      class={`mx-auto flex max-w-[1100px] gap-2.5 overflow-x-auto py-[14px] ${GUTTER}`}
+    >
+      {
+        faqCategories.map((category) => (
+          <a
+            href={`#${category.id}`}
+            data-chip-for={category.id}
+            class="shrink-0 whitespace-nowrap rounded-full bg-bg-gray px-4 py-[9px] font-sans text-sm font-semibold text-near_black transition-colors hover:bg-green focus:outline-none focus-visible:ring-2 focus-visible:ring-green"
+          >
+            {category.label[lang]}
+          </a>
+        ))
+      }
+    </nav>
+  </div>
+
+  <!-- FAQ SECTIONS -->
+  {
+    /*
+    Wider than the handoff's 840px so the accordion lines up with the hero, the
+    chip nav, the card grid and the CTA, which all sit at 1100px. The trade-off
+    is line length: at this width a long answer runs past the ~75 characters
+    that read comfortably. Most answers are only two or three lines, so filling
+    the card wins; cap the answer container if that ever stops being true.
+  */
+  }
+  <section
+    id="faq-sections"
+    class={`mx-auto max-w-[1100px] ${GUTTER} pb-2 pt-[clamp(40px,6vw,64px)]`}
+  >
+    <p
+      id="faq-empty"
+      hidden
+      role="status"
+      aria-live="polite"
+      class="py-6 text-center font-sans text-[15px] text-gray"
+    >
+    </p>
+    <p id="faq-search-status" class="sr-only" role="status" aria-live="polite">
+    </p>
+    {
+      faqCategories.map((category) => (
+        <div
+          id={category.id}
+          data-faq-category
+          class="mb-14 scroll-mt-[140px] last:mb-0"
+        >
+          <h2 class="mb-5 flex items-center gap-2.5 font-serif text-2xl font-bold tracking-[-0.01em] text-near_black">
+            <span class="h-2 w-2 shrink-0 rounded-sm bg-cyan" />
+            {category.label[lang]}
+          </h2>
+          <div class="flex flex-col gap-3">
+            {category.questions.map((item) => (
+              <details
+                data-faq-item
+                class="faq-item group rounded-2xl border border-bg-gray bg-white"
+              >
+                <summary class="flex min-h-[60px] cursor-pointer items-center justify-between gap-4 px-7 py-6 font-sans text-[17px] font-semibold text-near_black focus:outline-none focus-visible:ring-2 focus-visible:ring-green">
+                  <span>{item.q[lang]}</span>
+                  <span
+                    aria-hidden="true"
+                    class="inline-flex h-[26px] w-[26px] shrink-0 items-center justify-center text-xl font-semibold text-gray transition-transform duration-200 group-open:rotate-45 group-open:text-green_dark"
+                  >
+                    +
+                  </span>
+                </summary>
+                <div class="flex flex-col gap-2.5 px-7 pb-6 font-sans text-base leading-[1.7] text-gray">
+                  {parseAnswer(item.a[lang]).map((block) =>
+                    block.type === "p" ? (
+                      <p>{block.text}</p>
+                    ) : block.type === "ul" ? (
+                      <ul class="list-disc pl-5">
+                        {block.items.map((li) => (
+                          <li>{li}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <ol class="list-decimal pl-5">
+                        {block.items.map((li) => (
+                          <li>{li}</li>
+                        ))}
+                      </ol>
+                    ),
+                  )}
+                </div>
+              </details>
+            ))}
+          </div>
         </div>
       ))
     }
   </section>
-  <section class="flex flex-col md:p-20 p-16 gap-4 md:py-32 py-24">
-    <Typography variant="h2" customClass="pb-12"
-      >{t("resources.external.title")}</Typography
-    >
-    <div class="grid md:grid-cols-4 gap-10">
-      {
-        EXTERNAL_RESOURCES_IMAGES.map((resource) => (
-          <>
-            <a
-              class="flex flex-col md:my-4 justify-center"
-              href={resource.link}
-              target="_blank"
-            >
-              <Image alt={resource.alt} src={resource.path} loading="lazy" />
-            </a>
-            <a
-              class={`md:order-last mb-4 md:m-0`}
-              href={resource.link}
-              target="_blank"
-            >
-              <Typography variant="label" customClass="underline">
-                {t(resource.labelKey)}
-              </Typography>
-            </a>
-          </>
-        ))
-      }
+
+  <!-- EDUCATIONAL HUB -->
+  <section class="border-t border-bg-gray">
+    <div class={`mx-auto max-w-[1100px] ${GUTTER} py-14`}>
+      <div class="mx-auto mb-9 max-w-[560px] text-center">
+        <h2
+          class="mb-2.5 font-serif text-[28px] font-black tracking-[-0.01em] text-near_black"
+        >
+          {t("faq.edu.title")}
+        </h2>
+        <p class="font-sans text-[15px] leading-[1.6] text-gray">
+          {t("faq.edu.subtitle")}
+        </p>
+      </div>
+      <div
+        class="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-[18px]"
+      >
+        {
+          FAQ_EDU_CARDS.map((card) => (
+            <article class="flex flex-col gap-2.5 rounded-[14px] border border-bg-gray bg-white p-6">
+              <span class="flex h-9 w-9 items-center justify-center rounded-[9px] bg-light_green font-serif text-[13px] font-bold text-green_darker">
+                {card.mark}
+              </span>
+              <h3 class="mt-0.5 font-serif text-base font-bold text-near_black">
+                {card.title[lang]}
+              </h3>
+              <p class="font-sans text-sm leading-[1.55] text-gray">
+                {card.desc[lang]}
+              </p>
+            </article>
+          ))
+        }
+      </div>
     </div>
   </section>
+
+  <!-- FINAL CTA -->
+  <section class={`mx-auto max-w-[1100px] ${GUTTER} pb-[72px] pt-2`}>
+    <div
+      class="flex flex-wrap items-center justify-between gap-7 rounded-3xl bg-near_black p-[clamp(32px,6vw,56px)]"
+    >
+      <div class="max-w-[440px]">
+        <h2
+          class="mb-2.5 font-serif text-[28px] font-black tracking-[-0.01em] text-white"
+        >
+          {t("faq.cta.title")}
+        </h2>
+        <p class="font-sans text-[15px] leading-[1.6] text-lightgray">
+          {t("faq.cta.subtitle")}
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-3">
+        <a
+          href="/unete"
+          class="flex min-h-[44px] items-center rounded-[9px] bg-green px-[22px] py-[13px] font-sans text-sm font-bold text-near_black transition-colors hover:bg-light_green focus:outline-none focus-visible:ring-2 focus-visible:ring-green"
+        >
+          {t("faq.cta.primary")}
+        </a>
+        <a
+          href="/contacto"
+          class="flex min-h-[44px] items-center rounded-[9px] border-[1.5px] border-basedark px-[22px] py-[13px] font-sans text-sm font-bold text-white transition-colors hover:bg-basedark hover:text-near_black focus:outline-none focus-visible:ring-2 focus-visible:ring-green"
+        >
+          {t("faq.cta.secondary")}
+        </a>
+      </div>
+    </div>
+  </section>
+
   <BackTop />
   <Footer />
 </BaseLayout>
+
+<script is:inline define:vars={{ searchStrings }}>
+  // Client-side filtering over the server-rendered accordions. The questions are
+  // already in the DOM, so this needs no extra request and keeps working against
+  // whatever the admin last published.
+  //
+  // Progressive enhancement: the input starts hidden (see the <style> below) and
+  // is revealed only once this script runs, so a visitor without JavaScript is
+  // never shown a search box that would do nothing. Everything else on the page
+  // — the accordions, the category anchors — works without JavaScript either way.
+  const input = document.getElementById("faq-search");
+  const chipsNav = document.getElementById("faq-chips");
+  const empty = document.getElementById("faq-empty");
+  const status = document.getElementById("faq-search-status");
+
+  // Smooth-scroll the category chips. This can't be `scroll-behavior: smooth`
+  // in CSS: the page scrolls inside BaseLayout's overflow container, not the
+  // document, so the rule would have to live on an element this page doesn't
+  // own. `scrollIntoView` finds that scroller itself and honours the section's
+  // `scroll-mt`, which supplies the sticky-bar offset. Without JavaScript the
+  // anchors still work — they just jump instead of gliding.
+  chipsNav?.addEventListener("click", (event) => {
+    const chip = event.target.closest("[data-chip-for]");
+    if (!chip) return;
+    const target = document.getElementById(chip.dataset.chipFor);
+    if (!target) return;
+    event.preventDefault();
+    target.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+      block: "start",
+    });
+    // Keep the anchor in the URL so the position stays shareable.
+    history.replaceState(null, "", `#${chip.dataset.chipFor}`);
+  });
+
+  if (input) {
+    document
+      .getElementById("faq-search-box")
+      ?.removeAttribute("data-requires-js");
+
+    // Accent-insensitive: searching "instalacion" must match "instalación",
+    // which matters in all three of the site's languages.
+    const normalize = (value) =>
+      value
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .toLowerCase();
+
+    const categories = [
+      ...document.querySelectorAll("[data-faq-category]"),
+    ].map((element) => ({
+      element,
+      chip: chipsNav?.querySelector(`[data-chip-for="${element.id}"]`),
+      items: [...element.querySelectorAll("[data-faq-item]")].map((item) => ({
+        element: item,
+        // Precomputed once: the text never changes after render.
+        haystack: normalize(item.textContent || ""),
+      })),
+    }));
+
+    const apply = (rawQuery) => {
+      const trimmed = rawQuery.trim();
+      const query = normalize(trimmed);
+      let matches = 0;
+
+      for (const category of categories) {
+        let visibleInCategory = 0;
+
+        for (const item of category.items) {
+          const isMatch = query === "" || item.haystack.includes(query);
+          item.element.hidden = !isMatch;
+          // Open matches while searching so the answer is visible without a
+          // second click; collapse everything again when the query is cleared.
+          item.element.open = query !== "" && isMatch;
+          if (isMatch) visibleInCategory += 1;
+        }
+
+        matches += visibleInCategory;
+        // Categories with zero matches are hidden entirely, and so is the chip
+        // that points at them — it would otherwise scroll nowhere.
+        category.element.hidden = visibleInCategory === 0;
+        if (category.chip) category.chip.hidden = visibleInCategory === 0;
+      }
+
+      const noResults = query !== "" && matches === 0;
+      empty.hidden = !noResults;
+      empty.textContent = noResults
+        ? searchStrings.empty.replace("{q}", trimmed)
+        : "";
+
+      // Silent when there are no results: the visible message is itself a live
+      // region, and announcing both would read the failure out twice.
+      status.textContent =
+        query === "" || noResults
+          ? ""
+          : matches === 1
+            ? searchStrings.one
+            : searchStrings.many.replace("{n}", String(matches));
+    };
+
+    input.addEventListener("input", () => apply(input.value));
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        input.value = "";
+        apply("");
+      }
+    });
+
+    // Restore state on bfcache navigation, where the input keeps its value.
+    if (input.value) apply(input.value);
+  }
+</script>
+
+<style>
+  /* The accordion is a native <details>, so it stays keyboard-accessible,
+     findable with the browser's search and open-able without JavaScript.
+     These rules only drop the default disclosure triangle. */
+  .faq-item > summary {
+    list-style: none;
+  }
+  .faq-item > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  /* Hidden until the search script enables it — see the comment there. */
+  [data-requires-js] {
+    display: none;
+  }
+</style>
