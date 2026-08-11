@@ -1,0 +1,56 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate "Home" %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<p class="help">{{ dbt_run_notice }}</p>
+
+<p>
+  A station override will be recorded as <strong>{{ action_label }}</strong> under
+  each station code below. The <code>stations</code> table itself is not modified.
+</p>
+
+<p>{{ action_explanation }}</p>
+
+<ul>
+  {% for station in selection %}
+    <li>{{ station }} — <code>{{ station.station_code }}</code></li>
+  {% endfor %}
+</ul>
+
+<form method="post">{% csrf_token %}
+  {% if form.errors %}
+    <p class="errornote">Please correct the error below.</p>
+  {% endif %}
+
+  <fieldset class="module aligned">
+    <div class="form-row{% if form.note.errors %} errors{% endif %}">
+      {{ form.note.errors }}
+      <div>
+        <label class="required" for="{{ form.note.id_for_label }}">{{ form.note.label }}:</label>
+        {{ form.note }}
+        <div class="help">{{ form.note.help_text }}</div>
+      </div>
+    </div>
+  </fieldset>
+
+  {% for station in selection %}
+    <input type="hidden" name="{{ action_checkbox_name }}" value="{{ station.pk }}">
+  {% endfor %}
+  <input type="hidden" name="action" value="{{ action }}">
+  <input type="hidden" name="confirm" value="yes">
+
+  <div class="submit-row">
+    <input type="submit" class="default" value="Yes, record as {{ action_label }}">
+    <a href="{% url opts|admin_urlname:'changelist' %}" class="button cancel-link">{% translate "No, take me back" %}</a>
+  </div>
+</form>
+{% endblock %}
