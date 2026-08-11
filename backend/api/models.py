@@ -72,6 +72,11 @@ class Regions(models.Model):
 
 class Stations(models.Model):
     name = models.CharField(max_length=255)
+    # The pipeline's stable natural key (``dim_stations.code``), exposed on the
+    # gold table so operational records can address a station by something that
+    # survives a rebuild — ``id`` comes from a ``row_number()`` in dbt and shifts
+    # whenever a station is added. Written by dbt, never by the backend.
+    station_code = models.CharField(max_length=255, blank=True, default="")
     region = models.ForeignKey(
         "Regions", on_delete=models.DO_NOTHING, blank=True, null=True
     )
@@ -151,7 +156,19 @@ class StationOverride(models.Model):
 
     ``processed`` is set by the pipeline once it has picked the change up, so it
     is system-managed and read-only in the admin.
+
+    ``field``/``value`` are deliberately free-form so any station column can be
+    overridden. The activate/deactivate workflow is one such override, pinned to
+    ``STATUS_FIELD`` with a :class:`Status` value — hence the constants rather
+    than ``choices`` on the field itself.
     """
+
+    # The station column the activate/deactivate workflow overrides.
+    STATUS_FIELD = "is_station_on"
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        INACTIVE = "inactive", "Inactive"
 
     station_code = models.CharField(max_length=255, db_index=True)
     field = models.CharField(max_length=255)
