@@ -103,6 +103,12 @@ class StationOverrideModelTests(TestCase):
     """StationOverride replaces station_status_seed.csv, whose rows were
     ``station_code,status,note`` — the same shape this model persists."""
 
+    def setUp(self):
+        # Migration 0006 seeds the three stations that the CSV held off. Clear
+        # them so each test asserts only on the rows it creates; the seeding
+        # itself is covered by tests_station_migrations.
+        StationOverride.objects.all().delete()
+
     def test_every_documented_field_persists(self):
         override = StationOverride.objects.create(
             station_code="mades_open_ic08p0002",

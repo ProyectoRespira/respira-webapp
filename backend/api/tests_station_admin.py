@@ -6,11 +6,14 @@ the station page, and the StationOverride module.
 """
 
 from django.contrib import admin
+from django.contrib.admin import helpers
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
+from django.contrib.messages import get_messages
 from django.test import TestCase
 from django.urls import reverse
 
-from .admin import StationDetailsInline
+from .admin import DBT_RUN_NOTICE, StationDetailsInline
 from .models import Regions, StationDetails, StationOverride, Stations
 
 User = get_user_model()
@@ -64,10 +67,17 @@ class StationAdminTests(TestCase):
         response = self.client.get(self.changelist_url)
 
         self.assertEqual(response.status_code, 200)
-        # No action checkbox: stations cannot be deleted in bulk from here.
+        # The action checkbox comes from the activate/deactivate actions; bulk
+        # delete is still unavailable, since stations cannot be deleted at all.
         self.assertEqual(
             list(response.context["cl"].list_display),
-            ["name", "region", "is_station_on", "is_pattern_station"],
+            [
+                "action_checkbox",
+                "name",
+                "region",
+                "is_station_on",
+                "is_pattern_station",
+            ],
         )
         self.assertContains(response, "Respira: Villa Morra")
         # Regions render by name rather than as "Regions object (1)".
@@ -205,12 +215,207 @@ class StationAdminTests(TestCase):
         self.assertEqual(Stations.objects.count(), 2)
 
 
+class StationStatusOverrideActionTests(TestCase):
+    """Activate / Deactivate on the station changelist.
+
+    A station's status is owned by the dbt pipeline, so these actions only
+    record the operator's decision as a StationOverride: `stations` is never
+    written, and the operator is told a dbt run is needed for it to land.
+    """
+
+    def setUp(self):
+        self.superuser = User.objects.create_superuser(
+            email="admin@example.com", password="pw-Str0ng!42"
+        )
+        self.client.force_login(self.superuser)
+
+        # Migration 0006 seeds the three stations that station_status_seed.csv
+        # held off. Clear them so each test asserts only on the rows it creates;
+        # the seeding itself is covered by tests_station_migrations.
+        StationOverride.objects.all().delete()
+
+        self.region = Regions.objects.create(name="Gran Asunción", region_code="GA")
+        self.station = Stations.objects.create(
+            name="Respira: Villa Morra",
+            station_code="airelibre_d87553",
+            region=self.region,
+            is_station_on=True,
+        )
+        self.changelist_url = reverse("admin:api_stations_changelist")
+
+    def _post(self, action, confirm=False, note=None, stations=None):
+        payload = {
+            "action": action,
+            helpers.ACTION_CHECKBOX_NAME: [
+                str(station.pk) for station in (stations or [self.station])
+            ],
+        }
+        if confirm:
+            payload["confirm"] = "yes"
+        if note is not None:
+            payload["note"] = note
+        return self.client.post(self.changelist_url, payload)
+
+    def _messages(self, response):
+        return [str(message) for message in get_messages(response.wsgi_request)]
+
+    def test_both_actions_are_offered_on_the_changelist(self):
+        response = self.client.get(self.changelist_url)
+
+        self.assertEqual(
+            sorted(response.context["action_form"].fields["action"].choices)[1:],
+            [
+                ("activate_stations", "Activate selected stations"),
+                ("deactivate_stations", "Deactivate selected stations"),
+            ],
+        )
+
+    def test_deactivating_asks_for_confirmation_before_changing_anything(self):
+        response = self._post("deactivate_stations")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Respira: Villa Morra")
+        self.assertContains(response, "airelibre_d87553")
+        self.assertContains(response, DBT_RUN_NOTICE)
+        # Nothing is written until the operator confirms.
+        self.assertFalse(StationOverride.objects.exists())
+
+    def test_the_confirmation_page_explains_what_each_action_does(self):
+        # `is_station_on` is derived by the pipeline from the source status *and*
+        # recent readings, so an override can hold a station off but cannot bring
+        # a silent one back. The operator has to be told which is about to happen.
+        deactivating = self._post("deactivate_stations")
+        self.assertContains(deactivating, "will be held inactive")
+
+        activating = self._post("activate_stations")
+        self.assertContains(activating, "The forced shutdown is lifted")
+        self.assertContains(
+            activating, "does not bring back a sensor that stopped reporting"
+        )
+
+    def test_deactivating_records_an_override(self):
+        response = self._post(
+            "deactivate_stations", confirm=True, note="Sensor retired from the site"
+        )
+
+        override = StationOverride.objects.get(station_code="airelibre_d87553")
+        self.assertEqual(override.field, StationOverride.STATUS_FIELD)
+        self.assertEqual(override.value, StationOverride.Status.INACTIVE)
+        self.assertEqual(override.note, "Sensor retired from the site")
+        # Unprocessed, so the next pipeline run picks it up.
+        self.assertFalse(override.processed)
+        self.assertRedirects(response, self.changelist_url)
+
+    def test_activating_records_an_override(self):
+        self._post("activate_stations", confirm=True, note="Back online after repair")
+
+        override = StationOverride.objects.get(station_code="airelibre_d87553")
+        self.assertEqual(override.field, StationOverride.STATUS_FIELD)
+        self.assertEqual(override.value, StationOverride.Status.ACTIVE)
+
+    def test_reactivating_updates_the_existing_override(self):
+        self._post("deactivate_stations", confirm=True, note="Sensor retired")
+        StationOverride.objects.update(processed=True)
+
+        self._post("activate_stations", confirm=True, note="Back online after repair")
+
+        # One row per station and field, rewritten in place — not a second row
+        # the pipeline would have to disambiguate.
+        override = StationOverride.objects.get(station_code="airelibre_d87553")
+        self.assertEqual(StationOverride.objects.count(), 1)
+        self.assertEqual(override.value, StationOverride.Status.ACTIVE)
+        self.assertEqual(override.note, "Back online after repair")
+        self.assertFalse(override.processed)
+
+    def test_the_reason_is_mandatory(self):
+        response = self._post("deactivate_stations", confirm=True, note="   ")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFormError(
+            response.context["form"], "note", "This field is required."
+        )
+        self.assertFalse(StationOverride.objects.exists())
+
+    def test_a_successful_operation_reports_the_dbt_run_requirement(self):
+        response = self._post(
+            "deactivate_stations", confirm=True, note="Sensor retired"
+        )
+
+        self.assertIn(DBT_RUN_NOTICE, self._messages(response))
+
+    def test_the_stations_table_is_never_written(self):
+        self._post("deactivate_stations", confirm=True, note="Sensor retired")
+
+        self.station.refresh_from_db()
+        self.assertTrue(self.station.is_station_on)
+
+    def test_a_station_without_a_code_cannot_be_overridden(self):
+        # Only possible before the pipeline has rebuilt `stations` with the
+        # station_code column.
+        unmapped = Stations.objects.create(name="MADES: Costanera", region=self.region)
+
+        response = self._post("deactivate_stations", stations=[self.station, unmapped])
+
+        # The whole selection is refused: applying it to part of it would leave
+        # the operator with no indication that a station was skipped.
+        self.assertRedirects(response, self.changelist_url)
+        self.assertFalse(StationOverride.objects.exists())
+        self.assertIn(
+            "No station code on: MADES: Costanera. The pipeline sets it; wait "
+            "for the next dbt run.",
+            self._messages(response),
+        )
+
+    def test_several_stations_are_overridden_at_once(self):
+        other = Stations.objects.create(
+            name="MADES: Costanera",
+            station_code="mades_open_ic08p0002",
+            region=self.region,
+        )
+
+        self._post(
+            "deactivate_stations",
+            confirm=True,
+            note="Network maintenance",
+            stations=[self.station, other],
+        )
+
+        self.assertEqual(
+            sorted(StationOverride.objects.values_list("station_code", flat=True)),
+            ["airelibre_d87553", "mades_open_ic08p0002"],
+        )
+
+    def test_the_actions_require_permission_to_write_overrides(self):
+        viewer = User.objects.create_user(
+            email="viewer@example.com", password="pw-Str0ng!42", is_staff=True
+        )
+        viewer.user_permissions.add(
+            *Permission.objects.filter(
+                codename__in=("view_stations", "view_stationoverride")
+            )
+        )
+        self.client.force_login(viewer)
+
+        # No actions are offered at all, and posting one anyway writes nothing.
+        response = self.client.get(self.changelist_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context["action_form"])
+
+        self._post("deactivate_stations", confirm=True, note="Sensor retired")
+        self.assertFalse(StationOverride.objects.exists())
+
+
 class StationOverrideAdminTests(TestCase):
     def setUp(self):
         self.superuser = User.objects.create_superuser(
             email="admin@example.com", password="pw-Str0ng!42"
         )
         self.client.force_login(self.superuser)
+
+        # Migration 0006 seeds the three stations that station_status_seed.csv
+        # held off. Clear them so each test asserts only on the rows it creates;
+        # the seeding itself is covered by tests_station_migrations.
+        StationOverride.objects.all().delete()
 
         self.override = StationOverride.objects.create(
             station_code="airelibre_d87553",

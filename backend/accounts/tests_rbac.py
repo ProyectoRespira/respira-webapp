@@ -162,18 +162,16 @@ class ReadOnlyAdminEnforcementTests(TestCase):
 
     def test_station_own_fields_are_never_editable(self):
         # Whatever the role, none of the dbt-written columns can be edited: the
-        # admin exposes them all as read-only.
-        self.assertEqual(
-            set(self.stations_admin.readonly_fields),
-            {
-                "name",
-                "region",
-                "latitude",
-                "longitude",
-                "is_station_on",
-                "is_pattern_station",
-            },
-        )
+        # admin exposes them all as read-only. Derived from the model rather
+        # than hard-coded, so a column added to `stations` by the pipeline can't
+        # quietly land as editable.
+        editable = {
+            field.name
+            for field in Stations._meta.concrete_fields
+            if not field.primary_key
+        }
+
+        self.assertEqual(set(self.stations_admin.readonly_fields), editable)
 
     def test_view_permission_follows_role_matrix(self):
         viewer = self._user_with_role("viewer", "viewer@example.com")

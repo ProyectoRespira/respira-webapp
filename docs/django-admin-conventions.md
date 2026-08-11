@@ -193,6 +193,50 @@ new record" form) should show the minimum required to create the record —
 see `UserAdmin.add_fieldsets`, which only asks for `email` +
 `password1`/`password2`.
 
+## Actions that change operational state
+
+Bulk actions that change how the platform behaves (today: **Activate** /
+**Deactivate** on `StationsViewer`) must confirm before they write, and must
+capture *why*. The pattern follows Django's own `delete_selected`:
+
+1. The action calls a shared handler that **returns a `TemplateResponse`** the
+   first time round — a confirmation page listing the affected records, with a
+   required reason field and a note about what the change does *not* do yet.
+2. The page posts back to the changelist with the same `action` and
+   `_selected_action` values plus a `confirm` flag, so Django re-dispatches the
+   same action.
+3. On that second pass the handler validates the reason, writes, calls
+   `message_user` and **returns `None`**, which sends the operator back to the
+   changelist with the messages rendered as banners.
+
+```python
+@admin.action(description="Deactivate selected stations", permissions=["override"])
+def deactivate_stations(self, request, queryset):
+    return self._override_status(request, queryset, StationOverride.Status.INACTIVE)
+```
+
+Two rules:
+
+- **Gate the action on the permission of the model it writes**, via
+  `permissions=["<name>"]` + a matching `has_<name>_permission` method — not on
+  the permission of the model being listed. The station actions write
+  `StationOverride`, so they require `add_stationoverride` /
+  `change_stationoverride`, even though `Stations` grants nobody write access.
+- **Refuse the whole selection** when any record can't be acted on, rather than
+  applying the change to part of it. A partial success that looks like a full
+  one is worse than an error.
+
+### Deferred effects must be stated in the UI
+
+When an admin write only takes effect through another system, say so on the
+confirmation page *and* in a message after the operation. `api/admin.py` keeps
+those strings in module constants so the two uses can't drift:
+
+```python
+DBT_RUN_NOTICE = "Changes to station status require a dbt run to take effect."
+STATUS_EXPLANATION = {...}   # what each action actually does downstream
+```
+
 ## Branding
 
 Admin-wide branding is set once, globally, in `accounts/admin.py` — new
@@ -231,6 +275,8 @@ modules.
 - [ ] `ordering` is explicit.
 - [ ] `readonly_fields` covers any system-managed fields.
 - [ ] `fieldsets` group fields by concern (if the model has more than ~5 fields).
+- [ ] Any action that changes operational state confirms first, captures a
+      reason, and is gated on the permission of the model it writes.
 - [ ] Add the model's permissions to `ROLE_GROUP_PERMISSIONS` in
       `accounts/permissions.py` if it should be restricted per role, then run
       `python manage.py sync_roles`.
