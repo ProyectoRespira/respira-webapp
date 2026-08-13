@@ -143,6 +143,77 @@ class StationDetails(models.Model):
         return f"Details for {self.station.name}"
 
 
+class Institution(models.Model):
+    """A client organization in the Sensor Leasing program.
+
+    Admin-owned, like ``StationDetails``: created and edited from the Django
+    Admin, independent of the dbt-managed ``stations``/``regions`` tables.
+    """
+
+    legal_name = models.CharField(max_length=255)
+    display_name = models.CharField(max_length=255, blank=True)
+    institution_type = models.CharField(max_length=100, blank=True)
+    contact_name = models.CharField(max_length=255, blank=True)
+    contact_email = models.EmailField(blank=True)
+    contact_phone = models.CharField(max_length=50, blank=True)
+    address = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=255, blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "institution"
+
+    def __str__(self):
+        return self.display_name or self.legal_name
+
+
+class InstitutionContract(models.Model):
+    """The leasing contract binding an :class:`Institution` to a station.
+
+    ``institution`` is OneToOne so an institution has at most one contract.
+    ``station`` mirrors :class:`StationDetails`: a plain ``OneToOneField`` with
+    ``db_constraint=False``, since dbt drops and recreates ``stations`` on
+    every gold run and a physical FOREIGN KEY would not survive that. The
+    relationship (and its unique index) is enforced at the Django level, which
+    is what guarantees a station is bound to at most one contract.
+    """
+
+    class ContractStatus(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        ACTIVE = "active", "Active"
+        EXPIRED = "expired", "Expired"
+        CANCELLED = "cancelled", "Cancelled"
+
+    institution = models.OneToOneField(
+        "Institution", on_delete=models.CASCADE, related_name="contract"
+    )
+    station = models.OneToOneField(
+        "Stations",
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        related_name="institution_contract",
+    )
+    contract_status = models.CharField(
+        max_length=20,
+        choices=ContractStatus.choices,
+        default=ContractStatus.DRAFT,
+    )
+    start_date = models.DateField()
+    end_date = models.DateField(blank=True, null=True)
+    monthly_fee = models.DecimalField(
+        max_digits=10, decimal_places=2, blank=True, null=True
+    )
+    signed_contract_url = models.URLField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "institution_contract"
+
+    def __str__(self):
+        return f"{self.institution} — {self.station.name}"
+
+
 class StationOverride(models.Model):
     """An operational override of a station field, editable from the admin.
 
