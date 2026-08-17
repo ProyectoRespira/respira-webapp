@@ -46,5 +46,7 @@ class IsOwnInstitution(BasePermission):
         institution = get_institution_for_user(request.user)
         if institution is None:
             return False
-        target = obj if isinstance(obj, Institution) else getattr(obj, "institution", None)
+        target = (
+            obj if isinstance(obj, Institution) else getattr(obj, "institution", None)
+        )
         return target is not None and target.id == institution.id

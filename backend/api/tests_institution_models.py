@@ -213,9 +213,7 @@ class InstitutionUserModelTests(TestCase):
             password="S3ed!Pass99",
         )
         InstitutionUser.objects.create(user=self.user, institution=self.institution)
-        InstitutionUser.objects.create(
-            user=second_user, institution=self.institution
-        )
+        InstitutionUser.objects.create(user=second_user, institution=self.institution)
 
         self.assertEqual(
             InstitutionUser.objects.filter(institution=self.institution).count(), 2
@@ -235,9 +233,7 @@ class InstitutionUserModelTests(TestCase):
             user=self.user, institution=self.institution
         )
 
-        self.assertEqual(
-            str(link), f"{self.user} → {self.institution}"
-        )
+        self.assertEqual(str(link), f"{self.user} → {self.institution}")
 
     def test_resolver_returns_the_linked_institution(self):
         InstitutionUser.objects.create(user=self.user, institution=self.institution)
