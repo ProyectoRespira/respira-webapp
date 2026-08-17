@@ -10,6 +10,8 @@ from .forms import StationStatusOverrideForm
 from .models import (
     FaqCategory,
     FaqQuestion,
+    Institution,
+    InstitutionContract,
     Regions,
     StationDetails,
     StationOverride,
@@ -345,6 +347,59 @@ class FaqQuestionAdmin(RoleBasedModelAdmin):
         if not missing:
             return "—"
         return ", ".join(lang.upper() for lang in sorted(missing))
+
+
+@admin.register(Institution)
+class InstitutionAdmin(RoleBasedModelAdmin):
+    """Client organizations in the Sensor Leasing program."""
+
+    list_display = ("legal_name", "display_name", "institution_type", "city")
+    list_filter = ("institution_type", "city")
+    search_fields = ("legal_name", "display_name", "contact_name", "contact_email")
+    ordering = ("legal_name",)
+    fieldsets = (
+        (None, {"fields": ("legal_name", "display_name", "institution_type")}),
+        (
+            "Contact",
+            {"fields": ("contact_name", "contact_email", "contact_phone")},
+        ),
+        ("Location", {"fields": ("address", "city")}),
+        ("Notes", {"fields": ("notes",)}),
+    )
+
+
+@admin.register(InstitutionContract)
+class InstitutionContractAdmin(RoleBasedModelAdmin):
+    """Leasing contracts binding an Institution to a station.
+
+    ``institution`` and ``station`` are each OneToOne, so the admin's own
+    unique index (not custom validation) is what prevents an institution or a
+    station from being attached to more than one contract.
+    """
+
+    list_display = (
+        "institution",
+        "station",
+        "contract_status",
+        "start_date",
+        "end_date",
+        "monthly_fee",
+    )
+    list_filter = ("contract_status",)
+    search_fields = (
+        "institution__legal_name",
+        "institution__display_name",
+        "station__name",
+    )
+    ordering = ("-start_date",)
+    autocomplete_fields = ("institution", "station")
+    readonly_fields = ("created_at", "updated_at")
+    fieldsets = (
+        (None, {"fields": ("institution", "station", "contract_status")}),
+        ("Term", {"fields": ("start_date", "end_date", "monthly_fee")}),
+        ("Document", {"fields": ("signed_contract_url",)}),
+        ("Audit", {"fields": ("created_at", "updated_at")}),
+    )
 
 
 @admin.register(StationOverride)
