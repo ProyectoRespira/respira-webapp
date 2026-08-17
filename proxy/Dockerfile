@@ -1,4 +1,4 @@
-FROM nginx:1.27-alpine AS base
+FROM nginx:1.31-alpine AS base
 
 COPY --chmod=0755 entrypoint.sh /entrypoint.sh
 CMD ["/bin/sh", "-c", "/entrypoint.sh"]
