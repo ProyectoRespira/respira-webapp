@@ -3,6 +3,7 @@ import { z } from "astro:schema";
 import { Resend } from "resend";
 import { Email } from "../components/react/ContactEmail";
 import { JoinEmail } from "../components/react/JoinNetworkEmail";
+import { INSTITUTION_TYPES } from "../data/leasing";
 import { getRequiredRuntimeEnv, normalizeSiteUrl } from "../runtime-env";
 
 const resend = new Resend(getRequiredRuntimeEnv("SMTP_KEY"));
@@ -42,16 +43,6 @@ const sendMail = async (values: EmailInput) => {
   return data;
 };
 
-// Interest types offered on the "Únete a la red" form. Keys are stable and
-// language-independent; the email template maps them to readable labels.
-export const INTEREST_TYPES = [
-  "institution",
-  "home",
-  "community",
-  "ngo",
-  "other",
-] as const;
-
 const joinInput = z.object({
   name: z.string().trim().min(1),
   email: z.string().trim().email(),
@@ -59,7 +50,10 @@ const joinInput = z.object({
   organization: z.string().trim().optional(),
   city: z.string().trim().min(1),
   department: z.string().trim().optional(),
-  interestType: z.enum(INTEREST_TYPES),
+  institutionType: z.enum(INSTITUTION_TYPES),
+  // The two qualifying answers the commercial team needs to size a proposal.
+  size: z.string().trim().min(1),
+  approver: z.string().trim().optional(),
   message: z.string().trim().max(500).optional(),
   consent: z.literal("on"),
 });
