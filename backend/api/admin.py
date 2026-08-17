@@ -12,6 +12,7 @@ from .models import (
     FaqQuestion,
     Institution,
     InstitutionContract,
+    InstitutionUser,
     Regions,
     StationDetails,
     StationOverride,
@@ -349,6 +350,21 @@ class FaqQuestionAdmin(RoleBasedModelAdmin):
         return ", ".join(lang.upper() for lang in sorted(missing))
 
 
+class InstitutionUserInline(admin.TabularInline):
+    """Users granted access to this institution's private dashboard.
+
+    Lives on the Institution page rather than as its own changelist — an
+    institution-user link only makes sense in the context of its institution,
+    same reasoning as ``StationDetailsInline`` on the station page.
+    """
+
+    model = InstitutionUser
+    extra = 1
+    autocomplete_fields = ("user",)
+    verbose_name = "Dashboard user"
+    verbose_name_plural = "Dashboard users"
+
+
 @admin.register(Institution)
 class InstitutionAdmin(RoleBasedModelAdmin):
     """Client organizations in the Sensor Leasing program."""
@@ -357,6 +373,7 @@ class InstitutionAdmin(RoleBasedModelAdmin):
     list_filter = ("institution_type", "city")
     search_fields = ("legal_name", "display_name", "contact_name", "contact_email")
     ordering = ("legal_name",)
+    inlines = (InstitutionUserInline,)
     fieldsets = (
         (None, {"fields": ("legal_name", "display_name", "institution_type")}),
         (

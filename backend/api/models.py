@@ -214,6 +214,44 @@ class InstitutionContract(models.Model):
         return f"{self.institution} — {self.station.name}"
 
 
+class InstitutionUser(models.Model):
+    """Grants a platform user access to a single Institution's private dashboard.
+
+    Additive, mirroring ``UserProfile``: kept separate from ``accounts.User``
+    instead of adding a field there, so this feature deploys without a
+    migration on the core auth model. ``user`` is OneToOne — a user reaches at
+    most one institution's data — while ``institution`` is a plain FK, since an
+    institution may have more than one contact with dashboard access.
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="institution_user",
+    )
+    institution = models.ForeignKey(
+        "Institution", on_delete=models.CASCADE, related_name="users"
+    )
+
+    class Meta:
+        db_table = "institution_user"
+
+    def __str__(self):
+        return f"{self.user} → {self.institution}"
+
+
+def get_institution_for_user(user) -> "Institution | None":
+    """Resolve the single Institution an authenticated user may access.
+
+    Centralized so every institutional endpoint (and its tests) checks access
+    the same way, rather than each view querying ``InstitutionUser`` directly.
+    """
+    if user is None or not getattr(user, "is_authenticated", False):
+        return None
+    link = getattr(user, "institution_user", None)
+    return link.institution if link else None
+
+
 class StationOverride(models.Model):
     """An operational override of a station field, editable from the admin.
 
