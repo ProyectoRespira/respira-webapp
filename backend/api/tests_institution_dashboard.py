@@ -480,7 +480,9 @@ class InstitutionDashboardDataTests(APITestCase):
         air_quality = body["air_quality"]
         self.assertEqual(air_quality["aqi"], 120.0)
         self.assertEqual(air_quality["category"], "unhealthy_sensitive")
-        self.assertEqual(air_quality["category_label"], "INSALUBRE PARA GRUPOS SENSIBLES")
+        self.assertEqual(
+            air_quality["category_label"], "INSALUBRE PARA GRUPOS SENSIBLES"
+        )
         self.assertTrue(air_quality["message"])
         self.assertTrue(air_quality["recommendations"])
 
