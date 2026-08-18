@@ -1,4 +1,4 @@
-from django.contrib.auth import get_user_model
+from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
 from rest_framework import serializers
@@ -8,6 +8,8 @@ from drf_spectacular.utils import extend_schema_field
 from .models import (
     FaqCategory,
     FaqQuestion,
+    Institution,
+    InstitutionContract,
     Regions,
     Stations,
     StationReadingsGold,
@@ -304,3 +306,82 @@ class FaqCategorySerializer(serializers.ModelSerializer):
     def get_questions(self, obj):
         published = [q for q in obj.questions.all() if q.is_published]
         return FaqQuestionSerializer(published, many=True).data
+
+
+class InstitutionContractSerializer(serializers.ModelSerializer):
+    """Contract summary nested under the institution's own dashboard view."""
+
+    station_name = serializers.CharField(source="station.name", read_only=True)
+
+    class Meta:
+        model = InstitutionContract
+        fields = [
+            "id",
+            "station",
+            "station_name",
+            "contract_status",
+            "start_date",
+            "end_date",
+            "monthly_fee",
+            "signed_contract_url",
+        ]
+        read_only_fields = fields
+
+
+class InstitutionSerializer(serializers.ModelSerializer):
+    """Self-service representation of an institution for its own dashboard.
+
+    Distinct from any future backoffice serializer: this is what an
+    institutional user sees about *their own* institution, so it never nests
+    other institutions' data.
+    """
+
+    contract = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Institution
+        fields = [
+            "id",
+            "legal_name",
+            "display_name",
+            "institution_type",
+            "contact_name",
+            "contact_email",
+            "contact_phone",
+            "address",
+            "city",
+            "contract",
+        ]
+        read_only_fields = fields
+
+    @extend_schema_field(InstitutionContractSerializer(allow_null=True))
+    def get_contract(self, obj):
+        contract = getattr(obj, "contract", None)
+        return InstitutionContractSerializer(contract).data if contract else None
+
+
+class InstitutionLoginSerializer(serializers.Serializer):
+    """Validates institutional-dashboard login credentials.
+
+    Authenticates through the platform's existing ``authenticate()`` call —
+    same ``AUTHENTICATION_BACKENDS`` (including axes lockout), same
+    ``accounts.User`` model and password hasher as the admin login — so this
+    is a new entry point, not a new authentication mechanism.
+
+    Whether the authenticated user actually has an institution to access is
+    checked in the view rather than here, so that case can be rejected with
+    403 instead of being folded into the 400 this raises for bad credentials.
+    """
+
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, style={"input_type": "password"})
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        user = authenticate(
+            request, username=attrs["email"], password=attrs["password"]
+        )
+        if user is None or not user.is_active:
+            raise serializers.ValidationError("Invalid email or password.")
+        attrs["user"] = user
+        return attrs

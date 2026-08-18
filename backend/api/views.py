@@ -7,32 +7,37 @@ from statistics import median, quantiles
 import requests
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.auth import login as auth_login
+from django.contrib.auth import logout as auth_logout
 from django.core.cache import cache
 from django.db.models import Prefetch
 from django.db.models.functions import TruncDate, TruncMonth, TruncWeek
+from django.middleware.csrf import get_token
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import generics, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
 from .models import (
     FaqCategory,
     FaqQuestion,
     InferenceResults,
     InferenceRuns,
+    Institution,
     RegionReadings,
     Regions,
     StationReadingsGold,
     Stations,
     UserRole,
+    get_institution_for_user,
 )
 from .pagination import StandardResultsSetPagination
-from .permissions import IsAdminRole
+from .permissions import IsAdminRole, IsInstitutionUser, IsOwnInstitution
 from .serializers import (
     AdminUserCreateSerializer,
     AdminUserSerializer,
@@ -40,6 +45,8 @@ from .serializers import (
     FaqCategorySerializer,
     ForecastSerializer,
     HealthSerializer,
+    InstitutionLoginSerializer,
+    InstitutionSerializer,
     MapSerializer,
     RegionSerializer,
     StationSerializer,
@@ -666,6 +673,84 @@ class AdminUserViewSet(ModelViewSet):
         if instance == request.user:
             raise PermissionDenied("You cannot delete your own account.")
         return super().destroy(request, *args, **kwargs)
+
+
+@extend_schema(tags=["Institutional Dashboard"])
+class InstitutionViewSet(ReadOnlyModelViewSet):
+    """Self-service, read-only view of an institution's own dashboard data.
+
+    Distinct from the Django Admin's Institution CRUD (backoffice-only,
+    session-authenticated staff): this is what the institutional dashboard
+    itself consumes. Access is limited to the institution the caller is
+    linked to via ``InstitutionUser`` (see ``IsInstitutionUser`` /
+    ``IsOwnInstitution``), never another institution's records.
+
+    ``list`` is scoped through ``get_queryset`` — DRF does not run
+    object-level permissions per row — while ``retrieve`` relies on
+    ``IsOwnInstitution`` so requesting another institution's id by pk still
+    returns 403 rather than leaking its existence via a 200.
+    """
+
+    serializer_class = InstitutionSerializer
+    permission_classes = [IsAuthenticated, IsInstitutionUser, IsOwnInstitution]
+    # "get" for list/retrieve/me, "post" for the login/logout actions below —
+    # this viewset otherwise offers no write access to Institution itself.
+    http_method_names = ["get", "post"]
+
+    def get_queryset(self):
+        if self.action == "list":
+            institution = get_institution_for_user(self.request.user)
+            if institution is None:
+                return Institution.objects.none()
+            return Institution.objects.filter(pk=institution.pk)
+        return Institution.objects.all()
+
+    @extend_schema(summary="Retrieve the caller's own institution")
+    @action(detail=False, methods=["get"])
+    def me(self, request, *args, **kwargs):
+        institution = get_institution_for_user(request.user)
+        serializer = self.get_serializer(institution)
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="Log in to the institutional dashboard",
+        request=InstitutionLoginSerializer,
+        responses=InstitutionSerializer,
+    )
+    @action(detail=False, methods=["post"], permission_classes=[AllowAny])
+    def login(self, request, *args, **kwargs):
+        """Authenticate and start a session, same as the admin login form.
+
+        Kept off ``IsInstitutionUser``/``IsAuthenticated`` (unlike every other
+        action here) since, by definition, the caller isn't authenticated yet.
+        Institution membership is checked *after* credentials succeed, so a
+        valid admin/staff login without an Institution link gets a 403 here
+        rather than a session — this endpoint only ever signs a caller into
+        their own institutional dashboard, never into the backoffice.
+        """
+        serializer = InstitutionLoginSerializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data["user"]
+
+        institution = get_institution_for_user(user)
+        if institution is None:
+            raise PermissionDenied(
+                "This account does not have access to an institutional dashboard."
+            )
+
+        auth_login(request, user)
+        # Forces the CSRF cookie to be set on the response so the frontend can
+        # send it back on subsequent unsafe (non-GET) requests in this session.
+        get_token(request)
+        return Response(InstitutionSerializer(institution).data)
+
+    @extend_schema(summary="Log out of the institutional dashboard")
+    @action(detail=False, methods=["post"])
+    def logout(self, request, *args, **kwargs):
+        auth_logout(request)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @extend_schema(
