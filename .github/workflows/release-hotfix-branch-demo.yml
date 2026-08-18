@@ -348,12 +348,13 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Execute remote Django migrations"
+          remote_migration_log="$RUNNER_TEMP/migration-remote.log"
           ssh -i "$KEY_PATH" \
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -o ConnectTimeout=30 \
             "$DEPLOY_USER@$DEPLOY_HOST" \
-            "export COMPOSE_PATH='$COMPOSE_PATH' BACKEND_IMAGE_TAG='$IMAGE_TAG'; bash -se" <<'REMOTE_SCRIPT'
+            "export COMPOSE_PATH='$COMPOSE_PATH' BACKEND_IMAGE_TAG='$IMAGE_TAG'; bash -se" <<'REMOTE_SCRIPT' 2>&1 | tee "$remote_migration_log"
           set -euo pipefail
 
           if [ -z "$COMPOSE_PATH" ] || [ ! -d "$COMPOSE_PATH" ]; then
@@ -381,6 +382,8 @@ jobs:
           migration_db_port="$(printf '%s' "$MIGRATION_DB_PORT_B64" | base64 --decode)"
 
           # Keep .env.demo unchanged; inject migration-only DB values from secrets per command.
+          # stdin is redirected from /dev/null so `docker compose run` cannot swallow the rest
+          # of this heredoc script (which bash is reading from stdin).
           run_compose_migration() {
             BACKEND_POSTGRES_DB="$migration_db_name" \
             BACKEND_POSTGRES_USER="$migration_db_user" \
@@ -393,7 +396,7 @@ jobs:
               -f docker-compose.yml \
               -f docker-compose.remote.demo.yml \
               --env-file .env.demo \
-              "$@"
+              "$@" </dev/null
           }
 
           print_migration_diagnostics() {
@@ -419,21 +422,33 @@ jobs:
             -e 's/${PROXY_IMAGE_TAG:-latest}/${PROXY_IMAGE_TAG:-dev-latest}/g' \
             docker-compose.remote.demo.yml
 
-          echo "[1/6] Pull backend image"
+          echo "[1/8] Pull backend image"
           run_compose_migration pull backend
-          echo "[2/6] Show Django migration plan"
-          run_compose_migration run --rm --no-deps backend python manage.py migrate --plan
-          echo "[3/6] Apply migrations"
-          run_compose_migration run --rm --no-deps backend python manage.py migrate --noinput
-          echo "[4/6] Sync Django roles"
-          run_compose_migration run --rm --no-deps backend python manage.py sync_roles
-          echo "[5/6] Bootstrap Django superuser"
-          run_compose_migration run --rm --no-deps backend python manage.py bootstrap_superuser
-          echo "[6/6] Verify no unapplied migrations remain"
-          run_compose_migration run --rm --no-deps backend python manage.py migrate --check --noinput
+          echo "[2/8] Database target used by the migration credentials"
+          run_compose_migration run --rm -T --no-deps backend python manage.py shell -c "from django.db import connection; c = connection.cursor(); c.execute('select current_database(), current_user, current_schema(), current_setting(%s)', ['search_path']); print('migration connection ->', c.fetchone())"
+          echo "[3/8] Applied migration state before changes"
+          run_compose_migration run --rm -T --no-deps backend python manage.py showmigrations
+          echo "[4/8] Show Django migration plan"
+          run_compose_migration run --rm -T --no-deps backend python manage.py migrate --plan
+          echo "[5/8] Apply migrations"
+          run_compose_migration run --rm -T --no-deps backend python manage.py migrate --noinput --verbosity 2
+          echo "[6/8] Sync Django roles"
+          run_compose_migration run --rm -T --no-deps backend python manage.py sync_roles
+          echo "[7/8] Bootstrap Django superuser"
+          run_compose_migration run --rm -T --no-deps backend python manage.py bootstrap_superuser
+          echo "[8/8] Verify no unapplied migrations remain"
+          run_compose_migration run --rm -T --no-deps backend python manage.py migrate --check --noinput
 
           echo "Django migrations completed successfully on demo database."
+          # Marker verified by the runner: proves the script reached the end instead of
+          # dying quietly (e.g. stdin being consumed by a child process).
+          echo "RESPIRA_MIGRATIONS_COMPLETE"
           REMOTE_SCRIPT
+
+          if ! grep -q '^RESPIRA_MIGRATIONS_COMPLETE$' "$remote_migration_log"; then
+            echo "::error::Remote migration script exited before completion; no completion marker found. See the log above for the last step reached."
+            exit 1
+          fi
           echo "::endgroup::"
 
   deploy-demo:
