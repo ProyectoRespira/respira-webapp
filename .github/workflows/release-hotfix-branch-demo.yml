@@ -422,21 +422,25 @@ jobs:
             -e 's/${PROXY_IMAGE_TAG:-latest}/${PROXY_IMAGE_TAG:-dev-latest}/g' \
             docker-compose.remote.demo.yml
 
-          echo "[1/8] Pull backend image"
+          echo "[1/9] Pull backend image"
           run_compose_migration pull backend
-          echo "[2/8] Database target used by the migration credentials"
+          echo "[2/9] Database target used by the migration credentials"
           run_compose_migration run --rm -T --no-deps backend python manage.py shell -c "from django.db import connection; c = connection.cursor(); c.execute('select current_database(), current_user, current_schema(), current_setting(%s)', ['search_path']); print('migration connection ->', c.fetchone())"
-          echo "[3/8] Applied migration state before changes"
+          echo "[3/9] Applied migration state before changes"
           run_compose_migration run --rm -T --no-deps backend python manage.py showmigrations
-          echo "[4/8] Show Django migration plan"
+          echo "[4/9] Show Django migration plan"
           run_compose_migration run --rm -T --no-deps backend python manage.py migrate --plan
-          echo "[5/8] Apply migrations"
+          # Mirrors backend/entrypoint.sh: adopts the pre-existing dbt tables (regions, stations,
+          # *_readings_gold, ...) instead of recreating them empty in the first search_path schema.
+          echo "[5/9] Adopt pre-existing api tables"
+          run_compose_migration run --rm -T --no-deps backend python manage.py migrate api --fake-initial --noinput
+          echo "[6/9] Apply migrations"
           run_compose_migration run --rm -T --no-deps backend python manage.py migrate --noinput --verbosity 2
-          echo "[6/8] Sync Django roles"
+          echo "[7/9] Sync Django roles"
           run_compose_migration run --rm -T --no-deps backend python manage.py sync_roles
-          echo "[7/8] Bootstrap Django superuser"
+          echo "[8/9] Bootstrap Django superuser"
           run_compose_migration run --rm -T --no-deps backend python manage.py bootstrap_superuser
-          echo "[8/8] Verify no unapplied migrations remain"
+          echo "[9/9] Verify no unapplied migrations remain"
           run_compose_migration run --rm -T --no-deps backend python manage.py migrate --check --noinput
 
           echo "Django migrations completed successfully on demo database."
