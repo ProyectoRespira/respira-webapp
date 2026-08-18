@@ -8,12 +8,24 @@ never another institution's data, and an anonymous request never gets in.
 from datetime import date
 from decimal import Decimal
 
+from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework.test import APITestCase
 
-from .models import Institution, InstitutionContract, InstitutionUser, Regions, Stations
+from .models import (
+    Institution,
+    InstitutionAlertConfig,
+    InstitutionContract,
+    InstitutionUser,
+    Regions,
+    SensitiveGroup,
+    StationDetails,
+    StationReadingsGold,
+    Stations,
+)
 
 User = get_user_model()
 
@@ -288,3 +300,268 @@ class InstitutionLoginTests(APITestCase):
         csrf_token = csrf_client.cookies["csrftoken"].value
         with_token = csrf_client.post(self.logout_url, HTTP_X_CSRFTOKEN=csrf_token)
         self.assertEqual(with_token.status_code, 204)
+
+
+class InstitutionDashboardDataTests(APITestCase):
+    """Tests for the consolidated GET /api/institution/dashboard/ endpoint."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.now = timezone.now()
+
+        region = Regions.objects.create(name="Gran Asuncion", region_code="GA")
+
+        self.institution = Institution.objects.create(legal_name="Hospital Bautista")
+        self.station = Stations.objects.create(
+            name="Respira: Villa Morra",
+            region=region,
+            latitude=-25.29,
+            longitude=-57.57,
+            is_station_on=True,
+        )
+        StationDetails.objects.create(
+            station=self.station,
+            city="Asunción",
+            specific_location="3er piso, ala este",
+        )
+        InstitutionContract.objects.create(
+            institution=self.institution,
+            station=self.station,
+            contract_status=InstitutionContract.ContractStatus.ACTIVE,
+            start_date=date(2026, 1, 1),
+            monthly_fee=Decimal("450.00"),
+        )
+        self.user = User.objects.create_user(
+            username="contact@hospitalbautista.org.py",
+            email="contact@hospitalbautista.org.py",
+            password="S3ed!Pass99",
+        )
+        InstitutionUser.objects.create(user=self.user, institution=self.institution)
+
+        # A second institution, fully independent, to prove no cross-leakage.
+        self.other_institution = Institution.objects.create(
+            legal_name="Colegio San Jose S.A."
+        )
+        other_station = Stations.objects.create(
+            name="Respira: Centro",
+            region=region,
+            latitude=-25.28,
+            longitude=-57.48,
+            is_station_on=True,
+        )
+        InstitutionContract.objects.create(
+            institution=self.other_institution,
+            station=other_station,
+            contract_status=InstitutionContract.ContractStatus.ACTIVE,
+            start_date=date(2026, 1, 1),
+        )
+        self.other_user = User.objects.create_user(
+            username="contact@colegiosanjose.edu.py",
+            email="contact@colegiosanjose.edu.py",
+            password="S3ed!Pass99",
+        )
+        InstitutionUser.objects.create(
+            user=self.other_user, institution=self.other_institution
+        )
+        StationReadingsGold.objects.create(
+            station=other_station, date_utc=self.now, aqi_pm2_5=42.0
+        )
+
+        self.unlinked_user = User.objects.create_user(
+            username="nobody@example.com",
+            email="nobody@example.com",
+            password="S3ed!Pass99",
+        )
+
+        self.dashboard_url = reverse("institution-dashboard")
+
+    # --- Access control -----------------------------------------------
+
+    def test_unauthenticated_request_is_rejected(self):
+        response = self.client.get(self.dashboard_url)
+        self.assertIn(response.status_code, (401, 403))
+
+    def test_user_without_institution_is_forbidden(self):
+        self.client.force_authenticate(self.unlinked_user)
+        response = self.client.get(self.dashboard_url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_institution_without_assigned_sensor_returns_404(self):
+        contractless = Institution.objects.create(legal_name="Colegio Nuevo")
+        contact = User.objects.create_user(
+            username="contacto@colegionuevo.edu.py",
+            email="contacto@colegionuevo.edu.py",
+            password="S3ed!Pass99",
+        )
+        InstitutionUser.objects.create(user=contact, institution=contractless)
+
+        self.client.force_authenticate(contact)
+        response = self.client.get(self.dashboard_url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_dashboard_never_leaks_another_institutions_data(self):
+        StationReadingsGold.objects.create(
+            station=self.station, date_utc=self.now, aqi_pm2_5=42.0
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.dashboard_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["sensor"]["name"], "Respira: Villa Morra")
+        self.assertNotEqual(response.json()["sensor"]["name"], "Respira: Centro")
+
+    # --- Successful response structure ----------------------------------
+
+    def test_successful_response_includes_all_sections(self):
+        StationReadingsGold.objects.create(
+            station=self.station, date_utc=self.now, aqi_pm2_5=42.0
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.dashboard_url)
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(
+            set(body.keys()), {"sensor", "air_quality", "history", "alert_config"}
+        )
+        self.assertEqual(
+            set(body["sensor"].keys()),
+            {"id", "name", "status", "location", "last_measurement_at"},
+        )
+        self.assertEqual(
+            set(body["alert_config"].keys()),
+            {"is_enabled", "alert_threshold", "sensitive_groups"},
+        )
+
+    def test_sensor_section_reflects_the_assigned_station(self):
+        StationReadingsGold.objects.create(
+            station=self.station, date_utc=self.now, aqi_pm2_5=42.0
+        )
+
+        self.client.force_authenticate(self.user)
+        body = self.client.get(self.dashboard_url).json()
+
+        sensor = body["sensor"]
+        self.assertEqual(sensor["id"], self.station.id)
+        self.assertEqual(sensor["name"], "Respira: Villa Morra")
+        self.assertEqual(sensor["status"], "online")
+        self.assertEqual(sensor["location"]["city"], "Asunción")
+        self.assertEqual(sensor["location"]["specific_location"], "3er piso, ala este")
+        self.assertEqual(sensor["location"]["latitude"], -25.29)
+        self.assertIsNotNone(sensor["last_measurement_at"])
+
+    def test_sensor_status_reflects_an_offline_station(self):
+        self.station.is_station_on = False
+        self.station.save(update_fields=["is_station_on"])
+
+        self.client.force_authenticate(self.user)
+        body = self.client.get(self.dashboard_url).json()
+
+        self.assertEqual(body["sensor"]["status"], "offline")
+
+    # --- Air quality classification --------------------------------------
+
+    def test_air_quality_uses_the_latest_reading_and_classification(self):
+        StationReadingsGold.objects.create(
+            station=self.station,
+            date_utc=self.now - relativedelta(days=1),
+            aqi_pm2_5=30.0,
+        )
+        StationReadingsGold.objects.create(
+            station=self.station, date_utc=self.now, aqi_pm2_5=120.0
+        )
+
+        self.client.force_authenticate(self.user)
+        body = self.client.get(self.dashboard_url).json()
+
+        air_quality = body["air_quality"]
+        self.assertEqual(air_quality["aqi"], 120.0)
+        self.assertEqual(air_quality["category"], "unhealthy_sensitive")
+        self.assertEqual(air_quality["category_label"], "INSALUBRE PARA GRUPOS SENSIBLES")
+        self.assertTrue(air_quality["message"])
+        self.assertTrue(air_quality["recommendations"])
+
+    def test_missing_current_measurements_returns_null_air_quality(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.dashboard_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()["air_quality"])
+        self.assertIsNone(response.json()["sensor"]["last_measurement_at"])
+        self.assertEqual(response.json()["history"], [])
+
+    # --- History (three-month window) -------------------------------------
+
+    def test_history_excludes_readings_older_than_three_months(self):
+        StationReadingsGold.objects.create(
+            station=self.station,
+            date_utc=self.now - relativedelta(months=4),
+            aqi_pm2_5=99.0,
+        )
+        StationReadingsGold.objects.create(
+            station=self.station,
+            date_utc=self.now - relativedelta(months=1),
+            aqi_pm2_5=55.0,
+        )
+
+        self.client.force_authenticate(self.user)
+        history = self.client.get(self.dashboard_url).json()["history"]
+
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0]["aqi"], 55.0)
+
+    def test_history_is_returned_in_chronological_order(self):
+        StationReadingsGold.objects.create(
+            station=self.station,
+            date_utc=self.now - relativedelta(months=2),
+            aqi_pm2_5=40.0,
+        )
+        StationReadingsGold.objects.create(
+            station=self.station,
+            date_utc=self.now - relativedelta(months=1),
+            aqi_pm2_5=60.0,
+        )
+        StationReadingsGold.objects.create(
+            station=self.station, date_utc=self.now, aqi_pm2_5=80.0
+        )
+
+        self.client.force_authenticate(self.user)
+        history = self.client.get(self.dashboard_url).json()["history"]
+
+        dates = [point["date"] for point in history]
+        self.assertEqual(dates, sorted(dates))
+        self.assertEqual([point["aqi"] for point in history], [40.0, 60.0, 80.0])
+
+    # --- Alert configuration ------------------------------------------------
+
+    def test_institution_without_alert_configuration_returns_a_controlled_default(self):
+        self.client.force_authenticate(self.user)
+        alert_config = self.client.get(self.dashboard_url).json()["alert_config"]
+
+        self.assertEqual(
+            alert_config,
+            {"is_enabled": False, "alert_threshold": None, "sensitive_groups": []},
+        )
+
+    def test_configured_thresholds_and_sensitive_groups_are_returned(self):
+        # These are seeded by migration 0012 alongside the rest of the fixed
+        # catalog; fetched rather than created to avoid colliding with it.
+        children = SensitiveGroup.objects.get(key="children")
+        infants = SensitiveGroup.objects.get(key="infants")
+        config = InstitutionAlertConfig.objects.create(
+            institution=self.institution, is_enabled=True, alert_threshold=100
+        )
+        config.sensitive_groups.set([children, infants])
+
+        self.client.force_authenticate(self.user)
+        alert_config = self.client.get(self.dashboard_url).json()["alert_config"]
+
+        self.assertTrue(alert_config["is_enabled"])
+        self.assertEqual(alert_config["alert_threshold"], 100)
+        self.assertEqual(
+            {group["key"] for group in alert_config["sensitive_groups"]},
+            {"children", "infants"},
+        )
