@@ -6,7 +6,19 @@ same category, interpretive message and recommendations as the mobile app for
 a given AQI value.
 """
 
-AQI_LEVELS = [
+from typing import TypedDict
+
+
+class AqiLevel(TypedDict):
+    key: str
+    label: str
+    max: int | None
+    message: str
+    emoji: str
+    recommendations: list[str]
+
+
+AQI_LEVELS: list[AqiLevel] = [
     {
         "key": "good",
         "label": "BUENO",
@@ -102,7 +114,7 @@ AQI_LEVELS = [
 ]
 
 
-def classify_aqi(value: float | int | None) -> dict | None:
+def classify_aqi(value: float | int | None) -> AqiLevel | None:
     """Return the ``AQI_LEVELS`` entry covering ``value``.
 
     Mirrors respira-mobile's ``getAqiLevelByValue``: the last level (with

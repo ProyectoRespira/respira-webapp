@@ -1,5 +1,6 @@
 import os
 import uuid
+from typing import Any
 
 from django.conf import settings
 from django.db import models
@@ -291,8 +292,10 @@ class InstitutionAlertConfig(models.Model):
         null=True,
         help_text="AQI value above which an alert is triggered.",
     )
-    sensitive_groups = models.ManyToManyField(
-        "SensitiveGroup", blank=True, related_name="alert_configs"
+    sensitive_groups: "models.ManyToManyField[SensitiveGroup, Any]" = (
+        models.ManyToManyField(
+            "SensitiveGroup", blank=True, related_name="alert_configs"
+        )
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
