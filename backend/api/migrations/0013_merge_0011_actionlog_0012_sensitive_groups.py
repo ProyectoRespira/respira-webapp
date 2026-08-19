@@ -4,11 +4,9 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('api', '0011_institutionalert_actionlog'),
-        ('api', '0012_seed_sensitive_groups'),
+        ("api", "0011_institutionalert_actionlog"),
+        ("api", "0012_seed_sensitive_groups"),
     ]
 
-    operations = [
-    ]
+    operations = []
