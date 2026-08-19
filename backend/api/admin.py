@@ -11,9 +11,11 @@ from .models import (
     FaqCategory,
     FaqQuestion,
     Institution,
+    InstitutionAlertConfig,
     InstitutionContract,
     InstitutionUser,
     Regions,
+    SensitiveGroup,
     StationDetails,
     StationOverride,
     Stations,
@@ -365,6 +367,21 @@ class InstitutionUserInline(admin.TabularInline):
     verbose_name_plural = "Dashboard users"
 
 
+class InstitutionAlertConfigInline(admin.StackedInline):
+    """Alert configuration edited from the institution page.
+
+    ``InstitutionAlertConfig`` has no changelist of its own — same reasoning
+    as ``StationDetailsInline`` — and a config only makes sense alongside its
+    institution.
+    """
+
+    model = InstitutionAlertConfig
+    can_delete = False
+    extra = 1
+    filter_horizontal = ("sensitive_groups",)
+    readonly_fields = ("created_at", "updated_at")
+
+
 @admin.register(Institution)
 class InstitutionAdmin(RoleBasedModelAdmin):
     """Client organizations in the Sensor Leasing program."""
@@ -373,7 +390,7 @@ class InstitutionAdmin(RoleBasedModelAdmin):
     list_filter = ("institution_type", "city")
     search_fields = ("legal_name", "display_name", "contact_name", "contact_email")
     ordering = ("legal_name",)
-    inlines = (InstitutionUserInline,)
+    inlines = (InstitutionUserInline, InstitutionAlertConfigInline)
     fieldsets = (
         (None, {"fields": ("legal_name", "display_name", "institution_type")}),
         (
@@ -383,6 +400,15 @@ class InstitutionAdmin(RoleBasedModelAdmin):
         ("Location", {"fields": ("address", "city")}),
         ("Notes", {"fields": ("notes",)}),
     )
+
+
+@admin.register(SensitiveGroup)
+class SensitiveGroupAdmin(RoleBasedModelAdmin):
+    """Fixed catalog of at-risk groups institutions can flag for alerts."""
+
+    list_display = ("label", "key", "emoji")
+    search_fields = ("label", "key")
+    ordering = ("label",)
 
 
 @admin.register(InstitutionContract)

@@ -1,5 +1,6 @@
 import os
 import uuid
+from typing import Any
 
 from django.conf import settings
 from django.db import models
@@ -250,6 +251,60 @@ def get_institution_for_user(user) -> "Institution | None":
         return None
     link = getattr(user, "institution_user", None)
     return link.institution if link else None
+
+
+class SensitiveGroup(models.Model):
+    """Catalog of at-risk population groups an institution can flag for alerts.
+
+    Mirrors the fixed list respira-mobile ships in ``aqiLevels.ts``
+    (``SENSITIVE_GROUPS_ALL``), kept as a table rather than a
+    ``TextChoices`` so it is manageable from the admin instead of a code
+    deploy, and can back a proper many-to-many selection per institution.
+    """
+
+    key = models.SlugField(max_length=50, unique=True)
+    label = models.CharField(max_length=100)
+    emoji = models.CharField(max_length=8, blank=True)
+
+    class Meta:
+        db_table = "sensitive_group"
+        ordering = ("label",)
+
+    def __str__(self):
+        return self.label
+
+
+class InstitutionAlertConfig(models.Model):
+    """An institution's own configuration for institutional air-quality alerts.
+
+    OneToOne, like ``InstitutionContract``: an institution has at most one
+    alert configuration. Absent entirely for institutions that never opted
+    into alerts — callers resolve that case to a controlled default instead
+    of treating it as an error.
+    """
+
+    institution = models.OneToOneField(
+        "Institution", on_delete=models.CASCADE, related_name="alert_config"
+    )
+    is_enabled = models.BooleanField(default=False)
+    alert_threshold = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        help_text="AQI value above which an alert is triggered.",
+    )
+    sensitive_groups: "models.ManyToManyField[SensitiveGroup, Any]" = (
+        models.ManyToManyField(
+            "SensitiveGroup", blank=True, related_name="alert_configs"
+        )
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "institution_alert_config"
+
+    def __str__(self):
+        return f"Alert config for {self.institution}"
 
 
 class StationOverride(models.Model):

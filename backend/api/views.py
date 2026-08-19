@@ -5,12 +5,13 @@ from math import asin, cos, radians, sin, sqrt
 from statistics import median, quantiles
 
 import requests
+from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
 from django.core.cache import cache
-from django.db.models import Prefetch
+from django.db.models import Avg, Prefetch
 from django.db.models.functions import TruncDate, TruncMonth, TruncWeek
 from django.middleware.csrf import get_token
 from django.utils import timezone
@@ -18,11 +19,12 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import generics, status
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
+from .aqi import classify_aqi
 from .models import (
     FaqCategory,
     FaqQuestion,
@@ -45,6 +47,7 @@ from .serializers import (
     FaqCategorySerializer,
     ForecastSerializer,
     HealthSerializer,
+    InstitutionDashboardSerializer,
     InstitutionLoginSerializer,
     InstitutionSerializer,
     MapSerializer,
@@ -675,6 +678,84 @@ class AdminUserViewSet(ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
 
+def _dashboard_sensor(station):
+    details = getattr(station, "details", None)
+    last_reading = (
+        StationReadingsGold.objects.filter(station_id=station.id)
+        .order_by("-date_utc")
+        .first()
+    )
+    return {
+        "id": station.id,
+        "name": station.name,
+        "status": "online" if station.is_station_on else "offline",
+        "location": {
+            "city": details.city if details else None,
+            "specific_location": details.specific_location if details else None,
+            "latitude": station.latitude,
+            "longitude": station.longitude,
+        },
+        "last_measurement_at": last_reading.date_utc if last_reading else None,
+    }, last_reading
+
+
+def _dashboard_air_quality(last_reading):
+    if last_reading is None or last_reading.aqi_pm2_5 is None:
+        return None
+    level = classify_aqi(last_reading.aqi_pm2_5)
+    return {
+        "aqi": last_reading.aqi_pm2_5,
+        "category": level["key"],
+        "category_label": level["label"],
+        "message": level["message"],
+        "recommendations": level["recommendations"],
+    }
+
+
+def _dashboard_history(station):
+    """Daily-averaged AQI for the trailing three months, oldest first.
+
+    Aggregated by day (rather than raw readings) so three months of data
+    stays a chart-sized payload instead of tens of thousands of points.
+    """
+    start_date = timezone.now() - relativedelta(months=3)
+    rows = (
+        StationReadingsGold.objects.filter(
+            station_id=station.id, date_utc__gte=start_date, aqi_pm2_5__isnull=False
+        )
+        .annotate(day=TruncDate("date_utc"))
+        .values("day")
+        .annotate(aqi=Avg("aqi_pm2_5"))
+        .order_by("day")
+    )
+    return [{"date": row["day"], "aqi": row["aqi"]} for row in rows]
+
+
+def _dashboard_alert_config(institution):
+    alert_config = getattr(institution, "alert_config", None)
+    if alert_config is None:
+        return {"is_enabled": False, "alert_threshold": None, "sensitive_groups": []}
+    return {
+        "is_enabled": alert_config.is_enabled,
+        "alert_threshold": alert_config.alert_threshold,
+        "sensitive_groups": list(alert_config.sensitive_groups.all()),
+    }
+
+
+def _build_institution_dashboard(institution):
+    contract = getattr(institution, "contract", None)
+    if contract is None:
+        raise NotFound("This institution does not have an assigned sensor.")
+
+    sensor, last_reading = _dashboard_sensor(contract.station)
+    return {
+        "sensor": sensor,
+        "air_quality": _dashboard_air_quality(last_reading),
+        "history": _dashboard_history(contract.station),
+        "alert_config": _dashboard_alert_config(institution),
+    }
+
+
 @extend_schema(tags=["Institutional Dashboard"])
 class InstitutionViewSet(ReadOnlyModelViewSet):
     """Self-service, read-only view of an institution's own dashboard data.
@@ -710,6 +791,29 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
     def me(self, request, *args, **kwargs):
         institution = get_institution_for_user(request.user)
         serializer = self.get_serializer(institution)
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="Retrieve the caller's institutional dashboard",
+        description=(
+            "Consolidated data for the Institution Dashboard: the assigned "
+            "sensor, current air quality (AQI, category, interpretive "
+            "message and recommendation), three months of measurement "
+            "history, and the institution's alert configuration (enabled "
+            "flag, AQI threshold and configured sensitive groups). The "
+            "institution is resolved automatically from the authenticated "
+            "user — never from a request parameter — so a caller can only "
+            "ever retrieve their own institution's data. Returns 404 when "
+            "the institution has no assigned sensor yet; `air_quality` is "
+            "`null` when the sensor has not reported a measurement yet."
+        ),
+        responses=InstitutionDashboardSerializer,
+    )
+    @action(detail=False, methods=["get"])
+    def dashboard(self, request, *args, **kwargs):
+        institution = get_institution_for_user(request.user)
+        payload = _build_institution_dashboard(institution)
+        serializer = InstitutionDashboardSerializer(payload)
         return Response(serializer.data)
 
     @extend_schema(
