@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from .views import (
+    ActionLogViewSet,
     AdminUserViewSet,
     FaqListView,
     InstitutionViewSet,
@@ -21,6 +22,10 @@ router.register(r"regions", RegionViewset, basename="regions")
 router.register(r"stations", StationViewset, basename="stations")
 router.register(r"admin/users", AdminUserViewSet, basename="admin-users")
 router.register(r"institution", InstitutionViewSet, basename="institution")
+# Top-level rather than nested under "institution/": the institution router
+# entry matches any single path segment as a pk, so "institution/actions/"
+# would be swallowed by institution-detail depending on registration order.
+router.register(r"action-logs", ActionLogViewSet, basename="action-logs")
 
 urlpatterns = [
     path(r"map/nearest-region/", NearestRegionView.as_view(), name="nearest-region"),

@@ -16,14 +16,15 @@ from django.middleware.csrf import get_token
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
-from rest_framework import generics, status
+from rest_framework import generics, mixins, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
+from rest_framework.viewsets import GenericViewSet, ModelViewSet, ReadOnlyModelViewSet
 
 from .models import (
+    ActionLog,
     FaqCategory,
     FaqQuestion,
     InferenceResults,
@@ -39,6 +40,7 @@ from .models import (
 from .pagination import StandardResultsSetPagination
 from .permissions import IsAdminRole, IsInstitutionUser, IsOwnInstitution
 from .serializers import (
+    ActionLogSerializer,
     AdminUserCreateSerializer,
     AdminUserSerializer,
     AdminUserUpdateSerializer,
@@ -751,6 +753,68 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
     def logout(self, request, *args, **kwargs):
         auth_logout(request)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List the caller's institutional action history",
+        description=(
+            "Actions recorded by the authenticated user's institution, most "
+            "recent first. The institution is resolved from the session, so "
+            "the history never contains another institution's records."
+        ),
+    ),
+    create=extend_schema(
+        summary="Record an action taken by the caller's institution",
+        description=(
+            "Creates one entry in the institutional action history. "
+            "`institution` and `timestamp` are assigned by the backend and "
+            "ignored if sent. `station` must be the station the institution "
+            "holds a contract for; `alert` is optional and, when given, must "
+            "belong to the same institution and station."
+        ),
+    ),
+)
+@extend_schema(tags=["Institutional Dashboard"])
+class ActionLogViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, GenericViewSet):
+    """Create and list an institution's record of actions taken.
+
+    Deliberately create + list only: the action history is an audit trail, so
+    entries are never edited or removed through the API — which is also why
+    ``timestamp`` is stamped by the model rather than accepted from a client.
+
+    Scoping works the same way as ``InstitutionViewSet``: ``get_queryset``
+    filters the list down to the caller's own institution (DRF does not run
+    object-level permissions per row), and the serializer refuses a station or
+    alert belonging to anyone else on the way in.
+    """
+
+    serializer_class = ActionLogSerializer
+    permission_classes = [IsAuthenticated, IsInstitutionUser]
+    pagination_class = StandardResultsSetPagination
+    http_method_names = ["get", "post"]
+
+    def get_queryset(self):
+        institution = get_institution_for_user(self.request.user)
+        if institution is None:
+            return ActionLog.objects.none()
+        return ActionLog.objects.filter(institution=institution).select_related(
+            "institution", "station", "alert"
+        )
+
+    def get_serializer_context(self):
+        """Hand the caller's institution to the serializer's validation.
+
+        Passed explicitly rather than re-resolved inside each validator, so the
+        institution used for authorization is the same object the created row
+        is assigned to.
+        """
+        context = super().get_serializer_context()
+        context["institution"] = get_institution_for_user(self.request.user)
+        return context
+
+    def perform_create(self, serializer):
+        serializer.save(institution=get_institution_for_user(self.request.user))
 
 
 @extend_schema(
