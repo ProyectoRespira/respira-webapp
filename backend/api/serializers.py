@@ -12,6 +12,7 @@ from .models import (
     Institution,
     InstitutionContract,
     Regions,
+    SensitiveGroup,
     Stations,
     StationReadingsGold,
     UserProfile,
@@ -470,3 +471,65 @@ class ActionLogSerializer(serializers.ModelSerializer):
                 {"alert": "This alert does not belong to the selected station."}
             )
         return attrs
+
+
+class SensitiveGroupSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SensitiveGroup
+        fields = ["key", "label", "emoji"]
+        read_only_fields = fields
+
+
+class DashboardLocationSerializer(serializers.Serializer):
+    city = serializers.CharField(allow_blank=True, allow_null=True)
+    specific_location = serializers.CharField(allow_blank=True, allow_null=True)
+    latitude = serializers.FloatField(allow_null=True)
+    longitude = serializers.FloatField(allow_null=True)
+
+
+class DashboardSensorSerializer(serializers.Serializer):
+    """The institution's assigned sensor, as shown on its dashboard."""
+
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    status = serializers.ChoiceField(choices=["online", "offline"])
+    location = DashboardLocationSerializer()
+    last_measurement_at = serializers.DateTimeField(allow_null=True)
+
+
+class DashboardAirQualitySerializer(serializers.Serializer):
+    """Current AQI plus the Proyecto Respira classification for it."""
+
+    aqi = serializers.FloatField()
+    category = serializers.CharField()
+    category_label = serializers.CharField()
+    message = serializers.CharField()
+    recommendations = serializers.ListField(child=serializers.CharField())
+
+
+class DashboardHistoryPointSerializer(serializers.Serializer):
+    date = serializers.DateField()
+    aqi = serializers.FloatField(allow_null=True)
+
+
+class InstitutionAlertConfigSerializer(serializers.Serializer):
+    """The institution's alert configuration, or a controlled default.
+
+    Backed by a plain dict built in the view rather than the model directly,
+    so an institution with no ``InstitutionAlertConfig`` row still gets a
+    valid, consistent shape (disabled, no threshold, no groups) instead of a
+    missing section.
+    """
+
+    is_enabled = serializers.BooleanField()
+    alert_threshold = serializers.IntegerField(allow_null=True)
+    sensitive_groups = SensitiveGroupSerializer(many=True)
+
+
+class InstitutionDashboardSerializer(serializers.Serializer):
+    """Consolidated payload for the institutional dashboard's single request."""
+
+    sensor = DashboardSensorSerializer()
+    air_quality = DashboardAirQualitySerializer(allow_null=True)
+    history = DashboardHistoryPointSerializer(many=True)
+    alert_config = InstitutionAlertConfigSerializer()

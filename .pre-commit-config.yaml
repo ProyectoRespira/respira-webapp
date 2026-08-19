@@ -70,6 +70,7 @@ repos:
           - django-stubs-ext==4.2.7
           - types-PyYAML==6.0.12.20260508
           - types-requests==2.33.0.20260508
+          - types-python-dateutil==2.9.0.20260807
         files: ^backend/
         types: [python]
         pass_filenames: false
