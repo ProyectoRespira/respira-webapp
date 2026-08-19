@@ -191,12 +191,13 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Execute remote Django migrations"
+          remote_migration_log="$RUNNER_TEMP/migration-remote.log"
           ssh -i "$KEY_PATH" \
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -o ConnectTimeout=30 \
             "$DEPLOY_USER@$DEPLOY_HOST" \
-            "export COMPOSE_PATH='$COMPOSE_PATH'; bash -se" <<'REMOTE_SCRIPT'
+            "export COMPOSE_PATH='$COMPOSE_PATH'; bash -se" <<'REMOTE_SCRIPT' 2>&1 | tee "$remote_migration_log"
           set -euo pipefail
 
           compose_files="-f docker-compose.yml -f docker-compose.remote.yml"
@@ -225,6 +226,8 @@ jobs:
           migration_db_host="$(printf '%s' "$MIGRATION_DB_HOST_B64" | base64 --decode)"
           migration_db_port="$(printf '%s' "$MIGRATION_DB_PORT_B64" | base64 --decode)"
 
+          # stdin is redirected from /dev/null so `docker compose run` cannot swallow the rest
+          # of this heredoc script (which bash is reading from stdin).
           run_compose_migration() {
             BACKEND_POSTGRES_DB="$migration_db_name" \
             BACKEND_POSTGRES_USER="$migration_db_user" \
@@ -236,7 +239,7 @@ jobs:
             docker compose \
               $compose_files \
               --env-file .env.prod \
-              "$@"
+              "$@" </dev/null
           }
 
           print_migration_diagnostics() {
@@ -256,21 +259,37 @@ jobs:
 
           cd "$COMPOSE_PATH"
 
-          echo "[1/6] Pull backend image"
+          echo "[1/9] Pull backend image"
           run_compose_migration pull backend
-          echo "[2/6] Show Django migration plan"
-          run_compose_migration run --rm --no-deps backend python manage.py migrate --plan
-          echo "[3/6] Apply migrations"
-          run_compose_migration run --rm --no-deps backend python manage.py migrate --noinput
-          echo "[4/6] Sync Django roles"
-          run_compose_migration run --rm --no-deps backend python manage.py sync_roles
-          echo "[5/6] Bootstrap Django superuser"
-          run_compose_migration run --rm --no-deps backend python manage.py bootstrap_superuser
-          echo "[6/6] Verify no unapplied migrations remain"
-          run_compose_migration run --rm --no-deps backend python manage.py migrate --check --noinput
+          echo "[2/9] Database target used by the migration credentials"
+          run_compose_migration run --rm -T --no-deps backend python manage.py shell -c "from django.db import connection; c = connection.cursor(); c.execute('select current_database(), current_user, current_schema(), current_setting(%s)', ['search_path']); print('migration connection ->', c.fetchone())"
+          echo "[3/9] Applied migration state before changes"
+          run_compose_migration run --rm -T --no-deps backend python manage.py showmigrations
+          echo "[4/9] Show Django migration plan"
+          run_compose_migration run --rm -T --no-deps backend python manage.py migrate --plan
+          # Mirrors backend/entrypoint.sh: adopts the pre-existing dbt tables (regions, stations,
+          # *_readings_gold, ...) instead of recreating them empty in the first search_path schema.
+          echo "[5/9] Adopt pre-existing api tables"
+          run_compose_migration run --rm -T --no-deps backend python manage.py migrate api --fake-initial --noinput
+          echo "[6/9] Apply migrations"
+          run_compose_migration run --rm -T --no-deps backend python manage.py migrate --noinput --verbosity 2
+          echo "[7/9] Sync Django roles"
+          run_compose_migration run --rm -T --no-deps backend python manage.py sync_roles
+          echo "[8/9] Bootstrap Django superuser"
+          run_compose_migration run --rm -T --no-deps backend python manage.py bootstrap_superuser
+          echo "[9/9] Verify no unapplied migrations remain"
+          run_compose_migration run --rm -T --no-deps backend python manage.py migrate --check --noinput
 
           echo "Django migrations completed successfully on production database."
+          # Marker verified by the runner: proves the script reached the end instead of
+          # dying quietly (e.g. stdin being consumed by a child process).
+          echo "RESPIRA_MIGRATIONS_COMPLETE"
           REMOTE_SCRIPT
+
+          if ! grep -q '^RESPIRA_MIGRATIONS_COMPLETE$' "$remote_migration_log"; then
+            echo "::error::Remote migration script exited before completion; no completion marker found. See the log above for the last step reached."
+            exit 1
+          fi
           echo "::endgroup::"
 
   deploy:

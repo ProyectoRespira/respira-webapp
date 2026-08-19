@@ -9,10 +9,20 @@ one-to-one uniqueness rules hold at the database level.
 from datetime import date
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 
-from .models import Institution, InstitutionContract, Regions, Stations
+from .models import (
+    Institution,
+    InstitutionContract,
+    InstitutionUser,
+    Regions,
+    Stations,
+    get_institution_for_user,
+)
+
+User = get_user_model()
 
 
 class InstitutionModelTests(TestCase):
@@ -171,3 +181,72 @@ class InstitutionContractModelTests(TestCase):
         )
 
         self.assertEqual(str(contract), "Hospital Bautista — Respira: Villa Morra")
+
+
+class InstitutionUserModelTests(TestCase):
+    """Tests for the User <-> Institution link and its resolver helper."""
+
+    def setUp(self):
+        self.institution = Institution.objects.create(legal_name="Hospital Bautista")
+        self.other_institution = Institution.objects.create(
+            legal_name="Colegio San Jose S.A."
+        )
+        self.user = User.objects.create_user(
+            username="contact@hospitalbautista.org.py",
+            email="contact@hospitalbautista.org.py",
+            password="S3ed!Pass99",
+        )
+
+    def test_links_a_user_to_an_institution(self):
+        link = InstitutionUser.objects.create(
+            user=self.user, institution=self.institution
+        )
+
+        link.refresh_from_db()
+        self.assertEqual(link.user, self.user)
+        self.assertEqual(link.institution, self.institution)
+
+    def test_an_institution_can_have_several_users(self):
+        second_user = User.objects.create_user(
+            username="other@hospitalbautista.org.py",
+            email="other@hospitalbautista.org.py",
+            password="S3ed!Pass99",
+        )
+        InstitutionUser.objects.create(user=self.user, institution=self.institution)
+        InstitutionUser.objects.create(user=second_user, institution=self.institution)
+
+        self.assertEqual(
+            InstitutionUser.objects.filter(institution=self.institution).count(), 2
+        )
+
+    def test_a_user_cannot_be_linked_to_two_institutions(self):
+        InstitutionUser.objects.create(user=self.user, institution=self.institution)
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                InstitutionUser.objects.create(
+                    user=self.user, institution=self.other_institution
+                )
+
+    def test_str_describes_the_link(self):
+        link = InstitutionUser.objects.create(
+            user=self.user, institution=self.institution
+        )
+
+        self.assertEqual(str(link), f"{self.user} → {self.institution}")
+
+    def test_resolver_returns_the_linked_institution(self):
+        InstitutionUser.objects.create(user=self.user, institution=self.institution)
+
+        self.assertEqual(get_institution_for_user(self.user), self.institution)
+
+    def test_resolver_returns_none_for_a_user_without_a_link(self):
+        self.assertIsNone(get_institution_for_user(self.user))
+
+    def test_resolver_returns_none_for_an_anonymous_user(self):
+        from django.contrib.auth.models import AnonymousUser
+
+        self.assertIsNone(get_institution_for_user(AnonymousUser()))
+
+    def test_resolver_returns_none_for_none(self):
+        self.assertIsNone(get_institution_for_user(None))

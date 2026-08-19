@@ -1,5 +1,6 @@
 import os
 import uuid
+from typing import Any
 
 from django.conf import settings
 from django.db import models
@@ -212,6 +213,98 @@ class InstitutionContract(models.Model):
 
     def __str__(self):
         return f"{self.institution} — {self.station.name}"
+
+
+class InstitutionUser(models.Model):
+    """Grants a platform user access to a single Institution's private dashboard.
+
+    Additive, mirroring ``UserProfile``: kept separate from ``accounts.User``
+    instead of adding a field there, so this feature deploys without a
+    migration on the core auth model. ``user`` is OneToOne — a user reaches at
+    most one institution's data — while ``institution`` is a plain FK, since an
+    institution may have more than one contact with dashboard access.
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="institution_user",
+    )
+    institution = models.ForeignKey(
+        "Institution", on_delete=models.CASCADE, related_name="users"
+    )
+
+    class Meta:
+        db_table = "institution_user"
+
+    def __str__(self):
+        return f"{self.user} → {self.institution}"
+
+
+def get_institution_for_user(user) -> "Institution | None":
+    """Resolve the single Institution an authenticated user may access.
+
+    Centralized so every institutional endpoint (and its tests) checks access
+    the same way, rather than each view querying ``InstitutionUser`` directly.
+    """
+    if user is None or not getattr(user, "is_authenticated", False):
+        return None
+    link = getattr(user, "institution_user", None)
+    return link.institution if link else None
+
+
+class SensitiveGroup(models.Model):
+    """Catalog of at-risk population groups an institution can flag for alerts.
+
+    Mirrors the fixed list respira-mobile ships in ``aqiLevels.ts``
+    (``SENSITIVE_GROUPS_ALL``), kept as a table rather than a
+    ``TextChoices`` so it is manageable from the admin instead of a code
+    deploy, and can back a proper many-to-many selection per institution.
+    """
+
+    key = models.SlugField(max_length=50, unique=True)
+    label = models.CharField(max_length=100)
+    emoji = models.CharField(max_length=8, blank=True)
+
+    class Meta:
+        db_table = "sensitive_group"
+        ordering = ("label",)
+
+    def __str__(self):
+        return self.label
+
+
+class InstitutionAlertConfig(models.Model):
+    """An institution's own configuration for institutional air-quality alerts.
+
+    OneToOne, like ``InstitutionContract``: an institution has at most one
+    alert configuration. Absent entirely for institutions that never opted
+    into alerts — callers resolve that case to a controlled default instead
+    of treating it as an error.
+    """
+
+    institution = models.OneToOneField(
+        "Institution", on_delete=models.CASCADE, related_name="alert_config"
+    )
+    is_enabled = models.BooleanField(default=False)
+    alert_threshold = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        help_text="AQI value above which an alert is triggered.",
+    )
+    sensitive_groups: "models.ManyToManyField[SensitiveGroup, Any]" = (
+        models.ManyToManyField(
+            "SensitiveGroup", blank=True, related_name="alert_configs"
+        )
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "institution_alert_config"
+
+    def __str__(self):
+        return f"Alert config for {self.institution}"
 
 
 class StationOverride(models.Model):
