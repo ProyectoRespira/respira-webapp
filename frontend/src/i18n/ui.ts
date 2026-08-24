@@ -58,23 +58,71 @@ const es = {
   // Join the network (unete)
   "join.breadcrumb.home": "Inicio",
   "join.breadcrumb.current": "Únete a la red",
-  "join.hero.title": "Únete a la red de sensores Respira",
-  "join.hero.subtitle":
-    "Buscamos instituciones, organizaciones y personas que quieran ser parte de la red de monitoreo de calidad del aire en Paraguay.",
-  "join.hero.subtitle2":
-    "Completá el formulario y nuestro equipo te contactará.",
-  "join.benefit.impact.title": "Impacto real",
-  "join.benefit.impact.desc":
-    "Mejorá la calidad del aire en tu comunidad con datos confiables y abiertos.",
-  "join.benefit.data.title": "Datos abiertos y de calidad",
-  "join.benefit.data.desc":
-    "Accedé a datos en tiempo real y contribuí a la ciencia ciudadana.",
-  "join.benefit.health.title": "Salud y ambiente",
-  "join.benefit.health.desc":
-    "Más información para tomar mejores decisiones y cuidar nuestra salud.",
-  "join.benefit.tech.title": "Tecnología abierta",
-  "join.benefit.tech.desc":
-    "Usamos hardware y software abierto para una red transparente y colaborativa.",
+  // Service model. This copy is approved commercial content: it must match the
+  // "Borrador de contenido — /unete" document word for word. Do not reword it
+  // when translating either; `en` and `pt` are direct translations of `es`.
+  "join.how.title": "¿Cómo funciona Respira?",
+  "join.how.p1":
+    "Instalamos el sensor, vos accedés al servicio. Respira brinda un servicio de monitoreo y pronóstico de calidad del aire mediante una plataforma que integra sensores, datos ambientales e inteligencia artificial.",
+  "join.how.p2":
+    "El sensor se instala en comodato: forma parte del servicio y sigue siendo de Respira durante todo el contrato. Tu institución invierte en una suscripción mensual que incluye el sensor instalado, el mantenimiento, el acceso a la plataforma (web y app), los pronósticos, las alertas y el soporte técnico.",
+  "join.how.imageAlt": "Sensor de calidad del aire de Proyecto Respira",
+
+  "join.price.title": "¿Cuánto cuesta?",
+  "join.price.intro":
+    "No hay un precio único: el sensor recomendado y el costo del servicio dependen de tu institución y del lugar donde lo vas a instalar. Por eso el proceso es así:",
+  "join.price.step1.title": "Contanos sobre tu institución.",
+  "join.price.step1.desc":
+    "Completá el formulario con el tipo de institución (colegio, universidad, empresa, municipio, hogar, espacio comunitario), su tamaño aproximado y quién aprueba el presupuesto.",
+  "join.price.step2.title": "Evaluamos tu caso.",
+  "join.price.step2.desc":
+    "Analizamos la ubicación, la cantidad de personas alrededor, el acceso a conectividad y para qué vas a usar la información — esos factores determinan el sensor más adecuado y el área de cobertura real.",
+  "join.price.step3.title": "Te recomendamos el sensor ideal.",
+  "join.price.step3.desc":
+    "Por ejemplo: sensores con conexión Wi-Fi para espacios urbanos, o sensores con panel solar y autocalibración para zonas remotas sin conectividad.",
+  "join.price.step4.title": "Te enviamos una propuesta comercial.",
+  "join.price.step4.desc":
+    "Con el costo mensual del servicio según tu instalación específica.",
+  "join.price.step5.title": "Instalamos y arrancamos.",
+  "join.price.step5.desc":
+    "La instalación está a cargo de un proveedor externo y, una vez lista, tu institución ya puede ver su información en la plataforma.",
+
+  "join.includes.title": "Qué incluye el servicio mensual",
+  "join.includes.sensor":
+    "Sensor instalado y en funcionamiento (provisto por Respira, sin costo de compra).",
+  "join.includes.monitoring":
+    "Monitoreo de calidad del aire en tiempo real (material particulado PM2.5 y PM10).",
+  "join.includes.forecast":
+    "Pronóstico de calidad del aire a 6–12 horas mediante inteligencia artificial.",
+  "join.includes.platform": "Plataforma web y aplicación móvil.",
+  "join.includes.alerts":
+    "Alertas y notificaciones cuando el aire empeora en tu zona.",
+  "join.includes.dashboard":
+    "Dashboard con recomendaciones accionables, no solo números.",
+  "join.includes.report":
+    "Reporte mensual descargable, listo para compartir con familias, el consejo directivo o el equipo.",
+  "join.includes.support": "Mantenimiento y soporte técnico del sensor.",
+  "join.includes.standards":
+    "Los sensores siguen los estándares de la EPA y la OMS, con respaldo del MADES. Miden material particulado; la medición de gases requiere un sensor de mayor gama y se evalúa caso por caso.",
+
+  "join.segments.title": "Beneficios según tu tipo de institución",
+  "join.segments.education.title": "Escuelas y universidades",
+  "join.segments.education.desc":
+    "Entornos de aprendizaje más seguros, información para decidir sobre actividades al aire libre, y un reporte mensual que podés compartir con familias y autoridades.",
+  "join.segments.business.title": "Empresas e industrias",
+  "join.segments.business.desc":
+    "Monitoreo continuo y datos confiables para fortalecer el cumplimiento ambiental y la estrategia de sostenibilidad.",
+  "join.segments.production.title":
+    "Sector productivo (ganadería, construcción, agroindustria)",
+  "join.segments.production.desc":
+    "Información para tomar decisiones operativas — por ejemplo, ante humo de incendios forestales o quema de residuos cerca de tu producción.",
+  "join.segments.public.title": "Municipios e instituciones públicas",
+  "join.segments.public.desc":
+    "Datos abiertos y en tiempo real para fortalecer políticas públicas y la gestión ambiental del territorio.",
+  "join.segments.families.title": "Familias y comunidad",
+  "join.segments.families.desc":
+    "Información confiable para proteger la salud de quienes tienen afecciones respiratorias, asma o alergias.",
+
   "join.next.title": "¿Qué pasa después?",
   "join.next.desc":
     "Nuestro equipo evaluará tu solicitud y te contactará para conversar sobre los próximos pasos.",
@@ -93,18 +141,18 @@ const es = {
   "join.form.cityPlaceholder": "Ej: Asunción",
   "join.form.department": "Departamento",
   "join.form.departmentPlaceholder": "Seleccioná...",
-  "join.form.interest": "¿Qué tipo de interés tenés?",
-  "join.form.interest.institution": "Institución",
-  "join.form.interest.institutionHint":
-    "(Escuelas, Colegios, Universidades, Empresas, etc.)",
-  "join.form.interest.home": "Hogar",
-  "join.form.interest.homeHint": "(Casa o vivienda particular)",
-  "join.form.interest.community": "Espacio comunitario",
-  "join.form.interest.communityHint": "(Plazas, centros comunitarios, etc.)",
-  "join.form.interest.ngo": "Otra organización u ONG",
-  "join.form.interest.ngoHint": "",
-  "join.form.interest.other": "Otro",
-  "join.form.interest.otherHint": "(Especificar en el mensaje)",
+  "join.form.size": "Tamaño aproximado",
+  "join.form.sizePlaceholder": "Ej: 450 personas",
+  "join.form.approver": "Quién aprueba el presupuesto",
+  "join.form.approverPlaceholder": "Ej: Dirección administrativa",
+  // The six types the price section promises the form will ask for.
+  "join.form.institutionType": "Tipo de institución",
+  "join.form.institutionType.school": "Colegio",
+  "join.form.institutionType.university": "Universidad",
+  "join.form.institutionType.company": "Empresa",
+  "join.form.institutionType.municipality": "Municipio",
+  "join.form.institutionType.home": "Hogar",
+  "join.form.institutionType.community": "Espacio comunitario",
   "join.form.message": "Contanos más sobre tu interés o motivación",
   "join.form.messagePlaceholder":
     "Ej: Queremos monitorear la calidad del aire en nuestra escuela para un proyecto ambiental...",
@@ -190,6 +238,29 @@ const es = {
   "resources.external.who": "(OMS) Organización Mundial de la Salud",
   "resources.external.aireLibre": "Aire Libre",
 
+  // FAQ (recursos). The questions themselves live in `data/faq.ts`.
+  "faq.badge": "Sensor Leasing",
+  "faq.heroImageAlt":
+    "Sensor de calidad del aire de Proyecto Respira, con su panel solar y el logo respira",
+  "faq.title": "Preguntas Frecuentes",
+  "faq.subtitle":
+    "Respondemos las dudas más comunes sobre el alquiler de sensores de calidad del aire: costos, instalación, mantenimiento y cómo tu institución puede empezar a monitorear hoy.",
+  "faq.nav.label": "Categorías de preguntas frecuentes",
+  "faq.search.label": "Buscar en preguntas frecuentes",
+  "faq.search.placeholder": "Buscar en preguntas frecuentes...",
+  // {q} is replaced with the text the visitor typed.
+  "faq.search.empty": 'No encontramos preguntas que coincidan con "{q}".',
+  // {n} is replaced with the number of matches.
+  "faq.search.results.one": "1 pregunta encontrada",
+  "faq.search.results.many": "{n} preguntas encontradas",
+  "faq.edu.title": "Aprendé lo esencial",
+  "faq.edu.subtitle":
+    "Contenido educativo sobre calidad del aire, pensado para escuelas y familias.",
+  "faq.cta.title": "¿Todavía tenés preguntas?",
+  "faq.cta.subtitle":
+    "Nuestro equipo puede ayudarte a evaluar si Sensor Leasing es la opción correcta para tu institución.",
+  "faq.cta.primary": "Solicitar información",
+  "faq.cta.secondary": "Agendar demo",
   // Alerts (alertas)
   "alerts.goToMap": "Ir al mapa",
 
@@ -339,22 +410,68 @@ const en: Dictionary = {
 
   "join.breadcrumb.home": "Home",
   "join.breadcrumb.current": "Join the network",
-  "join.hero.title": "Join the Respira sensor network",
-  "join.hero.subtitle":
-    "We are looking for institutions, organizations and individuals who want to be part of the air quality monitoring network in Paraguay.",
-  "join.hero.subtitle2": "Fill out the form and our team will contact you.",
-  "join.benefit.impact.title": "Real impact",
-  "join.benefit.impact.desc":
-    "Improve air quality in your community with reliable, open data.",
-  "join.benefit.data.title": "Open, high-quality data",
-  "join.benefit.data.desc":
-    "Access real-time data and contribute to citizen science.",
-  "join.benefit.health.title": "Health and environment",
-  "join.benefit.health.desc":
-    "More information to make better decisions and protect our health.",
-  "join.benefit.tech.title": "Open technology",
-  "join.benefit.tech.desc":
-    "We use open hardware and software for a transparent, collaborative network.",
+  "join.how.title": "How does Respira work?",
+  "join.how.p1":
+    "We install the sensor, you get the service. Respira provides an air quality monitoring and forecasting service through a platform that brings together sensors, environmental data and artificial intelligence.",
+  "join.how.p2":
+    "The sensor is installed on loan: it is part of the service and remains Respira's property for the whole contract. Your institution invests in a monthly subscription that includes the installed sensor, maintenance, access to the platform (web and app), forecasts, alerts and technical support.",
+  "join.how.imageAlt": "Proyecto Respira air quality sensor",
+
+  "join.price.title": "How much does it cost?",
+  "join.price.intro":
+    "There is no single price: the recommended sensor and the cost of the service depend on your institution and on where you are going to install it. That is why the process works like this:",
+  "join.price.step1.title": "Tell us about your institution.",
+  "join.price.step1.desc":
+    "Fill out the form with the type of institution (school, university, company, municipality, home, community space), its approximate size and who approves the budget.",
+  "join.price.step2.title": "We assess your case.",
+  "join.price.step2.desc":
+    "We look at the location, how many people are around, connectivity access and what you are going to use the information for — those factors determine the most suitable sensor and the real coverage area.",
+  "join.price.step3.title": "We recommend the right sensor.",
+  "join.price.step3.desc":
+    "For example: Wi-Fi sensors for urban spaces, or sensors with a solar panel and self-calibration for remote areas without connectivity.",
+  "join.price.step4.title": "We send you a commercial proposal.",
+  "join.price.step4.desc":
+    "With the monthly cost of the service for your specific installation.",
+  "join.price.step5.title": "We install and get started.",
+  "join.price.step5.desc":
+    "Installation is handled by an external provider and, once it is done, your institution can already see its information on the platform.",
+
+  "join.includes.title": "What the monthly service includes",
+  "join.includes.sensor":
+    "Sensor installed and running (provided by Respira, with no purchase cost).",
+  "join.includes.monitoring":
+    "Real-time air quality monitoring (particulate matter PM2.5 and PM10).",
+  "join.includes.forecast":
+    "Air quality forecast 6–12 hours ahead using artificial intelligence.",
+  "join.includes.platform": "Web platform and mobile app.",
+  "join.includes.alerts":
+    "Alerts and notifications when the air gets worse in your area.",
+  "join.includes.dashboard":
+    "Dashboard with actionable recommendations, not just numbers.",
+  "join.includes.report":
+    "Downloadable monthly report, ready to share with families, the board or your team.",
+  "join.includes.support": "Maintenance and technical support for the sensor.",
+  "join.includes.standards":
+    "The sensors follow EPA and WHO standards, with the backing of MADES. They measure particulate matter; measuring gases requires a higher-end sensor and is assessed case by case.",
+
+  "join.segments.title": "Benefits by type of institution",
+  "join.segments.education.title": "Schools and universities",
+  "join.segments.education.desc":
+    "Safer learning environments, information to decide about outdoor activities, and a monthly report you can share with families and authorities.",
+  "join.segments.business.title": "Companies and industry",
+  "join.segments.business.desc":
+    "Continuous monitoring and reliable data to strengthen environmental compliance and your sustainability strategy.",
+  "join.segments.production.title":
+    "Productive sector (livestock, construction, agribusiness)",
+  "join.segments.production.desc":
+    "Information for operational decisions — for example, when there is smoke from wildfires or waste burning near your production.",
+  "join.segments.public.title": "Municipalities and public institutions",
+  "join.segments.public.desc":
+    "Open, real-time data to strengthen public policy and environmental management of the territory.",
+  "join.segments.families.title": "Families and community",
+  "join.segments.families.desc":
+    "Reliable information to protect the health of people with respiratory conditions, asthma or allergies.",
+
   "join.next.title": "What happens next?",
   "join.next.desc":
     "Our team will review your request and contact you to discuss the next steps.",
@@ -373,18 +490,17 @@ const en: Dictionary = {
   "join.form.cityPlaceholder": "E.g. Asunción",
   "join.form.department": "Department",
   "join.form.departmentPlaceholder": "Select...",
-  "join.form.interest": "What type of interest do you have?",
-  "join.form.interest.institution": "Institution",
-  "join.form.interest.institutionHint":
-    "(Schools, Colleges, Universities, Companies, etc.)",
-  "join.form.interest.home": "Home",
-  "join.form.interest.homeHint": "(Private house or residence)",
-  "join.form.interest.community": "Community space",
-  "join.form.interest.communityHint": "(Squares, community centers, etc.)",
-  "join.form.interest.ngo": "Other organization or NGO",
-  "join.form.interest.ngoHint": "",
-  "join.form.interest.other": "Other",
-  "join.form.interest.otherHint": "(Specify in the message)",
+  "join.form.size": "Approximate size",
+  "join.form.sizePlaceholder": "E.g. 450 people",
+  "join.form.approver": "Who approves the budget",
+  "join.form.approverPlaceholder": "E.g. Administrative management",
+  "join.form.institutionType": "Type of institution",
+  "join.form.institutionType.school": "School",
+  "join.form.institutionType.university": "University",
+  "join.form.institutionType.company": "Company",
+  "join.form.institutionType.municipality": "Municipality",
+  "join.form.institutionType.home": "Home",
+  "join.form.institutionType.community": "Community space",
   "join.form.message": "Tell us more about your interest or motivation",
   "join.form.messagePlaceholder":
     "E.g. We want to monitor air quality at our school for an environmental project...",
@@ -466,6 +582,26 @@ const en: Dictionary = {
   "resources.external.who": "(WHO) World Health Organization",
   "resources.external.aireLibre": "Aire Libre",
 
+  "faq.badge": "Sensor Leasing",
+  "faq.heroImageAlt":
+    "Proyecto Respira air quality sensor, showing its solar panel and the respira logo",
+  "faq.title": "Frequently Asked Questions",
+  "faq.subtitle":
+    "We answer the most common questions about leasing air quality sensors: costs, installation, maintenance and how your institution can start monitoring today.",
+  "faq.nav.label": "Frequently asked question categories",
+  "faq.search.label": "Search the frequently asked questions",
+  "faq.search.placeholder": "Search the frequently asked questions...",
+  "faq.search.empty": 'We could not find any questions matching "{q}".',
+  "faq.search.results.one": "1 question found",
+  "faq.search.results.many": "{n} questions found",
+  "faq.edu.title": "Learn the essentials",
+  "faq.edu.subtitle":
+    "Educational content about air quality, made for schools and families.",
+  "faq.cta.title": "Still have questions?",
+  "faq.cta.subtitle":
+    "Our team can help you assess whether Sensor Leasing is the right fit for your institution.",
+  "faq.cta.primary": "Request information",
+  "faq.cta.secondary": "Schedule a demo",
   "alerts.goToMap": "Go to the map",
 
   "stats.title": "Statistics",
@@ -604,23 +740,68 @@ const pt: Dictionary = {
 
   "join.breadcrumb.home": "Início",
   "join.breadcrumb.current": "Junte-se à rede",
-  "join.hero.title": "Junte-se à rede de sensores Respira",
-  "join.hero.subtitle":
-    "Buscamos instituições, organizações e pessoas que queiram fazer parte da rede de monitoramento da qualidade do ar no Paraguai.",
-  "join.hero.subtitle2":
-    "Preencha o formulário e nossa equipe entrará em contato.",
-  "join.benefit.impact.title": "Impacto real",
-  "join.benefit.impact.desc":
-    "Melhore a qualidade do ar na sua comunidade com dados confiáveis e abertos.",
-  "join.benefit.data.title": "Dados abertos e de qualidade",
-  "join.benefit.data.desc":
-    "Acesse dados em tempo real e contribua para a ciência cidadã.",
-  "join.benefit.health.title": "Saúde e meio ambiente",
-  "join.benefit.health.desc":
-    "Mais informação para tomar melhores decisões e cuidar da nossa saúde.",
-  "join.benefit.tech.title": "Tecnologia aberta",
-  "join.benefit.tech.desc":
-    "Usamos hardware e software aberto para uma rede transparente e colaborativa.",
+  "join.how.title": "Como funciona a Respira?",
+  "join.how.p1":
+    "Instalamos o sensor, você acessa o serviço. A Respira oferece um serviço de monitoramento e previsão da qualidade do ar por meio de uma plataforma que integra sensores, dados ambientais e inteligência artificial.",
+  "join.how.p2":
+    "O sensor é instalado em comodato: faz parte do serviço e continua sendo da Respira durante todo o contrato. Sua instituição investe em uma assinatura mensal que inclui o sensor instalado, a manutenção, o acesso à plataforma (web e app), as previsões, os alertas e o suporte técnico.",
+  "join.how.imageAlt": "Sensor de qualidade do ar do Proyecto Respira",
+
+  "join.price.title": "Quanto custa?",
+  "join.price.intro":
+    "Não há um preço único: o sensor recomendado e o custo do serviço dependem da sua instituição e do local onde você vai instalá-lo. Por isso o processo é assim:",
+  "join.price.step1.title": "Conte-nos sobre sua instituição.",
+  "join.price.step1.desc":
+    "Preencha o formulário com o tipo de instituição (colégio, universidade, empresa, município, residência, espaço comunitário), seu tamanho aproximado e quem aprova o orçamento.",
+  "join.price.step2.title": "Avaliamos seu caso.",
+  "join.price.step2.desc":
+    "Analisamos a localização, a quantidade de pessoas ao redor, o acesso à conectividade e para que você vai usar a informação — esses fatores determinam o sensor mais adequado e a área de cobertura real.",
+  "join.price.step3.title": "Recomendamos o sensor ideal.",
+  "join.price.step3.desc":
+    "Por exemplo: sensores com conexão Wi-Fi para espaços urbanos, ou sensores com painel solar e autocalibração para zonas remotas sem conectividade.",
+  "join.price.step4.title": "Enviamos uma proposta comercial.",
+  "join.price.step4.desc":
+    "Com o custo mensal do serviço conforme a sua instalação específica.",
+  "join.price.step5.title": "Instalamos e começamos.",
+  "join.price.step5.desc":
+    "A instalação fica a cargo de um fornecedor externo e, uma vez pronta, sua instituição já pode ver suas informações na plataforma.",
+
+  "join.includes.title": "O que inclui o serviço mensal",
+  "join.includes.sensor":
+    "Sensor instalado e em funcionamento (fornecido pela Respira, sem custo de compra).",
+  "join.includes.monitoring":
+    "Monitoramento da qualidade do ar em tempo real (material particulado PM2.5 e PM10).",
+  "join.includes.forecast":
+    "Previsão da qualidade do ar de 6–12 horas por meio de inteligência artificial.",
+  "join.includes.platform": "Plataforma web e aplicativo móvel.",
+  "join.includes.alerts":
+    "Alertas e notificações quando o ar piora na sua região.",
+  "join.includes.dashboard":
+    "Dashboard com recomendações acionáveis, não apenas números.",
+  "join.includes.report":
+    "Relatório mensal para download, pronto para compartilhar com famílias, o conselho diretor ou a equipe.",
+  "join.includes.support": "Manutenção e suporte técnico do sensor.",
+  "join.includes.standards":
+    "Os sensores seguem os padrões da EPA e da OMS, com respaldo do MADES. Medem material particulado; a medição de gases requer um sensor de gama superior e é avaliada caso a caso.",
+
+  "join.segments.title": "Benefícios conforme o seu tipo de instituição",
+  "join.segments.education.title": "Escolas e universidades",
+  "join.segments.education.desc":
+    "Ambientes de aprendizagem mais seguros, informação para decidir sobre atividades ao ar livre e um relatório mensal que você pode compartilhar com famílias e autoridades.",
+  "join.segments.business.title": "Empresas e indústrias",
+  "join.segments.business.desc":
+    "Monitoramento contínuo e dados confiáveis para fortalecer a conformidade ambiental e a estratégia de sustentabilidade.",
+  "join.segments.production.title":
+    "Setor produtivo (pecuária, construção, agroindústria)",
+  "join.segments.production.desc":
+    "Informação para tomar decisões operacionais — por exemplo, diante de fumaça de incêndios florestais ou queima de resíduos perto da sua produção.",
+  "join.segments.public.title": "Municípios e instituições públicas",
+  "join.segments.public.desc":
+    "Dados abertos e em tempo real para fortalecer políticas públicas e a gestão ambiental do território.",
+  "join.segments.families.title": "Famílias e comunidade",
+  "join.segments.families.desc":
+    "Informação confiável para proteger a saúde de quem tem afecções respiratórias, asma ou alergias.",
+
   "join.next.title": "O que acontece depois?",
   "join.next.desc":
     "Nossa equipe avaliará sua solicitação e entrará em contato para conversar sobre os próximos passos.",
@@ -639,18 +820,17 @@ const pt: Dictionary = {
   "join.form.cityPlaceholder": "Ex: Assunção",
   "join.form.department": "Departamento",
   "join.form.departmentPlaceholder": "Selecione...",
-  "join.form.interest": "Que tipo de interesse você tem?",
-  "join.form.interest.institution": "Instituição",
-  "join.form.interest.institutionHint":
-    "(Escolas, Colégios, Universidades, Empresas, etc.)",
-  "join.form.interest.home": "Residência",
-  "join.form.interest.homeHint": "(Casa ou moradia particular)",
-  "join.form.interest.community": "Espaço comunitário",
-  "join.form.interest.communityHint": "(Praças, centros comunitários, etc.)",
-  "join.form.interest.ngo": "Outra organização ou ONG",
-  "join.form.interest.ngoHint": "",
-  "join.form.interest.other": "Outro",
-  "join.form.interest.otherHint": "(Especificar na mensagem)",
+  "join.form.size": "Tamanho aproximado",
+  "join.form.sizePlaceholder": "Ex: 450 pessoas",
+  "join.form.approver": "Quem aprova o orçamento",
+  "join.form.approverPlaceholder": "Ex: Direção administrativa",
+  "join.form.institutionType": "Tipo de instituição",
+  "join.form.institutionType.school": "Colégio",
+  "join.form.institutionType.university": "Universidade",
+  "join.form.institutionType.company": "Empresa",
+  "join.form.institutionType.municipality": "Município",
+  "join.form.institutionType.home": "Residência",
+  "join.form.institutionType.community": "Espaço comunitário",
   "join.form.message": "Conte-nos mais sobre seu interesse ou motivação",
   "join.form.messagePlaceholder":
     "Ex: Queremos monitorar a qualidade do ar na nossa escola para um projeto ambiental...",
@@ -732,6 +912,26 @@ const pt: Dictionary = {
   "resources.external.who": "(OMS) Organização Mundial da Saúde",
   "resources.external.aireLibre": "Aire Libre",
 
+  "faq.badge": "Sensor Leasing",
+  "faq.heroImageAlt":
+    "Sensor de qualidade do ar do Proyecto Respira, com seu painel solar e o logo respira",
+  "faq.title": "Perguntas Frequentes",
+  "faq.subtitle":
+    "Respondemos às dúvidas mais comuns sobre o aluguel de sensores de qualidade do ar: custos, instalação, manutenção e como a sua instituição pode começar a monitorar hoje.",
+  "faq.nav.label": "Categorias de perguntas frequentes",
+  "faq.search.label": "Buscar nas perguntas frequentes",
+  "faq.search.placeholder": "Buscar nas perguntas frequentes...",
+  "faq.search.empty": 'Não encontramos perguntas que correspondam a "{q}".',
+  "faq.search.results.one": "1 pergunta encontrada",
+  "faq.search.results.many": "{n} perguntas encontradas",
+  "faq.edu.title": "Aprenda o essencial",
+  "faq.edu.subtitle":
+    "Conteúdo educativo sobre qualidade do ar, pensado para escolas e famílias.",
+  "faq.cta.title": "Ainda tem perguntas?",
+  "faq.cta.subtitle":
+    "Nossa equipe pode ajudar você a avaliar se o Sensor Leasing é a opção certa para a sua instituição.",
+  "faq.cta.primary": "Solicitar informações",
+  "faq.cta.secondary": "Agendar demonstração",
   "alerts.goToMap": "Ir para o mapa",
 
   "stats.title": "Estatísticas",

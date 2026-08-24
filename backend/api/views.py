@@ -5,30 +5,57 @@ from math import asin, cos, radians, sin, sqrt
 from statistics import median, quantiles
 
 import requests
+from dateutil.relativedelta import relativedelta
 from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth import login as auth_login
+from django.contrib.auth import logout as auth_logout
 from django.core.cache import cache
+from django.db.models import Avg, Prefetch
 from django.db.models.functions import TruncDate, TruncMonth, TruncWeek
+from django.middleware.csrf import get_token
 from django.utils import timezone
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import generics, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import NotFound, PermissionDenied
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
+from .aqi import classify_aqi
 from .models import (
+    FaqCategory,
+    FaqQuestion,
     InferenceResults,
     InferenceRuns,
+    Institution,
     RegionReadings,
     Regions,
     StationReadingsGold,
     Stations,
+    UserRole,
+    get_institution_for_user,
 )
+from .pagination import StandardResultsSetPagination
+from .permissions import IsAdminRole, IsInstitutionUser, IsOwnInstitution
 from .serializers import (
+    AdminUserCreateSerializer,
+    AdminUserSerializer,
+    AdminUserUpdateSerializer,
+    FaqCategorySerializer,
     ForecastSerializer,
     HealthSerializer,
+    InstitutionDashboardSerializer,
+    InstitutionLoginSerializer,
+    InstitutionSerializer,
     MapSerializer,
     RegionSerializer,
     StationSerializer,
 )
+
+User = get_user_model()
 
 
 def _flatten_forecast_rows(rows):
@@ -568,3 +595,296 @@ class StationViewset(ModelViewSet):
             box_data["upperfence"].append(upperfence)
 
         return Response(box_data, status=status.HTTP_200_OK)
+
+
+def _parse_bool(value):
+    if value is None:
+        return None
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List platform users",
+        parameters=[
+            OpenApiParameter(
+                name="email",
+                type=OpenApiTypes.STR,
+                description="Filter by case-insensitive partial email match.",
+            ),
+            OpenApiParameter(
+                name="role",
+                type=OpenApiTypes.STR,
+                enum=[choice.value for choice in UserRole],
+                description="Filter by exact role.",
+            ),
+            OpenApiParameter(
+                name="is_active",
+                type=OpenApiTypes.BOOL,
+                description="Filter by active status.",
+            ),
+        ],
+    ),
+    create=extend_schema(summary="Create a platform user"),
+    retrieve=extend_schema(summary="Retrieve a platform user"),
+    partial_update=extend_schema(summary="Update a platform user"),
+    destroy=extend_schema(summary="Deactivate (soft delete) a platform user"),
+)
+@extend_schema(tags=["Admin Users"])
+class AdminUserViewSet(ModelViewSet):
+    """Administrative CRUD for platform users and their assigned roles.
+
+    Restricted to authenticated users with the ``admin`` or ``superadmin`` role.
+    """
+
+    queryset = User.objects.select_related("profile").all().order_by("id")
+    permission_classes = [IsAuthenticated, IsAdminRole]
+    pagination_class = StandardResultsSetPagination
+    http_method_names = ["get", "post", "patch", "delete"]
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return AdminUserCreateSerializer
+        if self.action in {"update", "partial_update"}:
+            return AdminUserUpdateSerializer
+        return AdminUserSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        email = self.request.query_params.get("email")
+        if email:
+            queryset = queryset.filter(email__icontains=email)
+
+        role = self.request.query_params.get("role")
+        if role:
+            queryset = queryset.filter(profile__role=role)
+
+        is_active = _parse_bool(self.request.query_params.get("is_active"))
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active)
+
+        return queryset
+
+    def perform_destroy(self, instance):
+        """Soft delete: deactivate the account instead of removing the row."""
+        instance.is_active = False
+        instance.save(update_fields=["is_active"])
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance == request.user:
+            raise PermissionDenied("You cannot delete your own account.")
+        return super().destroy(request, *args, **kwargs)
+
+
+def _dashboard_sensor(station):
+    details = getattr(station, "details", None)
+    last_reading = (
+        StationReadingsGold.objects.filter(station_id=station.id)
+        .order_by("-date_utc")
+        .first()
+    )
+    return {
+        "id": station.id,
+        "name": station.name,
+        "status": "online" if station.is_station_on else "offline",
+        "location": {
+            "city": details.city if details else None,
+            "specific_location": details.specific_location if details else None,
+            "latitude": station.latitude,
+            "longitude": station.longitude,
+        },
+        "last_measurement_at": last_reading.date_utc if last_reading else None,
+    }, last_reading
+
+
+def _dashboard_air_quality(last_reading):
+    if last_reading is None or last_reading.aqi_pm2_5 is None:
+        return None
+    level = classify_aqi(last_reading.aqi_pm2_5)
+    return {
+        "aqi": last_reading.aqi_pm2_5,
+        "category": level["key"],
+        "category_label": level["label"],
+        "message": level["message"],
+        "recommendations": level["recommendations"],
+    }
+
+
+def _dashboard_history(station):
+    """Daily-averaged AQI for the trailing three months, oldest first.
+
+    Aggregated by day (rather than raw readings) so three months of data
+    stays a chart-sized payload instead of tens of thousands of points.
+    """
+    start_date = timezone.now() - relativedelta(months=3)
+    rows = (
+        StationReadingsGold.objects.filter(
+            station_id=station.id, date_utc__gte=start_date, aqi_pm2_5__isnull=False
+        )
+        .annotate(day=TruncDate("date_utc"))
+        .values("day")
+        .annotate(aqi=Avg("aqi_pm2_5"))
+        .order_by("day")
+    )
+    return [{"date": row["day"], "aqi": row["aqi"]} for row in rows]
+
+
+def _dashboard_alert_config(institution):
+    alert_config = getattr(institution, "alert_config", None)
+    if alert_config is None:
+        return {"is_enabled": False, "alert_threshold": None, "sensitive_groups": []}
+    return {
+        "is_enabled": alert_config.is_enabled,
+        "alert_threshold": alert_config.alert_threshold,
+        "sensitive_groups": list(alert_config.sensitive_groups.all()),
+    }
+
+
+def _build_institution_dashboard(institution):
+    contract = getattr(institution, "contract", None)
+    if contract is None:
+        raise NotFound("This institution does not have an assigned sensor.")
+
+    sensor, last_reading = _dashboard_sensor(contract.station)
+    return {
+        "sensor": sensor,
+        "air_quality": _dashboard_air_quality(last_reading),
+        "history": _dashboard_history(contract.station),
+        "alert_config": _dashboard_alert_config(institution),
+    }
+
+
+@extend_schema(tags=["Institutional Dashboard"])
+class InstitutionViewSet(ReadOnlyModelViewSet):
+    """Self-service, read-only view of an institution's own dashboard data.
+
+    Distinct from the Django Admin's Institution CRUD (backoffice-only,
+    session-authenticated staff): this is what the institutional dashboard
+    itself consumes. Access is limited to the institution the caller is
+    linked to via ``InstitutionUser`` (see ``IsInstitutionUser`` /
+    ``IsOwnInstitution``), never another institution's records.
+
+    ``list`` is scoped through ``get_queryset`` — DRF does not run
+    object-level permissions per row — while ``retrieve`` relies on
+    ``IsOwnInstitution`` so requesting another institution's id by pk still
+    returns 403 rather than leaking its existence via a 200.
+    """
+
+    serializer_class = InstitutionSerializer
+    permission_classes = [IsAuthenticated, IsInstitutionUser, IsOwnInstitution]
+    # "get" for list/retrieve/me, "post" for the login/logout actions below —
+    # this viewset otherwise offers no write access to Institution itself.
+    http_method_names = ["get", "post"]
+
+    def get_queryset(self):
+        if self.action == "list":
+            institution = get_institution_for_user(self.request.user)
+            if institution is None:
+                return Institution.objects.none()
+            return Institution.objects.filter(pk=institution.pk)
+        return Institution.objects.all()
+
+    @extend_schema(summary="Retrieve the caller's own institution")
+    @action(detail=False, methods=["get"])
+    def me(self, request, *args, **kwargs):
+        institution = get_institution_for_user(request.user)
+        serializer = self.get_serializer(institution)
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="Retrieve the caller's institutional dashboard",
+        description=(
+            "Consolidated data for the Institution Dashboard: the assigned "
+            "sensor, current air quality (AQI, category, interpretive "
+            "message and recommendation), three months of measurement "
+            "history, and the institution's alert configuration (enabled "
+            "flag, AQI threshold and configured sensitive groups). The "
+            "institution is resolved automatically from the authenticated "
+            "user — never from a request parameter — so a caller can only "
+            "ever retrieve their own institution's data. Returns 404 when "
+            "the institution has no assigned sensor yet; `air_quality` is "
+            "`null` when the sensor has not reported a measurement yet."
+        ),
+        responses=InstitutionDashboardSerializer,
+    )
+    @action(detail=False, methods=["get"])
+    def dashboard(self, request, *args, **kwargs):
+        institution = get_institution_for_user(request.user)
+        payload = _build_institution_dashboard(institution)
+        serializer = InstitutionDashboardSerializer(payload)
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="Log in to the institutional dashboard",
+        request=InstitutionLoginSerializer,
+        responses=InstitutionSerializer,
+    )
+    @action(detail=False, methods=["post"], permission_classes=[AllowAny])
+    def login(self, request, *args, **kwargs):
+        """Authenticate and start a session, same as the admin login form.
+
+        Kept off ``IsInstitutionUser``/``IsAuthenticated`` (unlike every other
+        action here) since, by definition, the caller isn't authenticated yet.
+        Institution membership is checked *after* credentials succeed, so a
+        valid admin/staff login without an Institution link gets a 403 here
+        rather than a session — this endpoint only ever signs a caller into
+        their own institutional dashboard, never into the backoffice.
+        """
+        serializer = InstitutionLoginSerializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data["user"]
+
+        institution = get_institution_for_user(user)
+        if institution is None:
+            raise PermissionDenied(
+                "This account does not have access to an institutional dashboard."
+            )
+
+        auth_login(request, user)
+        # Forces the CSRF cookie to be set on the response so the frontend can
+        # send it back on subsequent unsafe (non-GET) requests in this session.
+        get_token(request)
+        return Response(InstitutionSerializer(institution).data)
+
+    @extend_schema(summary="Log out of the institutional dashboard")
+    @action(detail=False, methods=["post"])
+    def logout(self, request, *args, **kwargs):
+        auth_logout(request)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@extend_schema(
+    responses=FaqCategorySerializer(many=True),
+    description=(
+        "Published FAQ categories with their published questions, ordered for "
+        "display. Every question carries all supported languages; untranslated "
+        "fields fall back to Spanish."
+    ),
+)
+class FaqListView(generics.ListAPIView):
+    """Public, read-only feed for the /recursos page.
+
+    Unpublished categories and questions are filtered out here rather than in
+    the frontend, so a draft is never shipped to the browser.
+    """
+
+    serializer_class = FaqCategorySerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return (
+            FaqCategory.objects.filter(is_published=True)
+            .prefetch_related(
+                Prefetch(
+                    "questions",
+                    queryset=FaqQuestion.objects.filter(is_published=True).order_by(
+                        "order", "id"
+                    ),
+                )
+            )
+            .order_by("order", "id")
+        )

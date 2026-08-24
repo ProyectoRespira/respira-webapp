@@ -22,6 +22,37 @@ def _quote_postgres_identifier(identifier: str) -> str:
     return '"' + identifier.replace('"', '""') + '"'
 
 
+def _env_bool(key: str, default: bool) -> bool:
+    value = os.getenv(key)
+    if value is None:
+        return default
+    normalized = value.strip()
+    if normalized == "":
+        return default
+    return normalized.lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(key: str, default: int) -> int:
+    value = os.getenv(key)
+    if value is None or value.strip() == "":
+        return default
+    return int(value)
+
+
+def _env_str(key: str, default: str) -> str:
+    value = os.getenv(key)
+    if value is None:
+        return default
+    normalized = value.strip()
+    if normalized == "":
+        return default
+    return normalized
+
+
+def _env_list(key: str) -> list[str]:
+    return [item.strip() for item in os.getenv(key, "").split(",") if item.strip()]
+
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -34,14 +65,19 @@ SECRET_KEY = os.getenv("BACKEND_SECRET_KEY", "respira-backend-dev-secret-key")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("BACKEND_DEBUG", "false").lower() == "true"
 
-ALLOWED_HOSTS = [
+_default_allowed_hosts = [
     "127.0.0.1",
     "localhost",
+    "backend",
     "testserver",
     "159.65.227.146",
     "proyectorespira.net",
     ".proyectorespira.net",
 ]
+
+ALLOWED_HOSTS = list(
+    dict.fromkeys(_default_allowed_hosts + _env_list("BACKEND_ALLOWED_HOSTS"))
+)
 
 # Application definition
 
@@ -55,8 +91,13 @@ INSTALLED_APPS = [
     "corsheaders",
     "rest_framework",
     "drf_spectacular",
+    "axes",
+    "accounts",
     "api",
 ]
+
+# Custom user model authenticated by email (see accounts app).
+AUTH_USER_MODEL = "accounts.User"
 
 REST_FRAMEWORK = {"DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema"}
 
@@ -77,6 +118,8 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "corsheaders.middleware.CorsMiddleware",
+    # AxesMiddleware must be the last middleware in the stack.
+    "axes.middleware.AxesMiddleware",
 ]
 
 CORS_ORIGIN_ALLOW_ALL = False
@@ -178,6 +221,9 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {
+            "min_length": _env_int("BACKEND_PASSWORD_MIN_LENGTH", 10),
+        },
     },
     {
         "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
@@ -185,7 +231,108 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
+    {
+        "NAME": "accounts.validators.ComplexityValidator",
+        "OPTIONS": {
+            "require_special": _env_bool("BACKEND_PASSWORD_REQUIRE_SPECIAL", True),
+        },
+    },
 ]
+
+
+# Authentication
+# The Django Admin backoffice authenticates against the custom user model
+# (accounts.User) using Django's built-in session framework and the default
+# ModelBackend. See docs/admin-auth-configuration.md.
+
+AUTHENTICATION_BACKENDS = [
+    # AxesStandaloneBackend must be first so failed logins are recorded and
+    # locked-out requests are rejected before ModelBackend runs.
+    "axes.backends.AxesStandaloneBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
+
+# Django Admin provides the login/logout views. LOGIN_URL points unauthenticated
+# requests for protected pages at the admin login form.
+LOGIN_URL = "admin:login"
+LOGIN_REDIRECT_URL = "admin:index"
+
+# Session management (environment-aware).
+# Default session lifetime: 8 hours. Sessions are stored in the database.
+SESSION_COOKIE_AGE = _env_int("BACKEND_SESSION_COOKIE_AGE", 60 * 60 * 8)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = _env_bool(
+    "BACKEND_SESSION_EXPIRE_AT_BROWSER_CLOSE", False
+)
+SESSION_SAVE_EVERY_REQUEST = _env_bool("BACKEND_SESSION_SAVE_EVERY_REQUEST", False)
+
+# Secure cookie settings. Secure cookies (HTTPS-only) are enabled by default
+# whenever DEBUG is off (i.e. in production) and can be overridden per
+# environment. HttpOnly session cookies are always on so client-side JS cannot
+# read the session id.
+_secure_cookies_default = not DEBUG
+SESSION_COOKIE_SECURE = _env_bool(
+    "BACKEND_SESSION_COOKIE_SECURE", _secure_cookies_default
+)
+CSRF_COOKIE_SECURE = _env_bool("BACKEND_CSRF_COOKIE_SECURE", _secure_cookies_default)
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = _env_str("BACKEND_SESSION_COOKIE_SAMESITE", "Lax")
+CSRF_COOKIE_SAMESITE = _env_str("BACKEND_CSRF_COOKIE_SAMESITE", "Lax")
+
+# Origins trusted for CSRF-protected admin POSTs when served over HTTPS behind a
+# proxy (e.g. https://proyectorespira.net). Configure per deployment.
+CSRF_TRUSTED_ORIGINS = _env_list("BACKEND_CSRF_TRUSTED_ORIGINS")
+
+
+# Email / password recovery
+# Django's built-in password reset workflow is enabled as soon as SMTP settings
+# are provided; no additional development is required. In development, emails are
+# printed to the console. See docs/admin-password-management.md.
+EMAIL_BACKEND = os.getenv(
+    "BACKEND_EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend"
+    if DEBUG
+    else "django.core.mail.backends.smtp.EmailBackend",
+)
+EMAIL_HOST = os.getenv("BACKEND_EMAIL_HOST", "")
+EMAIL_PORT = _env_int("BACKEND_EMAIL_PORT", 587)
+EMAIL_HOST_USER = os.getenv("BACKEND_EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("BACKEND_EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = _env_bool("BACKEND_EMAIL_USE_TLS", True)
+DEFAULT_FROM_EMAIL = _env_str(
+    "BACKEND_DEFAULT_FROM_EMAIL", "no-reply@proyectorespira.net"
+)
+
+
+# Login rate limiting (django-axes)
+# Locks an identity out after repeated failed logins to blunt brute-force
+# attacks on the admin login page. See docs/admin-security-hardening.md.
+AXES_ENABLED = _env_bool("BACKEND_AXES_ENABLED", True)
+AXES_FAILURE_LIMIT = _env_int("BACKEND_AXES_FAILURE_LIMIT", 5)
+AXES_COOLOFF_TIME = _env_int("BACKEND_AXES_COOLOFF_HOURS", 1)  # hours
+AXES_RESET_ON_SUCCESS = True
+AXES_LOCKOUT_PARAMETERS = ["username", "ip_address"]
+AXES_LOCKOUT_TEMPLATE = None
+
+
+# Security hardening (environment-aware)
+# Clickjacking protection: deny framing of admin pages entirely.
+X_FRAME_OPTIONS = _env_str("BACKEND_X_FRAME_OPTIONS", "DENY")
+SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# The following HTTPS protections are enabled by default in production
+# (DEBUG off) and can be tuned per environment. They are off in local HTTP dev.
+_prod = not DEBUG
+SECURE_SSL_REDIRECT = _env_bool("BACKEND_SECURE_SSL_REDIRECT", _prod)
+SECURE_HSTS_SECONDS = _env_int("BACKEND_SECURE_HSTS_SECONDS", 31536000 if _prod else 0)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = _env_bool(
+    "BACKEND_SECURE_HSTS_INCLUDE_SUBDOMAINS", _prod
+)
+SECURE_HSTS_PRELOAD = _env_bool("BACKEND_SECURE_HSTS_PRELOAD", _prod)
+
+# Trust the X-Forwarded-Proto header set by the reverse proxy that terminates
+# TLS, so Django knows the original request was HTTPS.
+if _env_bool("BACKEND_SECURE_PROXY_SSL_HEADER", _prod):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 
 # Internationalization

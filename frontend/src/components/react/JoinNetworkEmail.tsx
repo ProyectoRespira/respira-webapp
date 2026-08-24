@@ -17,12 +17,13 @@ type JoinEmailProps = JoinInput & {
   siteUrl: string;
 };
 
-const INTEREST_LABELS: Record<JoinInput["interestType"], string> = {
-  institution: "Institución (Escuelas, Colegios, Universidades, Empresas)",
-  home: "Hogar (Casa o vivienda particular)",
-  community: "Espacio comunitario (Plazas, centros comunitarios)",
-  ngo: "Otra organización u ONG",
-  other: "Otro",
+const INSTITUTION_LABELS: Record<JoinInput["institutionType"], string> = {
+  school: "Colegio",
+  university: "Universidad",
+  company: "Empresa",
+  municipality: "Municipio",
+  home: "Hogar",
+  community: "Espacio comunitario",
 };
 
 export function JoinEmail(props: JoinEmailProps) {
@@ -33,10 +34,12 @@ export function JoinEmail(props: JoinEmailProps) {
     organization,
     city,
     department,
-    interestType,
+    institutionType,
+    size,
     siteUrl,
   } = props;
   const message = props.message?.trim();
+  const approver = props.approver?.trim();
 
   return (
     <Html>
@@ -66,8 +69,13 @@ export function JoinEmail(props: JoinEmailProps) {
             <Field label="Ciudad / Localidad" value={city} />
             <Field label="Departamento" value={department || "—"} />
             <Field
-              label="Tipo de interés"
-              value={INTEREST_LABELS[interestType]}
+              label="Tipo de institución"
+              value={INSTITUTION_LABELS[institutionType]}
+            />
+            <Field label="Tamaño aproximado" value={size} />
+            <Field
+              label="Quién aprueba el presupuesto"
+              value={approver && approver.length > 0 ? approver : "—"}
             />
             <Field
               label="Interés o motivación"
