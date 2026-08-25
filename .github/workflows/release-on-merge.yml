@@ -210,6 +210,7 @@ jobs:
     needs: create-release
     if: needs.create-release.outputs.skip != 'true'
     runs-on: ubuntu-latest
+    environment: Production
     env:
       REGISTRY: ghcr.io
       IMAGE_OWNER: ${{ github.repository_owner }}
@@ -314,7 +315,7 @@ jobs:
           tags: ${{ steps.meta_frontend.outputs.tags }}
           labels: ${{ steps.meta_frontend.outputs.labels }}
           build-args: |
-            GLITCHTIP_UPLOAD_SOURCEMAPS=true
+            GLITCHTIP_UPLOAD_SOURCEMAPS=${{ vars.GLITCHTIP_UPLOAD_SOURCEMAPS }}
             GLITCHTIP_URL=${{ vars.GLITCHTIP_URL }}
             GLITCHTIP_ORG=${{ vars.GLITCHTIP_ORG }}
             GLITCHTIP_PROJECT=${{ vars.GLITCHTIP_FRONTEND_PROJECT }}
