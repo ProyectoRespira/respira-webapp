@@ -253,6 +253,21 @@ def get_institution_for_user(user) -> "Institution | None":
     return link.institution if link else None
 
 
+def get_institution_station_ids(institution) -> set[int]:
+    """Station ids an institution is entitled to act on.
+
+    Today that is the single station bound by its :class:`InstitutionContract`
+    — an institution leases at most one sensor. Centralized here (like
+    :func:`get_institution_for_user`) so every institutional endpoint resolves
+    "which stations are mine" identically, and so widening the rule later
+    (several contracts per institution) is a one-place change.
+    """
+    if institution is None:
+        return set()
+    contract = getattr(institution, "contract", None)
+    return {contract.station_id} if contract is not None else set()
+
+
 class SensitiveGroup(models.Model):
     """Catalog of at-risk population groups an institution can flag for alerts.
 
@@ -305,6 +320,112 @@ class InstitutionAlertConfig(models.Model):
 
     def __str__(self):
         return f"Alert config for {self.institution}"
+
+
+class InstitutionAlert(models.Model):
+    """A poor-air-quality event recorded for an institution's station.
+
+    Records that an institution's AQI threshold was actually crossed, so an
+    :class:`ActionLog` entry can point at the event it responded to. The
+    threshold itself is per-institution configuration, tracked separately.
+
+    Nothing writes these automatically yet — alerts are computed client-side in
+    respira-mobile and never stored — so rows are created from the admin until
+    an alert generator exists. Adding one is purely additive: it neither reads
+    nor changes the existing notification path.
+
+    ``station`` mirrors :class:`InstitutionContract`: ``db_constraint=False``
+    because dbt drops and recreates ``stations`` on every gold run, so a
+    physical FOREIGN KEY would not survive it.
+    """
+
+    institution = models.ForeignKey(
+        "Institution", on_delete=models.CASCADE, related_name="alerts"
+    )
+    station = models.ForeignKey(
+        "Stations",
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        related_name="institution_alerts",
+    )
+    aqi_value = models.FloatField(
+        help_text="AQI reading that triggered the alert.",
+    )
+    alert_threshold = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        help_text=(
+            "Threshold in force when the alert fired, copied from the "
+            "institution's alert configuration so later edits to that "
+            "configuration don't rewrite history."
+        ),
+    )
+    triggered_at = models.DateTimeField(default=timezone.now)
+    resolved_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Left empty while the event is still ongoing.",
+    )
+
+    class Meta:
+        db_table = "institution_alert"
+        ordering = ("-triggered_at", "-id")
+
+    def __str__(self):
+        return f"{self.institution} — AQI {self.aqi_value} at {self.triggered_at:%Y-%m-%d %H:%M}"
+
+
+class ActionLog(models.Model):
+    """An action an institution took in response to an air quality event.
+
+    The institutional audit trail: what was decided or done, when, on which
+    station, and — when applicable — which alert prompted it. Written through
+    the institutional API (never by the pipeline), which is why ``timestamp``
+    is ``auto_now_add``: the backend stamps it, and no client can backdate an
+    entry.
+
+    Deletion behaviour follows what each relationship means for the record:
+
+    * ``institution`` cascades — the history belongs to the institution and has
+      no meaning once the institution is gone (same as ``InstitutionContract``
+      and ``InstitutionUser``).
+    * ``station`` is ``DO_NOTHING`` with ``db_constraint=False``, like every
+      other backend-owned model pointing at the dbt-managed ``stations``.
+    * ``alert`` is ``SET_NULL`` — the alert is context, not the record's
+      subject. Removing an alert must not erase the fact that the institution
+      acted, so the entry survives as an action without a linked alert.
+    """
+
+    institution = models.ForeignKey(
+        "Institution", on_delete=models.CASCADE, related_name="action_logs"
+    )
+    station = models.ForeignKey(
+        "Stations",
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        related_name="action_logs",
+    )
+    alert = models.ForeignKey(
+        "InstitutionAlert",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="action_logs",
+        help_text="Optional: the alert this action responded to.",
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
+    note = models.TextField(help_text="The action taken by the institution.")
+
+    class Meta:
+        db_table = "action_log"
+        # Most recent action first, as the institutional history is read.
+        # ``-id`` breaks ties so two entries written in the same instant (a
+        # realistic case for a stamped-by-the-server timestamp) still come back
+        # in a stable, newest-first order.
+        ordering = ("-timestamp", "-id")
+
+    def __str__(self):
+        return f"{self.institution} — {self.timestamp:%Y-%m-%d %H:%M}"
 
 
 class StationOverride(models.Model):

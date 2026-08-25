@@ -6,6 +6,7 @@ from rest_framework.validators import UniqueValidator
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 from .models import (
+    ActionLog,
     FaqCategory,
     FaqQuestion,
     Institution,
@@ -17,6 +18,8 @@ from .models import (
     UserProfile,
     UserRole,
     faq_localized_map,
+    get_institution_for_user,
+    get_institution_station_ids,
     user_role,
 )
 
@@ -385,6 +388,88 @@ class InstitutionLoginSerializer(serializers.Serializer):
         if user is None or not user.is_active:
             raise serializers.ValidationError("Invalid email or password.")
         attrs["user"] = user
+        return attrs
+
+
+class ActionLogSerializer(serializers.ModelSerializer):
+    """Create and read the actions an institution recorded.
+
+    A single serializer for both directions: the fields a client must not
+    control — ``institution`` and ``timestamp`` — are read-only, so they are
+    ignored if posted and assigned by the backend instead. That is what makes
+    "the client cannot create a record on behalf of another institution" a
+    property of the serializer rather than a check the view has to remember.
+
+    ``station`` and ``alert`` *are* writable, so both are validated against the
+    caller's own institution below; the caller's institution comes from the
+    request (via the view's context), never from the payload.
+    """
+
+    institution_name = serializers.SerializerMethodField()
+    station_name = serializers.CharField(source="station.name", read_only=True)
+
+    class Meta:
+        model = ActionLog
+        fields = [
+            "id",
+            "institution",
+            "institution_name",
+            "station",
+            "station_name",
+            "alert",
+            "timestamp",
+            "note",
+        ]
+        read_only_fields = ["id", "institution", "timestamp"]
+
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_institution_name(self, obj) -> str:
+        return str(obj.institution)
+
+    def _institution(self):
+        """The caller's institution, resolved from the request — never the payload."""
+        institution = self.context.get("institution")
+        if institution is not None:
+            return institution
+        request = self.context.get("request")
+        return get_institution_for_user(getattr(request, "user", None))
+
+    def validate_station(self, value):
+        """Reject a station the caller's institution does not hold a contract for.
+
+        A caller with no institution at all resolves to an empty set of allowed
+        stations and lands here too, though in practice ``IsInstitutionUser``
+        has already answered that case with a 403.
+        """
+        if value.pk not in get_institution_station_ids(self._institution()):
+            raise serializers.ValidationError(
+                "This station is not assigned to your institution."
+            )
+        return value
+
+    def validate_alert(self, value):
+        if value is None:
+            return value
+        institution = self._institution()
+        if institution is None or value.institution_id != institution.pk:
+            raise serializers.ValidationError(
+                "This alert does not belong to your institution."
+            )
+        return value
+
+    def validate(self, attrs):
+        """Cross-field check: an alert must concern the station being acted on.
+
+        Both fields have already been confirmed to belong to the caller's
+        institution individually; this rejects the remaining inconsistent
+        combination, where a valid alert is attached to a different station.
+        """
+        alert = attrs.get("alert")
+        station = attrs.get("station")
+        if alert is not None and station is not None and alert.station_id != station.pk:
+            raise serializers.ValidationError(
+                {"alert": "This alert does not belong to the selected station."}
+            )
         return attrs
 
 
