@@ -452,13 +452,16 @@ def build_monthly_report_pdf(institution, contract, stats, threshold, actions) -
 
     daily_rows = [["Fecha", "AQI promedio", "AQI máximo", "Categoría"]]
     for row in stats["daily"]:
-        level = classify_aqi(row["average"])
+        # Named apart from the `level` bound by the distribution loop above:
+        # that one is always an AqiLevel, this one is nullable when a day has
+        # no classifiable average.
+        day_level = classify_aqi(row["average"])
         daily_rows.append(
             [
                 row["day"].strftime("%d/%m/%Y"),
                 _aqi(row["average"]),
                 _aqi(row["highest"]),
-                level["label"].capitalize() if level else "—",
+                day_level["label"].capitalize() if day_level else "—",
             ]
         )
 
