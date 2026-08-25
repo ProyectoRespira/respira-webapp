@@ -32,6 +32,7 @@ from .models import (
     InferenceResults,
     InferenceRuns,
     Institution,
+    InstitutionAlert,
     RegionReadings,
     Regions,
     StationReadingsGold,
@@ -49,6 +50,7 @@ from .serializers import (
     FaqCategorySerializer,
     ForecastSerializer,
     HealthSerializer,
+    InstitutionAlertSerializer,
     InstitutionDashboardSerializer,
     InstitutionLoginSerializer,
     InstitutionSerializer,
@@ -816,6 +818,42 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
         institution = get_institution_for_user(request.user)
         payload = _build_institution_dashboard(institution)
         serializer = InstitutionDashboardSerializer(payload)
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="List the alerts recorded for the caller's institution",
+        description=(
+            "Air-quality events recorded for the institution's own sensor, "
+            "most recent first. Read-only: alerts are produced by the "
+            "platform, not authored by institutions. This is what makes "
+            "`ActionLog.alert` usable from a client — without it the field is "
+            "writable but a caller has no way to discover a valid id."
+        ),
+        responses=InstitutionAlertSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"], serializer_class=InstitutionAlertSerializer)
+    def alerts(self, request, *args, **kwargs):
+        """Scoped in the queryset, like ``list``.
+
+        Registered as a router action rather than a plain path, which also
+        settles the ordering problem: the router emits dynamic list routes
+        before ``institution/{pk}/``, so "alerts" is never read as a pk.
+        """
+        institution = get_institution_for_user(request.user)
+        queryset = (
+            InstitutionAlert.objects.filter(institution=institution).select_related(
+                "station"
+            )
+            if institution is not None
+            else InstitutionAlert.objects.none()
+        )
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
     @extend_schema(

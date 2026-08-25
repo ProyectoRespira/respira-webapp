@@ -1,0 +1,116 @@
+---
+// The private institutional dashboard (RES-328).
+//
+// Access is decided here, during SSR, before a byte of the panel is sent: a
+// visitor without an institutional session is redirected to the login page
+// rather than shown a shell that then discovers it has no data. The same guard
+// call supplies the institution name and contract the page needs, so the check
+// costs no extra round trip.
+//
+// The dashboard payload is fetched server-side too, which is what lets the page
+// arrive complete instead of hydrating into skeletons.
+
+import InstitutionLayout from "../../layouts/InstitutionLayout.astro";
+import { DashboardSections } from "../../components/react/institution/DashboardSections";
+import type { InitialDashboardState } from "../../components/react/institution/DashboardSections";
+import { institutionName } from "../../data/institution";
+import { institutionCopy as copy } from "../../i18n/institution";
+import { getFrontendRuntimeConfig } from "../../runtime-env";
+import { InstitutionApiError, fetchDashboard } from "../../store/institution";
+import { formatDateTime } from "../../utils/institution-format";
+import {
+  INSTITUTION_LOGIN_PATH,
+  resolveInstitutionSession,
+} from "../../utils/institution-session";
+
+const session = await resolveInstitutionSession(Astro.request);
+
+// Held in a const rather than referenced straight inside the `return`: Astro's
+// type check does not see identifiers used only in a top-level return, and
+// reports the import as unused.
+const redirectTo =
+  session.status === "anonymous" ? INSTITUTION_LOGIN_PATH : undefined;
+if (redirectTo) {
+  return Astro.redirect(redirectTo);
+}
+
+// A backend failure is not a logout: rendering the shell with an error state
+// keeps the visitor in place with a retry, instead of bouncing them to a login
+// form backed by the same unreachable backend.
+const institution =
+  session.status === "authenticated" ? session.institution : undefined;
+
+let initial: InitialDashboardState = { status: "error" };
+
+if (institution) {
+  const cookie = Astro.request.headers.get("cookie") ?? undefined;
+  try {
+    initial = { status: "ready", dashboard: await fetchDashboard(cookie) };
+  } catch (error) {
+    // 404 from this endpoint means "no contract, so no sensor yet" — an
+    // expected stage for a new client, not a failure.
+    initial =
+      error instanceof InstitutionApiError && error.code === "not_found"
+        ? { status: "no-sensor" }
+        : { status: "error" };
+    if (initial.status === "error") {
+      console.error("Could not load the institutional dashboard", error);
+    }
+  }
+}
+
+let contactMail = "";
+try {
+  contactMail = getFrontendRuntimeConfig().contactMail;
+} catch (error) {
+  console.error("Could not read the contact mail for the dashboard", error);
+}
+
+const name = institution ? institutionName(institution) : copy.panelName;
+const lastReading =
+  initial.status === "ready"
+    ? initial.dashboard.sensor.last_measurement_at
+    : null;
+---
+
+<InstitutionLayout title={copy.pageTitle} institutionName={name}>
+  <div class="mx-auto flex max-w-[1400px] flex-col gap-5 px-4 py-7 md:px-6">
+    <div class="flex flex-wrap items-end gap-4">
+      <h1 class="m-0 font-serif text-2xl font-bold">{copy.pageTitle}</h1>
+      {
+        lastReading && (
+          <span class="ml-auto text-xs text-gray tabular-nums">
+            {copy.updatedAt} {formatDateTime(lastReading)}
+          </span>
+        )
+      }
+    </div>
+
+    <DashboardSections
+      initial={initial}
+      contract={institution?.contract ?? null}
+      contactMail={contactMail}
+      client:load
+    />
+
+    {
+      contactMail && (
+        <section class="rounded-xl border border-bg-gray bg-white p-5">
+          <h2 class="m-0 text-xs font-bold uppercase tracking-[0.1em] text-gray">
+            {copy.contactTitle}
+          </h2>
+          <p class="m-0 mt-3 text-[13px]">
+            {copy.contactEmail}:{" "}
+            <a
+              class="font-semibold text-green_dark hover:underline"
+              href={`mailto:${contactMail}`}
+            >
+              {contactMail}
+            </a>
+          </p>
+          <p class="m-0 mt-1 text-xs text-lightgray">{copy.contactHint}</p>
+        </section>
+      )
+    }
+  </div>
+</InstitutionLayout>

@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
+from .exports import InstitutionMonthlyReportView, InstitutionRawExportView
 from .views import (
     ActionLogViewSet,
     AdminUserViewSet,
@@ -30,6 +31,19 @@ router.register(r"action-logs", ActionLogViewSet, basename="action-logs")
 urlpatterns = [
     path(r"map/nearest-region/", NearestRegionView.as_view(), name="nearest-region"),
     path(r"stations/nearest/", NearestStationView.as_view(), name="nearest-station"),
+    # Ahead of the router on purpose: it maps `institution/<pk>/` with a
+    # permissive pk pattern, so registered after these it would swallow
+    # `institution/export/` as a lookup for an institution called "export".
+    path(
+        r"institution/report/monthly/",
+        InstitutionMonthlyReportView.as_view(),
+        name="institution-monthly-report",
+    ),
+    path(
+        r"institution/export/",
+        InstitutionRawExportView.as_view(),
+        name="institution-raw-export",
+    ),
     path(r"", include(router.urls)),
     path(r"faq/", FaqListView.as_view(), name="faq"),
     path(r"map/", MapViewset.as_view(), name="map"),

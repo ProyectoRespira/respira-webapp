@@ -359,6 +359,9 @@ class ActionLogListTests(ActionLogTestCase):
                 "station",
                 "station_name",
                 "alert",
+                # The same alert expanded, so a client listing actions can name
+                # the event each one answered without a second request.
+                "alert_detail",
                 "timestamp",
                 "note",
             },
