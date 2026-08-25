@@ -156,8 +156,7 @@ def _attachment(content: bytes, filename: str, content_type: str) -> HttpRespons
     # Both forms: the plain one for older clients, the RFC 5987 one so accented
     # institution names survive. The frontend reads either.
     response["Content-Disposition"] = (
-        f'attachment; filename="{filename}"; '
-        f"filename*=UTF-8''{filename}"
+        f"attachment; filename=\"{filename}\"; filename*=UTF-8''{filename}"
     )
     response["Content-Length"] = str(len(content))
     return response
@@ -398,7 +397,9 @@ def build_monthly_report_pdf(institution, contract, stats, threshold, actions) -
         return buffer.getvalue()
 
     days_over = (
-        sum(1 for row in stats["daily"] if row["average"] and row["average"] > threshold)
+        sum(
+            1 for row in stats["daily"] if row["average"] and row["average"] > threshold
+        )
         if threshold
         else None
     )
@@ -412,7 +413,9 @@ def build_monthly_report_pdf(institution, contract, stats, threshold, actions) -
         ["AQI mínimo", _aqi(stats["lowest"])],
     ]
     if days_over is not None:
-        summary_rows.append([f"Días sobre el umbral de alerta ({threshold})", str(days_over)])
+        summary_rows.append(
+            [f"Días sobre el umbral de alerta ({threshold})", str(days_over)]
+        )
 
     flow += [
         Paragraph("Resumen", styles["heading"]),
@@ -512,9 +515,7 @@ class InstitutionMonthlyReportView(APIView):
 
         stats = _month_statistics(contract.station_id, month_start)
         actions = _month_actions(institution, month_start)
-        pdf = build_monthly_report_pdf(
-            institution, contract, stats, threshold, actions
-        )
+        pdf = build_monthly_report_pdf(institution, contract, stats, threshold, actions)
 
         return _attachment(
             pdf,

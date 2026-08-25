@@ -9,7 +9,7 @@ cannot catch.
 
 import io
 import zipfile
-from datetime import date, datetime, time, timedelta, timezone as dt_timezone
+from datetime import date, datetime, time, timezone as dt_timezone
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -125,7 +125,10 @@ class MonthlyReportTests(InstitutionExportTestCase):
         self.assertEqual(response["Content-Type"], "application/pdf")
         # A real PDF, not an error page with an optimistic content type.
         self.assertTrue(response.content.startswith(b"%PDF-"))
-        self.assertIn("reporte-mensual-hospital-bautista-2026-07.pdf", response["Content-Disposition"])
+        self.assertIn(
+            "reporte-mensual-hospital-bautista-2026-07.pdf",
+            response["Content-Disposition"],
+        )
 
     def test_defaults_to_the_last_complete_month(self):
         """The current month would change between downloads, so it is not the default."""
