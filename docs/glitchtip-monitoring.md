@@ -48,13 +48,16 @@ project for the corresponding environment:
 | `vars.GLITCHTIP_ORG` | Organization slug. |
 | `vars.GLITCHTIP_FRONTEND_PROJECT` | Frontend project slug. |
 | `vars.GLITCHTIP_UPLOAD_SOURCEMAPS` | Set to `true` to enable frontend source-map upload; leave unset to skip it. |
+| `vars.GLITCHTIP_CLI_VERSION` | Exact GlitchTip CLI release tag used for uploads. |
+| `vars.GLITCHTIP_CLI_SHA256` | SHA-256 checksum for that release's Linux binary for the build architecture. |
 | `secrets.GLITCHTIP_AUTH_TOKEN` | Least-privilege CLI token for the frontend project. |
 
 The token is supplied only as a BuildKit secret. Never put it in `.env`, a
 running container, browser runtime configuration, image layers, logs, or source
-control. Configure the token only when `GLITCHTIP_UPLOAD_SOURCEMAPS=true`.
-When upload is enabled, a missing or invalid token fails the release image build
-rather than publishing unreadable browser stacks.
+control. Configure the token, CLI version, and checksum only when
+`GLITCHTIP_UPLOAD_SOURCEMAPS=true`. When upload is enabled, a missing or invalid
+token, version, or checksum fails the release image build rather than publishing
+unreadable browser stacks.
 
 The development-branch demo workflow uses `dev-latest` for both the runtime and
 source-map release label. The release/hotfix demo workflow uses its immutable

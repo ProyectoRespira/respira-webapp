@@ -2,12 +2,24 @@ import * as Sentry from "@sentry/browser";
 
 import { getRuntimeConfig } from "../store/runtime-config";
 
+export type GlitchTipRuntimeConfig = {
+  glitchtipDsn: string;
+  glitchtipEnvironment: string;
+  glitchtipRelease: string;
+};
+
 const SENSITIVE_KEYS = [
   "authorization",
+  "client_ip",
   "cookie",
+  "csrfmiddlewaretoken",
+  "forwarded",
+  "ip_address",
   "password",
+  "remote_addr",
   "secret",
   "token",
+  "x-real-ip",
 ];
 
 let initialized = false;
@@ -74,7 +86,9 @@ const captureException = (
   });
 };
 
-export const initializeGlitchTip = async (): Promise<void> => {
+export const initializeGlitchTip = async (
+  runtimeConfig?: GlitchTipRuntimeConfig,
+): Promise<void> => {
   if (initialized || typeof window === "undefined") {
     return;
   }
@@ -82,7 +96,7 @@ export const initializeGlitchTip = async (): Promise<void> => {
     return initializationPromise;
   }
 
-  initializationPromise = getRuntimeConfig()
+  initializationPromise = Promise.resolve(runtimeConfig ?? getRuntimeConfig())
     .then(({ glitchtipDsn, glitchtipEnvironment, glitchtipRelease }) => {
       if (!glitchtipDsn) {
         pendingExceptions.length = 0;
