@@ -82,9 +82,9 @@ Read server-side in `frontend/src/actions/index.ts`. These values are never sent
 | `PUBLIC_REGION_DEFAULT_ID` | ✓ | ✓ |
 | `SITE_URL` | ✓ | ✓ |
 | `PUBLIC_GTAG` | ✓ | ✓ |
-| `PUBLIC_GLITCHTIP_DSN` | ✓ | — |
-| `GLITCHTIP_ENVIRONMENT` | ✓ | — |
-| `GLITCHTIP_RELEASE` | ✓ | — |
+| `PUBLIC_GLITCHTIP_DSN` | ✓ | ✓ |
+| `GLITCHTIP_ENVIRONMENT` | ✓ | ✓ |
+| `GLITCHTIP_RELEASE` | ✓ | ✓ |
 | `CONTACT_MAIL` | ✓ | ✓ |
 | `TWITTER_HANDLE` | ✓ | ✓ |
 | `TELEGRAM_CHANNEL` | ✓ | ✓ |

@@ -1,9 +1,10 @@
-from typing import Any
+from typing import Any, cast
 
 import sentry_sdk
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import Http404
 from rest_framework.exceptions import APIException
+from sentry_sdk.types import Event
 
 
 SENSITIVE_KEYS = {
@@ -38,7 +39,8 @@ def _scrub_mapping(value: object) -> object:
     }
 
 
-def before_send(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any] | None:
+def before_send(event: Event, hint: dict[str, Any]) -> Event | None:
+    payload = cast(dict[str, Any], event)
     exc_info = hint.get("exc_info")
     original_exception = (
         exc_info[1] if isinstance(exc_info, tuple) and len(exc_info) > 1 else None
@@ -49,7 +51,7 @@ def before_send(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any] |
     ):
         return None
 
-    request = event.get("request")
+    request = payload.get("request")
     if isinstance(request, dict):
         request.pop("data", None)
         request.pop("cookies", None)
@@ -57,12 +59,12 @@ def before_send(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any] |
         request["headers"] = _scrub_mapping(request.get("headers", {}))
         request["url"] = request.get("url", "").split("?", maxsplit=1)[0]
 
-    event["extra"] = _scrub_mapping(event.get("extra", {}))
-    event["contexts"] = _scrub_mapping(event.get("contexts", {}))
-    event["breadcrumbs"] = _scrub_mapping(event.get("breadcrumbs", {}))
-    user = event.get("user")
+    payload["extra"] = _scrub_mapping(payload.get("extra", {}))
+    payload["contexts"] = _scrub_mapping(payload.get("contexts", {}))
+    payload["breadcrumbs"] = _scrub_mapping(payload.get("breadcrumbs", {}))
+    user = payload.get("user")
     if isinstance(user, dict):
-        event["user"] = {key: user[key] for key in ("id", "role") if key in user}
+        payload["user"] = {key: user[key] for key in ("id", "role") if key in user}
     return event
 
 
