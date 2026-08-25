@@ -20,6 +20,16 @@ SENSITIVE_KEYS = {
     "token",
     "x-real-ip",
 }
+URL_KEYS = {
+    "blocked-uri",
+    "document-uri",
+    "from",
+    "referer",
+    "referrer",
+    "source-file",
+    "to",
+    "url",
+}
 
 
 def _is_sensitive_key(key: object) -> bool:
@@ -28,14 +38,24 @@ def _is_sensitive_key(key: object) -> bool:
     )
 
 
-def _scrub_mapping(value: object) -> object:
+def _remove_query(value: str) -> str:
+    return value.split("?", maxsplit=1)[0]
+
+
+def _scrub_mapping(value: object, key: object | None = None) -> object:
     if isinstance(value, list):
-        return [_scrub_mapping(item) for item in value]
+        return [_scrub_mapping(item, key) for item in value]
+    if isinstance(value, str) and key in URL_KEYS:
+        return _remove_query(value)
     if not isinstance(value, dict):
         return value
     return {
-        key: "[Filtered]" if _is_sensitive_key(key) else _scrub_mapping(item)
-        for key, item in value.items()
+        item_key: (
+            "[Filtered]"
+            if _is_sensitive_key(item_key)
+            else _scrub_mapping(item, item_key)
+        )
+        for item_key, item in value.items()
     }
 
 
@@ -45,10 +65,12 @@ def before_send(event: Event, hint: dict[str, Any]) -> Event | None:
     original_exception = (
         exc_info[1] if isinstance(exc_info, tuple) and len(exc_info) > 1 else None
     )
-    if isinstance(
-        original_exception,
-        (APIException, Http404, PermissionDenied, ValidationError),
+    if (
+        isinstance(original_exception, APIException)
+        and 400 <= (original_exception.status_code) < 500
     ):
+        return None
+    if isinstance(original_exception, (Http404, PermissionDenied, ValidationError)):
         return None
 
     request = payload.get("request")
@@ -57,7 +79,7 @@ def before_send(event: Event, hint: dict[str, Any]) -> Event | None:
         request.pop("cookies", None)
         request.pop("query_string", None)
         request["headers"] = _scrub_mapping(request.get("headers", {}))
-        request["url"] = request.get("url", "").split("?", maxsplit=1)[0]
+        request["url"] = _remove_query(request.get("url", ""))
 
     payload["extra"] = _scrub_mapping(payload.get("extra", {}))
     payload["contexts"] = _scrub_mapping(payload.get("contexts", {}))

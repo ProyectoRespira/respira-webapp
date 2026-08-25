@@ -605,6 +605,7 @@ jobs:
           COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_WEBAPP }}
           KEY_PATH: ${{ steps.setup_ssh.outputs.key_path }}
           IMAGE_TAG: ${{ needs.prepare-demo.outputs.image_tag }}
+          GLITCHTIP_RELEASE: dev-latest
         run: |
           set -euo pipefail
 
@@ -614,7 +615,7 @@ jobs:
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -o ConnectTimeout=30 \
             "$DEPLOY_USER@$DEPLOY_HOST" \
-            "export COMPOSE_PATH='$COMPOSE_PATH' BACKEND_IMAGE_TAG='$IMAGE_TAG' FRONTEND_IMAGE_TAG='$IMAGE_TAG' PROXY_IMAGE_TAG='$IMAGE_TAG'; bash -se" <<'REMOTE_SCRIPT'
+            "export COMPOSE_PATH='$COMPOSE_PATH' BACKEND_IMAGE_TAG='$IMAGE_TAG' FRONTEND_IMAGE_TAG='$IMAGE_TAG' PROXY_IMAGE_TAG='$IMAGE_TAG' GLITCHTIP_RELEASE='$GLITCHTIP_RELEASE'; bash -se" <<'REMOTE_SCRIPT'
           set -euo pipefail
 
           compose_files="-f docker-compose.yml -f docker-compose.remote.demo.yml"

@@ -569,6 +569,7 @@ jobs:
           COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_WEBAPP }}
           KEY_PATH: ${{ steps.setup_ssh.outputs.key_path }}
           IMAGE_TAG: ${{ needs.validate.outputs.prefixed_tag }}
+          GLITCHTIP_RELEASE: ${{ needs.validate.outputs.prefixed_tag }}
         run: |
           set -euo pipefail
 

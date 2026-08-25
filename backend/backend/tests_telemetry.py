@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from django.http import HttpResponse
 from django.test import RequestFactory, SimpleTestCase
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import APIException, ValidationError
 
 from .middleware import GlitchTipUserContextMiddleware
 from .telemetry import before_send, initialize_glitchtip
@@ -48,9 +48,21 @@ class GlitchTipTelemetryTests(SimpleTestCase):
                 },
                 "url": "https://example.invalid/api/?token=secret",
             },
-            "extra": {"token": "secret", "safe": "value"},
+            "extra": {
+                "token": "secret",
+                "safe": "value",
+                "url": "https://example.invalid/callback?code=secret",
+            },
             "breadcrumbs": {
-                "values": [{"data": {"password": "secret", "safe": "value"}}]
+                "values": [
+                    {
+                        "data": {
+                            "password": "secret",
+                            "safe": "value",
+                            "url": "https://example.invalid/api?token=secret",
+                        }
+                    }
+                ]
             },
             "user": {"id": "user-id", "email": "person@example.invalid"},
         }
@@ -70,9 +82,14 @@ class GlitchTipTelemetryTests(SimpleTestCase):
         self.assertEqual(scrubbed["request"]["headers"]["X-Real-IP"], "[Filtered]")
         self.assertEqual(scrubbed["request"]["headers"]["X-Request-Id"], "request-id")
         self.assertEqual(scrubbed["extra"]["token"], "[Filtered]")
+        self.assertEqual(scrubbed["extra"]["url"], "https://example.invalid/callback")
         self.assertEqual(
             scrubbed["breadcrumbs"]["values"][0]["data"]["password"],
             "[Filtered]",
+        )
+        self.assertEqual(
+            scrubbed["breadcrumbs"]["values"][0]["data"]["url"],
+            "https://example.invalid/api",
         )
         self.assertEqual(scrubbed["user"], {"id": "user-id"})
 
@@ -80,6 +97,12 @@ class GlitchTipTelemetryTests(SimpleTestCase):
         self.assertIsNone(
             before_send({}, {"exc_info": (None, ValidationError(), None)})
         )
+
+    def test_before_send_keeps_server_api_exception(self):
+        exception = APIException()
+        exception.status_code = 500
+
+        self.assertIsNotNone(before_send({}, {"exc_info": (None, exception, None)}))
 
     def test_middleware_sets_only_stable_user_id_and_role(self):
         request = RequestFactory().get("/api/health/")

@@ -24,10 +24,18 @@ const glitchtipConfig = getPublicFrontendRuntimeConfig();
 
 <html lang={lang} class="md:overflow-hidden">
   <head>
-    <script define:vars={{ glitchtipConfig }}>
+    <script
+      id="glitchtip-runtime-config"
+      type="application/json"
+      set:html={JSON.stringify(glitchtipConfig)}
+    />
+    <script>
       import { initializeGlitchTip } from "../telemetry/glitchtip";
 
-      void initializeGlitchTip(glitchtipConfig);
+      const configElement = document.getElementById("glitchtip-runtime-config");
+      if (configElement?.textContent) {
+        void initializeGlitchTip(JSON.parse(configElement.textContent));
+      }
     </script>
     <!-- Google tag (gtag.js); omitted when PUBLIC_GTAG is unset -->
     {

@@ -21,6 +21,16 @@ const SENSITIVE_KEYS = [
   "token",
   "x-real-ip",
 ];
+const URL_KEYS = new Set([
+  "blocked-uri",
+  "document-uri",
+  "from",
+  "referer",
+  "referrer",
+  "source-file",
+  "to",
+  "url",
+]);
 
 let initialized = false;
 let initializationPromise: Promise<void> | undefined;
@@ -31,9 +41,12 @@ const isSensitiveKey = (key: string): boolean =>
     key.toLowerCase().includes(sensitiveKey),
   );
 
-const scrubValue = (value: unknown): unknown => {
+const scrubValue = (value: unknown, key?: string): unknown => {
   if (Array.isArray(value)) {
-    return value.map(scrubValue);
+    return value.map((item) => scrubValue(item, key));
+  }
+  if (typeof value === "string" && key && URL_KEYS.has(key)) {
+    return removeQuery(value);
   }
   if (!value || typeof value !== "object") {
     return value;
@@ -42,7 +55,7 @@ const scrubValue = (value: unknown): unknown => {
   return Object.fromEntries(
     Object.entries(value).map(([key, item]) => [
       key,
-      isSensitiveKey(key) ? "[Filtered]" : scrubValue(item),
+      isSensitiveKey(key) ? "[Filtered]" : scrubValue(item, key),
     ]),
   );
 };
