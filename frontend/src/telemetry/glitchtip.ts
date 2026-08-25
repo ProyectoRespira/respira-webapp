@@ -11,6 +11,8 @@ const SENSITIVE_KEYS = [
 ];
 
 let initialized = false;
+let initializationPromise: Promise<void> | undefined;
+const pendingExceptions: Array<{ error: Error; component?: string }> = [];
 
 const isSensitiveKey = (key: string): boolean =>
   SENSITIVE_KEYS.some((sensitiveKey) =>
@@ -63,36 +65,66 @@ const beforeSend = (event: Sentry.ErrorEvent): Sentry.ErrorEvent => {
   return event;
 };
 
+const captureException = (
+  error: Error,
+  component: string | undefined,
+): void => {
+  Sentry.captureException(error, {
+    tags: component ? { component } : undefined,
+  });
+};
+
 export const initializeGlitchTip = async (): Promise<void> => {
   if (initialized || typeof window === "undefined") {
     return;
   }
-
-  const { glitchtipDsn, glitchtipEnvironment, glitchtipRelease } =
-    await getRuntimeConfig();
-  if (!glitchtipDsn) {
-    return;
+  if (initializationPromise) {
+    return initializationPromise;
   }
 
-  Sentry.init({
-    dsn: glitchtipDsn,
-    environment: glitchtipEnvironment || undefined,
-    release: glitchtipRelease || undefined,
-    sendDefaultPii: false,
-    tracesSampleRate: 0,
-    beforeSend,
-  });
-  initialized = true;
+  initializationPromise = getRuntimeConfig()
+    .then(({ glitchtipDsn, glitchtipEnvironment, glitchtipRelease }) => {
+      if (!glitchtipDsn) {
+        pendingExceptions.length = 0;
+        return;
+      }
+
+      Sentry.init({
+        dsn: glitchtipDsn,
+        environment: glitchtipEnvironment || undefined,
+        release: glitchtipRelease || undefined,
+        sendDefaultPii: false,
+        tracesSampleRate: 0,
+        beforeSend,
+      });
+      initialized = true;
+      for (const pendingException of pendingExceptions) {
+        captureException(pendingException.error, pendingException.component);
+      }
+      pendingExceptions.length = 0;
+    })
+    .catch((error: unknown) => {
+      pendingExceptions.length = 0;
+      console.error("Could not initialize GlitchTip", error);
+    })
+    .finally(() => {
+      if (!initialized) {
+        initializationPromise = undefined;
+      }
+    });
+
+  return initializationPromise;
 };
 
 export const captureGlitchTipException = (
   error: Error,
   component: string | undefined,
 ): void => {
-  if (!initialized) {
+  if (initialized) {
+    captureException(error, component);
     return;
   }
-  Sentry.captureException(error, {
-    tags: component ? { component } : undefined,
-  });
+
+  pendingExceptions.push({ error, component });
+  void initializeGlitchTip();
 };

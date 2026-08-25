@@ -42,6 +42,8 @@ class GlitchTipTelemetryTests(SimpleTestCase):
                 "query_string": "token=secret",
                 "headers": {
                     "Authorization": "Bearer secret",
+                    "X-Forwarded-For": "203.0.113.1",
+                    "X-Real-IP": "203.0.113.1",
                     "X-Request-Id": "request-id",
                 },
                 "url": "https://example.invalid/api/?token=secret",
@@ -62,6 +64,11 @@ class GlitchTipTelemetryTests(SimpleTestCase):
         self.assertNotIn("query_string", scrubbed["request"])
         self.assertEqual(scrubbed["request"]["url"], "https://example.invalid/api/")
         self.assertEqual(scrubbed["request"]["headers"]["Authorization"], "[Filtered]")
+        self.assertEqual(
+            scrubbed["request"]["headers"]["X-Forwarded-For"], "[Filtered]"
+        )
+        self.assertEqual(scrubbed["request"]["headers"]["X-Real-IP"], "[Filtered]")
+        self.assertEqual(scrubbed["request"]["headers"]["X-Request-Id"], "request-id")
         self.assertEqual(scrubbed["extra"]["token"], "[Filtered]")
         self.assertEqual(
             scrubbed["breadcrumbs"]["values"][0]["data"]["password"],

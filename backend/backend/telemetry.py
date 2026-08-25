@@ -8,11 +8,16 @@ from rest_framework.exceptions import APIException
 
 SENSITIVE_KEYS = {
     "authorization",
+    "client_ip",
     "cookie",
     "csrfmiddlewaretoken",
+    "forwarded",
+    "ip_address",
     "password",
+    "remote_addr",
     "secret",
     "token",
+    "x-real-ip",
 }
 
 

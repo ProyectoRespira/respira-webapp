@@ -56,6 +56,12 @@ control. Configure the token only when `GLITCHTIP_UPLOAD_SOURCEMAPS=true`.
 When upload is enabled, a missing or invalid token fails the release image build
 rather than publishing unreadable browser stacks.
 
+The development-branch demo workflow uses `dev-latest` for both the runtime and
+source-map release label. The release/hotfix demo workflow uses its immutable
+`release-vX.Y.Z` or `hotfix-vX.Y.Z` image tag and overrides the runtime label to
+match. Production resolves the latest GitHub Release tag at deploy time and
+overrides the runtime label to match the source-map upload.
+
 ## Verification and Response
 
 Use a nonproduction project first. Trigger one controlled backend 500 and one
