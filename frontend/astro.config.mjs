@@ -15,6 +15,9 @@ const OUTPUT_MODE = "server";
 // https://astro.build/config
 export default defineConfig({
   vite: {
+    build: {
+      sourcemap: "hidden",
+    },
     server: {
       watch: {
         usePolling: true,

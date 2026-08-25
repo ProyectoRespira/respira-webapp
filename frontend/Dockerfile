@@ -18,6 +18,29 @@ FROM deps AS build
 COPY . .
 RUN pnpm run build
 
+FROM build AS glitchtip-build
+ARG GLITCHTIP_UPLOAD_SOURCEMAPS=false
+ARG GLITCHTIP_URL
+ARG GLITCHTIP_ORG
+ARG GLITCHTIP_PROJECT
+ARG GLITCHTIP_RELEASE
+RUN --mount=type=secret,id=glitchtip_auth_token \
+	if [ "$GLITCHTIP_UPLOAD_SOURCEMAPS" = "true" ]; then \
+		auth_token="$(cat /run/secrets/glitchtip_auth_token)"; \
+		test -n "$auth_token"; \
+		test -n "$GLITCHTIP_URL"; \
+		test -n "$GLITCHTIP_ORG"; \
+		test -n "$GLITCHTIP_PROJECT"; \
+		test -n "$GLITCHTIP_RELEASE"; \
+		apt-get update; \
+		apt-get install -y --no-install-recommends curl; \
+		rm -rf /var/lib/apt/lists/*; \
+		curl -fsSL https://glitchtip.com/install.sh | sh; \
+		SENTRY_URL="$GLITCHTIP_URL" SENTRY_AUTH_TOKEN="$auth_token" SENTRY_ORG="$GLITCHTIP_ORG" SENTRY_PROJECT="$GLITCHTIP_PROJECT" glitchtip-cli sourcemaps inject ./dist/client; \
+		SENTRY_URL="$GLITCHTIP_URL" SENTRY_AUTH_TOKEN="$auth_token" SENTRY_ORG="$GLITCHTIP_ORG" SENTRY_PROJECT="$GLITCHTIP_PROJECT" glitchtip-cli sourcemaps upload ./dist/client --release "$GLITCHTIP_RELEASE"; \
+	fi; \
+	find ./dist/client -type f -name "*.map" -delete
+
 FROM node:24-bookworm-slim AS runtime
 WORKDIR /app
 
@@ -29,7 +52,7 @@ RUN groupadd --system --gid 1001 nodejs \
 	&& useradd --system --uid 1001 --gid nodejs app
 
 COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
+COPY --from=glitchtip-build /app/dist ./dist
 
 RUN chown -R app:nodejs /app
 

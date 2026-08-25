@@ -313,6 +313,14 @@ jobs:
           push: true
           tags: ${{ steps.meta_frontend.outputs.tags }}
           labels: ${{ steps.meta_frontend.outputs.labels }}
+          build-args: |
+            GLITCHTIP_UPLOAD_SOURCEMAPS=true
+            GLITCHTIP_URL=${{ vars.GLITCHTIP_URL }}
+            GLITCHTIP_ORG=${{ vars.GLITCHTIP_ORG }}
+            GLITCHTIP_PROJECT=${{ vars.GLITCHTIP_FRONTEND_PROJECT }}
+            GLITCHTIP_RELEASE=${{ env.RELEASE_TAG }}
+          secrets: |
+            glitchtip_auth_token=${{ secrets.GLITCHTIP_AUTH_TOKEN }}
           cache-from: type=gha,scope=release-on-merge-frontend
           cache-to: type=gha,scope=release-on-merge-frontend,mode=max,ignore-error=true
           provenance: true

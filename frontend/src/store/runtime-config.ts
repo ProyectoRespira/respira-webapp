@@ -70,12 +70,23 @@ const loadRuntimeConfig = async (): Promise<RuntimeConfig> => {
   );
   const siteUrl = getRequiredRuntimeConfigField(json, "siteUrl");
   const gtag = typeof json.gtag === "string" ? json.gtag : "";
+  const glitchtipDsn =
+    typeof json.glitchtipDsn === "string" ? json.glitchtipDsn : "";
+  const glitchtipEnvironment =
+    typeof json.glitchtipEnvironment === "string"
+      ? json.glitchtipEnvironment
+      : "";
+  const glitchtipRelease =
+    typeof json.glitchtipRelease === "string" ? json.glitchtipRelease : "";
 
   return {
     backendUrl,
     regionDefaultId,
     siteUrl: normalizeSiteUrl(siteUrl),
     gtag,
+    glitchtipDsn,
+    glitchtipEnvironment,
+    glitchtipRelease,
     contactMail: "",
     twitterUrl: "",
     twitterHandle: "",

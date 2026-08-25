@@ -18,6 +18,9 @@ Only public values required by browser code are exposed here.
 | `PUBLIC_REGION_DEFAULT_ID` | Yes      | —       | `frontend/src/runtime-env.ts`, `frontend/src/pages/runtime-config.json.ts`                                  | Default region ID for initial map requests.                                                       |
 | `SITE_URL`                 | Yes      | —       | `frontend/src/runtime-env.ts`, `frontend/src/pages/runtime-config.json.ts`, `frontend/src/actions/index.ts` | Public canonical URL of the site. No trailing slash. Trailing slashes are stripped automatically. |
 | `PUBLIC_GTAG`              | Yes      | —       | `frontend/src/runtime-env.ts`, `frontend/src/layouts/BaseLayout.astro`                                      | Google Analytics measurement ID.                                                                  |
+| `PUBLIC_GLITCHTIP_DSN`     | No       | `""`    | `frontend/src/runtime-env.ts`, `frontend/src/telemetry/glitchtip.ts`                                       | Browser-project DSN. Public by SDK design; leave blank to disable browser reporting.             |
+| `GLITCHTIP_ENVIRONMENT`    | No       | `""`    | `frontend/src/runtime-env.ts`, `frontend/src/telemetry/glitchtip.ts`                                       | Controlled deployment label, such as `production` or `demo`.                                     |
+| `GLITCHTIP_RELEASE`        | No       | `""`    | `frontend/src/runtime-env.ts`, `frontend/src/telemetry/glitchtip.ts`                                       | Immutable release label shared with the backend, normally the GitHub Release tag.                |
 
 | `BACKEND_URL_INTERNAL` | No | — | `frontend/src/store/runtime-config.ts` | Backend URL for server-side rendering (Node.js). Must be absolute URL. Only used during SSR; not exposed to browser. In docker-compose: `http://backend:8000/api`. |
 ---
@@ -79,6 +82,9 @@ Read server-side in `frontend/src/actions/index.ts`. These values are never sent
 | `PUBLIC_REGION_DEFAULT_ID` | ✓ | ✓ |
 | `SITE_URL` | ✓ | ✓ |
 | `PUBLIC_GTAG` | ✓ | ✓ |
+| `PUBLIC_GLITCHTIP_DSN` | ✓ | — |
+| `GLITCHTIP_ENVIRONMENT` | ✓ | — |
+| `GLITCHTIP_RELEASE` | ✓ | — |
 | `CONTACT_MAIL` | ✓ | ✓ |
 | `TWITTER_HANDLE` | ✓ | ✓ |
 | `TELEGRAM_CHANNEL` | ✓ | ✓ |
@@ -101,3 +107,4 @@ Read server-side in `frontend/src/actions/index.ts`. These values are never sent
 - All variables except `HOST` are enforced as required. Missing any one causes the container to fail at startup or throw on first request.
 - In docker-compose, the root `.env` values are injected into the frontend container via the `environment:` block — no `env_file` is used for the frontend service.
 - If you want a white-label deployment, provide the branding variables in the env layer alongside the runtime config values.
+- `PUBLIC_GLITCHTIP_DSN` is intentionally exposed by `/runtime-config.json`; it identifies the browser project but is not an authentication secret. Never expose `GLITCHTIP_AUTH_TOKEN` or `SENTRY_AUTH_TOKEN` through frontend runtime configuration.

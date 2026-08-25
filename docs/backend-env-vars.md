@@ -26,6 +26,23 @@ See [`.env.example`](../.env.example) for the docker-compose reference and [`bac
 
 ---
 
+## GlitchTip Error Monitoring (optional)
+
+Leave the DSN blank to disable monitoring. The backend sends only unexpected
+server errors; request bodies, cookies, query strings, credentials, email
+addresses, and usernames are excluded. Authenticated events contain only the
+internal user ID and role.
+
+| Variable | Required | Default | Where used | Notes |
+| --- | --- | --- | --- | --- |
+| `BACKEND_GLITCHTIP_DSN` | No | `""` | `backend/backend/settings.py` | Private DSN for the backend GlitchTip project. Leave blank locally and in tests to disable reporting. |
+| `GLITCHTIP_ENVIRONMENT` | No | `""` | `backend/backend/settings.py` | Controlled deployment label, such as `production` or `demo`. Do not infer it from `BACKEND_DEBUG`. |
+| `GLITCHTIP_RELEASE` | No | `""` | `backend/backend/settings.py` | Immutable release label shared with the frontend, normally the GitHub Release tag. |
+
+See `docs/glitchtip-monitoring.md` for hosted-project setup, alerting, and source-map upload secrets.
+
+---
+
 ## Database — PostgreSQL
 
 All five core vars must be set together to enable PostgreSQL. If any is missing the backend falls back to SQLite (development only).
