@@ -11,9 +11,8 @@ Create separate projects for the backend and frontend. Configure alert rules
 and a named response owner before enabling either DSN. Use the backend project's
 DSN only for the backend and the frontend project's DSN only for browser events.
 
-Set these in each protected deployment environment file. Use the DSNs for that
-environment's backend and frontend projects; for example, the demo environment
-uses its demo projects and production uses its production projects.
+Set these in the runtime environment. Use separate DSNs for backend and browser
+projects when both runtimes report telemetry.
 
 | Variable | Purpose |
 | --- | --- |
@@ -36,42 +35,33 @@ IP address, session ID, institution name, or raw request data to telemetry.
 
 ## Source Maps
 
-Optionally upload frontend source maps for production releases and demo image
-publishes. When enabled, the image build uses the GlitchTip CLI and removes
-`.map` files from the final runtime image. Configure these GitHub Actions values
-in both the `Demo` and `Production` GitHub Environments, using the frontend
-project for the corresponding environment:
+Optionally upload source maps from a runtime CI job. This keeps upload
+credentials and configuration out of application images.
 
-| GitHub Actions value | Purpose |
+| Runtime CI variable | Purpose |
 | --- | --- |
-| `vars.GLITCHTIP_URL` | Hosted GlitchTip base URL. |
-| `vars.GLITCHTIP_ORG` | Organization slug. |
-| `vars.GLITCHTIP_FRONTEND_PROJECT` | Frontend project slug. |
-| `vars.GLITCHTIP_UPLOAD_SOURCEMAPS` | Set to `true` to enable frontend source-map upload; leave unset to skip it. |
-| `vars.GLITCHTIP_CLI_VERSION` | Exact GlitchTip CLI release tag used for uploads. |
-| `vars.GLITCHTIP_CLI_SHA256` | SHA-256 checksum for that release's Linux binary for the build architecture. |
-| `secrets.GLITCHTIP_AUTH_TOKEN` | Least-privilege CLI token for the frontend project. |
+| `GLITCHTIP_URL` | Hosted GlitchTip base URL. |
+| `GLITCHTIP_ORG` | Organization slug. |
+| `GLITCHTIP_PROJECT` | Project slug for browser source maps. |
+| `GLITCHTIP_UPLOAD_SOURCEMAPS` | Set to `true` to enable source-map upload; leave unset to skip it. |
+| `GLITCHTIP_CLI_VERSION` | Exact GlitchTip CLI release tag used for uploads. |
+| `GLITCHTIP_CLI_SHA256` | SHA-256 checksum for that release's Linux binary for the build architecture. |
+| `GLITCHTIP_AUTH_TOKEN` | Least-privilege CI token for source-map uploads. |
 
-The token is supplied only as a BuildKit secret. Never put it in `.env`, a
-running container, browser runtime configuration, image layers, logs, or source
-control. Configure the token, CLI version, and checksum only when
+Never put the upload token in `.env`, a running container, browser runtime
+configuration, image layers, logs, or source control. Configure the token, CLI
+version, and checksum only when
 `GLITCHTIP_UPLOAD_SOURCEMAPS=true`. When upload is enabled, a missing or invalid
-token, version, or checksum fails the release image build rather than publishing
-unreadable browser stacks.
-
-The development-branch demo workflow uses `dev-latest` for both the runtime and
-source-map release label. The release/hotfix demo workflow uses its immutable
-`release-vX.Y.Z` or `hotfix-vX.Y.Z` image tag and overrides the runtime label to
-match. Production resolves the latest GitHub Release tag at deploy time and
-overrides the runtime label to match the source-map upload.
+token, version, or checksum fails the upload step rather than publishing
+unreadable browser stacks. Use the same immutable release label for upload and
+runtime error reporting.
 
 ## CSP Reporting (optional)
 
-The proxy can send Content Security Policy violations to the frontend project's
-GlitchTip Security Endpoint. Configure `PROXY_CSP_SECURITY_ENDPOINT` and
-`PROXY_CSP_GLITCHTIP_ORIGIN` in the environment file only after creating the
-corresponding frontend project. CSP reporting is separate from error DSNs and
-does not require a GlitchTip management token.
+The proxy can send Content Security Policy violations to a Security Endpoint.
+Configure `PROXY_CSP_SECURITY_ENDPOINT` and `PROXY_CSP_GLITCHTIP_ORIGIN` at
+runtime. CSP reporting is separate from error DSNs and does not require a
+management token.
 
 See [`content-security-policy.md`](content-security-policy.md) for the
 report-only rollout and browser compatibility details.

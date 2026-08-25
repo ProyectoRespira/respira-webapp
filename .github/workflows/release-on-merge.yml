@@ -314,20 +314,23 @@ jobs:
           push: true
           tags: ${{ steps.meta_frontend.outputs.tags }}
           labels: ${{ steps.meta_frontend.outputs.labels }}
-          build-args: |
-            GLITCHTIP_UPLOAD_SOURCEMAPS=${{ vars.GLITCHTIP_UPLOAD_SOURCEMAPS }}
-            GLITCHTIP_CLI_VERSION=${{ vars.GLITCHTIP_CLI_VERSION }}
-            GLITCHTIP_CLI_SHA256=${{ vars.GLITCHTIP_CLI_SHA256 }}
-            GLITCHTIP_URL=${{ vars.GLITCHTIP_URL }}
-            GLITCHTIP_ORG=${{ vars.GLITCHTIP_ORG }}
-            GLITCHTIP_PROJECT=${{ vars.GLITCHTIP_FRONTEND_PROJECT }}
-            GLITCHTIP_RELEASE=${{ env.RELEASE_TAG }}
-          secrets: |
-            glitchtip_auth_token=${{ secrets.GLITCHTIP_AUTH_TOKEN }}
           cache-from: type=gha,scope=release-on-merge-frontend
           cache-to: type=gha,scope=release-on-merge-frontend,mode=max,ignore-error=true
           provenance: true
           sbom: true
+
+      - name: Upload frontend source maps
+        if: vars.GLITCHTIP_UPLOAD_SOURCEMAPS == 'true'
+        uses: ./.github/actions/upload-glitchtip-sourcemaps
+        env:
+          GLITCHTIP_UPLOAD_SOURCEMAPS: ${{ vars.GLITCHTIP_UPLOAD_SOURCEMAPS }}
+          GLITCHTIP_AUTH_TOKEN: ${{ secrets.GLITCHTIP_AUTH_TOKEN }}
+          GLITCHTIP_CLI_VERSION: ${{ vars.GLITCHTIP_CLI_VERSION }}
+          GLITCHTIP_CLI_SHA256: ${{ vars.GLITCHTIP_CLI_SHA256 }}
+          GLITCHTIP_URL: ${{ vars.GLITCHTIP_URL }}
+          GLITCHTIP_ORG: ${{ vars.GLITCHTIP_ORG }}
+          GLITCHTIP_PROJECT: ${{ vars.GLITCHTIP_FRONTEND_PROJECT }}
+          GLITCHTIP_RELEASE: ${{ env.RELEASE_TAG }}
 
       - name: Build and push proxy image
         id: push_proxy

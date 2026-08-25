@@ -1,70 +1,55 @@
 # Content Security Policy
 
-The Nginx proxy emits a `Content-Security-Policy-Report-Only` header by default.
-Report-only mode records candidate-policy violations without blocking resources,
-which lets operators observe current integrations before deciding whether to
-enforce a policy.
+Content Security Policy (CSP) constrains the sources from which a browser may
+load content, execute scripts, submit forms, or embed pages. It is a
+defense-in-depth control against injection and unintended third-party content.
 
-## Current Scope
+## Safe Rollout
 
-The policy applies at the public proxy and therefore covers Astro pages, static
-assets, API responses, and Django Admin on the shared hostname. It complements
-the existing `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
-referrer, and permissions policies.
+Start with `Content-Security-Policy-Report-Only`. Browsers evaluate the policy
+and report violations without blocking resources, allowing operators to identify
+required sources before enforcement.
 
-The candidate policy permits the currently deployed integrations:
+Apply the policy at the public edge so a single configuration covers all content
+served from an application origin. Use explicit origins for each required
+integration; avoid broad source patterns for scripts, connections, styles, and
+fonts.
 
-- Same-origin pages, API calls, static assets, forms, and manifests.
-- Google Fonts, Google Tag Manager, and Google Analytics.
-- Facebook SDK and share dialog framing.
-- MapTiler style, tile, glyph, and sprite requests.
-- An optional GlitchTip browser/reporting origin.
+## Runtime Configuration
 
-It blocks active content by default with `object-src 'none'`, disallows framing
-with `frame-ancestors 'none'`, and constrains base URLs and form submissions to
-the application origin. The initial report-only policy retains `'unsafe-inline'`
-for scripts and styles because the current Astro layout includes inline Google
-Analytics and GlitchTip initialization, and React uses inline style attributes.
-
-## GlitchTip Reports
-
-To send reports to GlitchTip, obtain the **Security Endpoint** from the
-environment's frontend GlitchTip project, then set:
+Configure CSP at runtime:
 
 ```dotenv
 PROXY_CSP_MODE=report-only
-PROXY_CSP_SECURITY_ENDPOINT=https://glitchtip.example.com/api/<project>/security/?sentry_key=<public-key>
-PROXY_CSP_GLITCHTIP_ORIGIN=https://glitchtip.example.com
+PROXY_CSP_SECURITY_ENDPOINT=
+PROXY_CSP_GLITCHTIP_ORIGIN=
 ```
 
-The proxy emits both legacy `report-uri` and modern `report-to` directives,
-plus `Reporting-Endpoints`, for browser compatibility. The endpoint contains a
-public project key, not an API token. Configure separate endpoints for demo and
-production frontend projects.
+`PROXY_CSP_SECURITY_ENDPOINT` is an optional HTTPS CSP report collector.
+`PROXY_CSP_GLITCHTIP_ORIGIN` is the corresponding HTTPS origin. When omitted,
+browsers retain local report-only diagnostics without sending reports remotely.
 
-Leave the endpoint and origin blank to keep violations in browser developer
-tools without remote reporting. Use `PROXY_CSP_MODE=off` only as an emergency
-rollback; it omits all CSP headers.
+Set `PROXY_CSP_MODE=off` only as an emergency rollback. It removes CSP headers
+without rebuilding application images.
 
-## Rollout
+## Reporting
 
-1. Deploy report-only mode to local, demo, and production.
-2. Exercise public pages, map loading, charts, API requests, contact flows,
-   admin login/password reset, Google Analytics, Facebook sharing, and browser
-   error reporting.
-3. Review violations by effective directive, blocked URL, browser, release, and
-   environment. Add only verified required origins.
-4. Check CSP reports for accidental sensitive data and apply the selected
-   GlitchTip access and retention policy.
-5. After an agreed observation period with no unexplained violations, create a
-   separate enforcement change.
+For browser compatibility, a report collector should support both legacy
+`report-uri` and modern Reporting API headers (`report-to` and
+`Reporting-Endpoints`). The reporting origin must also be allowed by
+`connect-src`.
 
-## Enforcement Prerequisites
+Treat CSP reports as telemetry. Restrict access, define retention, and verify
+that reports do not contain credentials, request bodies, or other sensitive
+values before enabling a remote collector.
 
-Do not turn the report-only header into `Content-Security-Policy` yet. A strict
-enforcing policy requires replacing inline scripts with nonces or hashes and
-removing `'unsafe-inline'` from `script-src`. It should also evaluate whether
-inline style attributes can be migrated before tightening `style-src`.
+## Promotion to Enforcement
 
-Validate proxy changes with `docker compose config`, `nginx -t`, response-header
-checks for `/`, `/api/health/`, and `/admin/`, and `pre-commit run --all-files`.
+1. Deploy report-only mode and exercise every user workflow.
+2. Review violations by directive, blocked origin, browser, release, and
+   environment.
+3. Add only verified required sources and remove obsolete allowances.
+4. Replace inline scripts with nonces or hashes before removing
+   `'unsafe-inline'` from `script-src`.
+5. Enforce CSP in a separate, reviewed change after an observation period with
+   no unexplained violations.
