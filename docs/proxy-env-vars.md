@@ -49,6 +49,30 @@ Tips:
 
 ---
 
+## Content Security Policy
+
+The proxy owns the Content Security Policy for frontend pages, API responses,
+and Django Admin because all are served through the public hostname. The
+current policy is report-only: it never blocks a resource, but browsers report
+candidate-policy violations to the console and, optionally, GlitchTip.
+
+| Variable | Required | Default | Where used | Notes |
+| --- | --- | --- | --- | --- |
+| `PROXY_CSP_MODE` | No | `report-only` | `docker-compose.yml`, `proxy/entrypoint.sh` | Allowed values: `report-only` and `off`. Use `off` only as an emergency rollback. Enforcement is intentionally not supported yet. |
+| `PROXY_CSP_SECURITY_ENDPOINT` | No | `""` | `proxy/entrypoint.sh` | HTTPS Security Endpoint from the environment's frontend GlitchTip project. When set, the proxy emits compatible `report-uri`, `report-to`, and `Reporting-Endpoints` headers. |
+| `PROXY_CSP_GLITCHTIP_ORIGIN` | No | `""` | `proxy/entrypoint.sh` | HTTPS origin of the GlitchTip instance, for example `https://glitchtip.example.com`. Required with the Security Endpoint so the browser can submit reports. |
+
+Leave the endpoint and origin blank to keep report-only violations in browser
+developer tools without sending remote reports. These values are public
+reporting destinations, not GlitchTip management credentials. The proxy rejects
+non-HTTPS or unsafe URL values at startup.
+
+See [`content-security-policy.md`](content-security-policy.md) for the
+allowlisted integrations, report-only rollout, validation, and enforcement
+promotion criteria.
+
+---
+
 ## TLS
 
 Required when using the `production` or `development` build targets.

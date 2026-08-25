@@ -3,7 +3,7 @@
 GlitchTip is an optional integration for unhandled Django and browser errors.
 When disabled, the application runs without sending telemetry. The initial
 integration excludes tracing, profiling, logs, session replay, user feedback,
-CSP reporting, and uptime monitoring.
+CSP reporting, and uptime monitoring by default.
 
 ## Hosted Project Setup
 
@@ -64,6 +64,17 @@ source-map release label. The release/hotfix demo workflow uses its immutable
 `release-vX.Y.Z` or `hotfix-vX.Y.Z` image tag and overrides the runtime label to
 match. Production resolves the latest GitHub Release tag at deploy time and
 overrides the runtime label to match the source-map upload.
+
+## CSP Reporting (optional)
+
+The proxy can send Content Security Policy violations to the frontend project's
+GlitchTip Security Endpoint. Configure `PROXY_CSP_SECURITY_ENDPOINT` and
+`PROXY_CSP_GLITCHTIP_ORIGIN` in the environment file only after creating the
+corresponding frontend project. CSP reporting is separate from error DSNs and
+does not require a GlitchTip management token.
+
+See [`content-security-policy.md`](content-security-policy.md) for the
+report-only rollout and browser compatibility details.
 
 ## Verification and Response
 
