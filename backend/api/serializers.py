@@ -11,6 +11,7 @@ from .models import (
     FaqCategory,
     FaqQuestion,
     Institution,
+    InstitutionAlert,
     InstitutionContract,
     Regions,
     SensitiveGroup,
@@ -392,6 +393,40 @@ class InstitutionLoginSerializer(serializers.Serializer):
         return attrs
 
 
+class InstitutionAlertSerializer(serializers.ModelSerializer):
+    """Read-only view of an alert recorded for the caller's own institution.
+
+    Read-only on purpose: alerts record that a threshold was crossed, so they
+    are produced by the platform (today from the admin, later by an alert
+    generator) and only ever consulted by an institution — never authored by
+    one. Exposing them is what lets the dashboard offer "which alert does this
+    action respond to?" instead of leaving ``ActionLog.alert`` writable with no
+    way for a client to discover a valid value.
+    """
+
+    station_name = serializers.CharField(source="station.name", read_only=True)
+    is_resolved = serializers.SerializerMethodField()
+
+    class Meta:
+        model = InstitutionAlert
+        fields = [
+            "id",
+            "station",
+            "station_name",
+            "aqi_value",
+            "alert_threshold",
+            "triggered_at",
+            "resolved_at",
+            "is_resolved",
+        ]
+        read_only_fields = fields
+
+    @extend_schema_field(OpenApiTypes.BOOL)
+    def get_is_resolved(self, obj) -> bool:
+        """``resolved_at`` is left empty while the event is still ongoing."""
+        return obj.resolved_at is not None
+
+
 class ActionLogSerializer(serializers.ModelSerializer):
     """Create and read the actions an institution recorded.
 
@@ -408,6 +443,10 @@ class ActionLogSerializer(serializers.ModelSerializer):
 
     institution_name = serializers.SerializerMethodField()
     station_name = serializers.CharField(source="station.name", read_only=True)
+    # `alert` stays the writable id; this is the same alert expanded, so a
+    # client rendering a list of actions can show which event each one answered
+    # without fetching every alert separately and joining them itself.
+    alert_detail = InstitutionAlertSerializer(source="alert", read_only=True)
 
     class Meta:
         model = ActionLog
@@ -418,6 +457,7 @@ class ActionLogSerializer(serializers.ModelSerializer):
             "station",
             "station_name",
             "alert",
+            "alert_detail",
             "timestamp",
             "note",
         ]
