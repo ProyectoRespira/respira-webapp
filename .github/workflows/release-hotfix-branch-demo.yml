@@ -58,6 +58,7 @@ jobs:
     needs: validate
     if: ${{ github.repository == 'ProyectoRespira/respira-webapp' }}
     runs-on: ubuntu-latest
+    environment: Demo
     env:
       REGISTRY: ghcr.io
       IMAGE_OWNER: ${{ github.repository_owner }}
@@ -141,6 +142,19 @@ jobs:
           cache-to: type=gha,scope=release-hotfix-demo-frontend,mode=max,ignore-error=true
           provenance: true
           sbom: true
+
+      - name: Upload frontend source maps
+        if: vars.GLITCHTIP_UPLOAD_SOURCEMAPS == 'true'
+        uses: ./.github/actions/upload-glitchtip-sourcemaps
+        env:
+          GLITCHTIP_UPLOAD_SOURCEMAPS: ${{ vars.GLITCHTIP_UPLOAD_SOURCEMAPS }}
+          GLITCHTIP_AUTH_TOKEN: ${{ secrets.GLITCHTIP_AUTH_TOKEN }}
+          GLITCHTIP_CLI_VERSION: ${{ vars.GLITCHTIP_CLI_VERSION }}
+          GLITCHTIP_CLI_SHA256: ${{ vars.GLITCHTIP_CLI_SHA256 }}
+          GLITCHTIP_URL: ${{ vars.GLITCHTIP_URL }}
+          GLITCHTIP_ORG: ${{ vars.GLITCHTIP_ORG }}
+          GLITCHTIP_PROJECT: ${{ vars.GLITCHTIP_FRONTEND_PROJECT }}
+          GLITCHTIP_RELEASE: ${{ env.PREFIXED_TAG }}
 
       - name: Build and push proxy image
         id: push_proxy
@@ -289,6 +303,7 @@ jobs:
           COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_WEBAPP }}
           KEY_PATH: ${{ steps.setup_ssh.outputs.key_path }}
           IMAGE_TAG: ${{ needs.validate.outputs.prefixed_tag }}
+          GLITCHTIP_RELEASE: ${{ needs.validate.outputs.prefixed_tag }}
           MIGRATION_DB_USER: ${{ secrets['BACKEND_POSTGRES_MIGRATION_USER'] }}
           MIGRATION_DB_PASSWORD: ${{ secrets['BACKEND_POSTGRES_MIGRATION_PASSWORD'] }}
           MIGRATION_DB_NAME: ${{ secrets['BACKEND_POSTGRES_MIGRATION_DB'] }}
@@ -554,6 +569,7 @@ jobs:
           COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_WEBAPP }}
           KEY_PATH: ${{ steps.setup_ssh.outputs.key_path }}
           IMAGE_TAG: ${{ needs.validate.outputs.prefixed_tag }}
+          GLITCHTIP_RELEASE: ${{ needs.validate.outputs.prefixed_tag }}
         run: |
           set -euo pipefail
 
@@ -563,7 +579,7 @@ jobs:
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -o ConnectTimeout=30 \
             "$DEPLOY_USER@$DEPLOY_HOST" \
-            "export COMPOSE_PATH='$COMPOSE_PATH' BACKEND_IMAGE_TAG='$IMAGE_TAG' FRONTEND_IMAGE_TAG='$IMAGE_TAG' PROXY_IMAGE_TAG='$IMAGE_TAG'; bash -se" <<'REMOTE_SCRIPT'
+            "export COMPOSE_PATH='$COMPOSE_PATH' BACKEND_IMAGE_TAG='$IMAGE_TAG' FRONTEND_IMAGE_TAG='$IMAGE_TAG' PROXY_IMAGE_TAG='$IMAGE_TAG' GLITCHTIP_RELEASE='$GLITCHTIP_RELEASE'; bash -se" <<'REMOTE_SCRIPT'
           set -euo pipefail
 
           compose_files="-f docker-compose.yml -f docker-compose.remote.demo.yml"

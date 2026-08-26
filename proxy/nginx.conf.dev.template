@@ -53,6 +53,7 @@ http {
         add_header X-Frame-Options "DENY" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+        include /etc/nginx/conf.d/csp-headers.conf;
 
         location /static/ {
             alias /static/;

@@ -16,7 +16,8 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-l
 
 FROM deps AS build
 COPY . .
-RUN pnpm run build
+RUN pnpm run build \
+	&& find ./dist/client -type f -name "*.map" -delete
 
 FROM node:24-bookworm-slim AS runtime
 WORKDIR /app

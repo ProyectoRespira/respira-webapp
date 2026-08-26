@@ -15,6 +15,8 @@ from dotenv import load_dotenv
 from pathlib import Path
 from typing import Any
 
+from .telemetry import initialize_glitchtip
+
 load_dotenv()
 
 
@@ -64,6 +66,12 @@ SECRET_KEY = os.getenv("BACKEND_SECRET_KEY", "respira-backend-dev-secret-key")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("BACKEND_DEBUG", "false").lower() == "true"
+
+initialize_glitchtip(
+    dsn=os.getenv("BACKEND_GLITCHTIP_DSN", "").strip(),
+    environment=os.getenv("GLITCHTIP_ENVIRONMENT", "").strip(),
+    release=os.getenv("GLITCHTIP_RELEASE", "").strip(),
+)
 
 _default_allowed_hosts = [
     "127.0.0.1",
@@ -125,6 +133,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "backend.middleware.GlitchTipUserContextMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "corsheaders.middleware.CorsMiddleware",
