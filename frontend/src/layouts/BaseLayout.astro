@@ -12,17 +12,31 @@ import "@fontsource/merriweather/400-italic.css";
 import "@fontsource/merriweather/700-italic.css";
 import "@fontsource/merriweather/900-italic.css";
 import "@fontsource-variable/inter";
-import { getOptionalGtag } from "../runtime-env";
+import { getOptionalGtag, getPublicFrontendRuntimeConfig } from "../runtime-env";
 import { getLangFromLocals } from "../i18n/utils";
 
 import "../../main.css";
 
 const lang = getLangFromLocals(Astro.locals);
 const analyticsTag = getOptionalGtag();
+const glitchtipConfig = getPublicFrontendRuntimeConfig();
 ---
 
 <html lang={lang} class="md:overflow-hidden">
   <head>
+    <script
+      id="glitchtip-runtime-config"
+      type="application/json"
+      set:html={JSON.stringify(glitchtipConfig)}
+    />
+    <script>
+      import { initializeGlitchTip } from "../telemetry/glitchtip";
+
+      const configElement = document.getElementById("glitchtip-runtime-config");
+      if (configElement?.textContent) {
+        void initializeGlitchTip(JSON.parse(configElement.textContent));
+      }
+    </script>
     <!-- Google tag (gtag.js); omitted when PUBLIC_GTAG is unset -->
     {
       analyticsTag && (

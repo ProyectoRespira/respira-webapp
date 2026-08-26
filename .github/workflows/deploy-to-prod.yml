@@ -54,6 +54,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
+      - name: Resolve deployed release tag
+        id: release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          release_tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq '.tagName')"
+          if ! printf '%s' "$release_tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Latest GitHub Release tag must match vX.Y.Z; received '$release_tag'."
+            exit 1
+          fi
+          echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
+
       - name: Prepare SSH
         id: setup_ssh
         uses: ./.github/actions/prepare-ssh
@@ -423,6 +438,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_WEBAPP }}
           KEY_PATH: ${{ steps.setup_ssh.outputs.key_path }}
+          GLITCHTIP_RELEASE: ${{ steps.release.outputs.tag }}
         run: |
           set -euo pipefail
 
@@ -432,7 +448,7 @@ jobs:
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -o ConnectTimeout=30 \
             "$DEPLOY_USER@$DEPLOY_HOST" \
-            "export COMPOSE_PATH='$COMPOSE_PATH'; bash -se" <<'REMOTE_SCRIPT'
+            "export COMPOSE_PATH='$COMPOSE_PATH' GLITCHTIP_RELEASE='$GLITCHTIP_RELEASE'; bash -se" <<'REMOTE_SCRIPT'
           set -euo pipefail
 
           compose_files="-f docker-compose.yml -f docker-compose.remote.yml"

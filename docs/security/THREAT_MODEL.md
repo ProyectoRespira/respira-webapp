@@ -99,6 +99,8 @@ Unnecessary disclosure makes exploitation easier and can expose confidential con
 - review what information is accessible without authentication
 - sanitize user input before display (prevent injection attacks)
 - periodically audit public-facing endpoints and documentation
+- deploy Content Security Policy in report-only mode before enforcing it, and
+	review violations for unexpected script or resource loading
 
 ### 6. Dependency Vulnerabilities
 

@@ -1,4 +1,5 @@
 import ipaddress
+import uuid
 from collections import defaultdict
 from datetime import timedelta
 from math import asin, cos, radians, sin, sqrt
@@ -19,14 +20,16 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import generics, mixins, status
 from rest_framework.decorators import action
-from rest_framework.exceptions import NotFound, PermissionDenied
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.viewsets import GenericViewSet, ModelViewSet, ReadOnlyModelViewSet
 
 from .aqi import classify_aqi
 from .models import (
     ActionLog,
+    DeviceFollower,
     FaqCategory,
     FaqQuestion,
     InferenceResults,
@@ -47,6 +50,8 @@ from .serializers import (
     AdminUserCreateSerializer,
     AdminUserSerializer,
     AdminUserUpdateSerializer,
+    DeviceFollowerSerializer,
+    DeviceFollowerWriteSerializer,
     FaqCategorySerializer,
     ForecastSerializer,
     HealthSerializer,
@@ -990,3 +995,190 @@ class FaqListView(generics.ListAPIView):
             )
             .order_by("order", "id")
         )
+
+
+# --- Device followers (respira-mobile, unauthenticated) ---------------------
+
+INSTALLATION_ID_HEADER = "X-Installation-Id"
+
+INSTALLATION_ID_PARAMETER = OpenApiParameter(
+    name=INSTALLATION_ID_HEADER,
+    type=OpenApiTypes.UUID,
+    location=OpenApiParameter.HEADER,
+    required=False,
+    description=(
+        "UUIDv4 identifying the app installation. Preferred over the "
+        "`installation_id` query parameter, which is also accepted but ends "
+        "up written to proxy access logs."
+    ),
+)
+
+INSTALLATION_ID_QUERY_PARAMETER = OpenApiParameter(
+    name="installation_id",
+    type=OpenApiTypes.UUID,
+    location=OpenApiParameter.QUERY,
+    required=False,
+    description="Fallback for clients that cannot set the header.",
+)
+
+
+def _resolve_installation_id(request) -> uuid.UUID:
+    """Read the caller's installation id from header, query string or body.
+
+    Three sources because the same identifier has to travel on requests that
+    have no body (GET, DELETE) and on ones that do. The header is listed first
+    and documented as preferred: a query string is recorded verbatim in the
+    proxy's access log, and this is the only identifier the feature has.
+
+    Version 4 is required, not merely a well-formed UUID. A v1 UUID encodes a
+    MAC address and a timestamp and a v5 is a hash of some seed — both are the
+    derived, guessable kind of identifier this feature deliberately rejected,
+    so the rule is enforced here rather than left to a mobile code review.
+    """
+    raw = (
+        request.headers.get(INSTALLATION_ID_HEADER)
+        or request.query_params.get("installation_id")
+        or (
+            request.data.get("installation_id")
+            if isinstance(request.data, dict)
+            else None
+        )
+    )
+    if not raw:
+        raise ValidationError(
+            {
+                "installation_id": (
+                    f"Required, in the {INSTALLATION_ID_HEADER} header, the "
+                    "'installation_id' query parameter or the request body."
+                )
+            }
+        )
+    try:
+        installation_id = uuid.UUID(str(raw))
+    except (AttributeError, TypeError, ValueError):
+        raise ValidationError({"installation_id": "Must be a valid UUID."})
+    if installation_id.version != 4:
+        raise ValidationError({"installation_id": "Must be a random (version 4) UUID."})
+    return installation_id
+
+
+@extend_schema(tags=["Device Followers"])
+class DeviceFollowerViewSet(GenericViewSet):
+    """The station a mobile installation follows, with no login involved.
+
+    Deliberately unauthenticated: the app identifies itself with the UUIDv4 it
+    generated on first launch, and that unguessable value is what stands in for
+    a credential. The throttle below is the compensating control — it bounds
+    what an abusive client can do without penalising a whole carrier NAT.
+
+    ``create`` upserts rather than inserting: the app retries on a flaky mobile
+    network, and a retry must land on the same row instead of failing against
+    the unique index.
+    """
+
+    serializer_class = DeviceFollowerSerializer
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "device_followers"
+    queryset = DeviceFollower.objects.all()
+
+    def _get_follower(self, installation_id) -> DeviceFollower:
+        follower = DeviceFollower.objects.filter(
+            installation_id=installation_id
+        ).first()
+        if follower is None:
+            raise NotFound("This installation is not following any station.")
+        return follower
+
+    @extend_schema(
+        summary="Follow a station",
+        description=(
+            "Registers the station this installation follows, or updates it if "
+            "the installation already follows one — a device follows exactly "
+            "one station. Repeating the same request is safe: it updates the "
+            "existing row and returns 200 instead of failing. Returns 201 the "
+            "first time the installation is seen."
+        ),
+        parameters=[INSTALLATION_ID_PARAMETER],
+        request=DeviceFollowerWriteSerializer,
+        responses={200: DeviceFollowerSerializer, 201: DeviceFollowerSerializer},
+    )
+    def create(self, request, *args, **kwargs):
+        installation_id = _resolve_installation_id(request)
+        serializer = DeviceFollowerWriteSerializer(
+            data=request.data, require_station=True
+        )
+        serializer.is_valid(raise_exception=True)
+
+        follower, created = DeviceFollower.upsert(
+            installation_id,
+            station_code=serializer.validated_data["station"].station_code,
+            push_token=serializer.validated_data.get("push_token"),
+        )
+        return Response(
+            DeviceFollowerSerializer(follower).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        methods=["GET"],
+        summary="Retrieve the station this installation follows",
+        description=(
+            "Returns 404 when the installation has never followed a station. "
+            "`station` is resolved fresh on every read, so it is always the "
+            "station's current id even after the pipeline renumbers them; it "
+            "is null if the followed station no longer exists."
+        ),
+        parameters=[INSTALLATION_ID_PARAMETER, INSTALLATION_ID_QUERY_PARAMETER],
+        responses={200: DeviceFollowerSerializer},
+    )
+    @extend_schema(
+        methods=["PATCH"],
+        summary="Update the followed station or the push token",
+        description=(
+            "Partial update: send `station`, `push_token`, or both. Used by "
+            "the app when the OS rotates the push token, which can happen at "
+            "any time and independently of the followed station."
+        ),
+        parameters=[INSTALLATION_ID_PARAMETER],
+        request=DeviceFollowerWriteSerializer,
+        responses={200: DeviceFollowerSerializer},
+    )
+    @extend_schema(
+        methods=["DELETE"],
+        summary="Stop following any station",
+        description=(
+            "Deletes the installation's record. Idempotent: returns 204 "
+            "whether or not a record existed."
+        ),
+        parameters=[INSTALLATION_ID_PARAMETER, INSTALLATION_ID_QUERY_PARAMETER],
+        responses={204: None},
+    )
+    @action(detail=False, methods=["get", "patch", "delete"])
+    def me(self, request, *args, **kwargs):
+        """The installation's own record, addressed by its installation id.
+
+        One action for three verbs because the router maps a URL to a single
+        action: separate methods sharing ``url_path="me"`` would register two
+        patterns for the same path and the first would answer — and reject —
+        every other verb.
+        """
+        installation_id = _resolve_installation_id(request)
+
+        if request.method == "DELETE":
+            DeviceFollower.objects.filter(installation_id=installation_id).delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        follower = self._get_follower(installation_id)
+
+        if request.method == "PATCH":
+            serializer = DeviceFollowerWriteSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            station = serializer.validated_data.get("station")
+            follower, _ = DeviceFollower.upsert(
+                installation_id,
+                station_code=station.station_code if station else None,
+                push_token=serializer.validated_data.get("push_token"),
+            )
+
+        return Response(DeviceFollowerSerializer(follower).data)

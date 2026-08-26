@@ -15,6 +15,8 @@ from dotenv import load_dotenv
 from pathlib import Path
 from typing import Any
 
+from .telemetry import initialize_glitchtip
+
 load_dotenv()
 
 
@@ -65,6 +67,12 @@ SECRET_KEY = os.getenv("BACKEND_SECRET_KEY", "respira-backend-dev-secret-key")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("BACKEND_DEBUG", "false").lower() == "true"
 
+initialize_glitchtip(
+    dsn=os.getenv("BACKEND_GLITCHTIP_DSN", "").strip(),
+    environment=os.getenv("GLITCHTIP_ENVIRONMENT", "").strip(),
+    release=os.getenv("GLITCHTIP_RELEASE", "").strip(),
+)
+
 _default_allowed_hosts = [
     "127.0.0.1",
     "localhost",
@@ -99,7 +107,17 @@ INSTALLED_APPS = [
 # Custom user model authenticated by email (see accounts app).
 AUTH_USER_MODEL = "accounts.User"
 
-REST_FRAMEWORK = {"DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema"}
+REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # Scoped, so only the endpoints that opt in are throttled — today that is
+    # the unauthenticated device-follower API (api.views.DeviceFollowerViewSet).
+    # The rate is counted per client IP and mobile carriers put many phones
+    # behind a single CGNAT address, so it is deliberately generous: it bounds
+    # abuse without cutting off a whole network.
+    "DEFAULT_THROTTLE_RATES": {
+        "device_followers": _env_str("BACKEND_DEVICE_FOLLOWER_THROTTLE", "120/min"),
+    },
+}
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "RespiraAPI",
@@ -115,6 +133,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "backend.middleware.GlitchTipUserContextMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "corsheaders.middleware.CorsMiddleware",
