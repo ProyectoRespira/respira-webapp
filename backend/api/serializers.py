@@ -7,6 +7,7 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 from .models import (
     ActionLog,
+    DeviceFollower,
     FaqCategory,
     FaqQuestion,
     Institution,
@@ -533,3 +534,115 @@ class InstitutionDashboardSerializer(serializers.Serializer):
     air_quality = DashboardAirQualitySerializer(allow_null=True)
     history = DashboardHistoryPointSerializer(many=True)
     alert_config = InstitutionAlertConfigSerializer()
+
+
+class DeviceFollowerSerializer(serializers.ModelSerializer):
+    """What a mobile installation gets back about the station it follows.
+
+    ``station`` is resolved from the stored ``station_code`` on every read, so
+    the id handed to the app is the one that is current *now* — ids move when
+    dbt renumbers ``stations``. It is null when the code no longer matches any
+    station, which tells the app the sensor is gone rather than silently
+    pointing it at whichever station inherited the id.
+
+    The push token is reported as a boolean rather than echoed back: these
+    endpoints are unauthenticated, so anyone holding an installation id could
+    otherwise read the device's token.
+    """
+
+    station = serializers.SerializerMethodField()
+    station_name = serializers.SerializerMethodField()
+    has_push_token = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DeviceFollower
+        fields = [
+            "installation_id",
+            "station",
+            "station_code",
+            "station_name",
+            "has_push_token",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+    @staticmethod
+    def _station(obj):
+        # Cached on the instance so the two method fields below resolve the
+        # station once per response instead of querying twice.
+        if not hasattr(obj, "_resolved_station"):
+            obj._resolved_station = obj.station
+        return obj._resolved_station
+
+    @extend_schema_field(OpenApiTypes.INT)
+    def get_station(self, obj) -> int | None:
+        station = self._station(obj)
+        return station.id if station else None
+
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_station_name(self, obj) -> str | None:
+        station = self._station(obj)
+        return station.name if station else None
+
+    @extend_schema_field(OpenApiTypes.BOOL)
+    def get_has_push_token(self, obj) -> bool:
+        return bool(obj.push_token)
+
+
+class DeviceFollowerWriteSerializer(serializers.Serializer):
+    """Validates a follow / update request from a mobile installation.
+
+    Not a ``ModelSerializer``: the request speaks in station ids while the row
+    stores ``station_code``, and the write itself goes through
+    ``DeviceFollower.upsert`` so that creating and updating share one path.
+
+    ``installation_id`` is declared here so it appears in the OpenAPI request
+    body, but the view resolves it (header first, then query string, then body)
+    before this serializer runs — a request may legitimately carry it in the
+    header instead.
+    """
+
+    installation_id = serializers.UUIDField(
+        required=False,
+        help_text=(
+            "UUIDv4 identifying the app installation. May be sent in the "
+            "X-Installation-Id header instead, which is preferred."
+        ),
+    )
+    station = serializers.PrimaryKeyRelatedField(
+        queryset=Stations.objects.all(),
+        required=False,
+        help_text="Id of the station to follow.",
+    )
+    push_token = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Current FCM/APNs token. Send an empty string to clear it.",
+    )
+
+    def __init__(self, *args, require_station=False, **kwargs):
+        # Registration needs a station; a partial update may carry only a
+        # refreshed push token, so the requirement is set by the caller
+        # rather than baked into the field.
+        super().__init__(*args, **kwargs)
+        self._require_station = require_station
+
+    def validate_station(self, value):
+        if not value.station_code:
+            # A follower row addresses its station by code, so a station the
+            # pipeline has not assigned one to cannot be followed at all —
+            # same limitation the admin's activate/deactivate action hits.
+            raise serializers.ValidationError(
+                "This station has no station code yet and cannot be followed."
+            )
+        return value
+
+    def validate(self, attrs):
+        if self._require_station and "station" not in attrs:
+            raise serializers.ValidationError({"station": "This field is required."})
+        if not self._require_station and not (attrs.keys() & {"station", "push_token"}):
+            raise serializers.ValidationError(
+                "Provide at least one of 'station' or 'push_token'."
+            )
+        return attrs
