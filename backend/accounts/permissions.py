@@ -21,6 +21,15 @@ from __future__ import annotations
 # "Admin-owned station data" = api.stationdetails, api.stationoverride — the
 # models that replace the operational spreadsheet and the status seed CSV, and
 # the only station data that is editable from the backoffice.
+# "Sensor Leasing data" = api.institution, api.institutioncontract,
+# api.institutionuser — client organizations, their leasing contracts, and the
+# links granting users access to the institutional dashboard; admin-owned
+# like the station data above.
+# "Institutional alerts" = api.institutionalert — recorded poor-air-quality
+# events, admin-owned until a generator writes them.
+# "Institutional action history" = api.actionlog — written by institutions
+# through the API and view-only in the backoffice for everyone (see
+# api.admin.ActionLogAdmin), so only `view` is ever granted here.
 # "Administrative configuration" = accounts.user, accounts.role.
 #
 # Note that `change_stationdetails` also gates opening a station's change page
@@ -37,6 +46,11 @@ ROLE_GROUP_PERMISSIONS: dict[str, object] = {
         ("api", "faqquestion"): ["add", "change", "delete", "view"],
         ("api", "stationdetails"): ["add", "change", "view"],
         ("api", "stationoverride"): ["add", "change", "delete", "view"],
+        ("api", "institution"): ["add", "change", "delete", "view"],
+        ("api", "institutioncontract"): ["add", "change", "delete", "view"],
+        ("api", "institutionuser"): ["add", "change", "delete", "view"],
+        ("api", "institutionalert"): ["add", "change", "delete", "view"],
+        ("api", "actionlog"): ["view"],
         ("accounts", "user"): ["view"],
         ("accounts", "role"): ["view"],
     },
@@ -50,6 +64,11 @@ ROLE_GROUP_PERMISSIONS: dict[str, object] = {
         ("api", "faqquestion"): ["add", "change", "view"],
         ("api", "stationdetails"): ["add", "change", "view"],
         ("api", "stationoverride"): ["add", "change", "view"],
+        ("api", "institution"): ["add", "change", "view"],
+        ("api", "institutioncontract"): ["add", "change", "view"],
+        ("api", "institutionuser"): ["add", "change", "view"],
+        ("api", "institutionalert"): ["add", "change", "view"],
+        ("api", "actionlog"): ["view"],
     },
     # Viewer: read-only on operational data, admin-owned station data, and
     # editorial content.
@@ -60,6 +79,11 @@ ROLE_GROUP_PERMISSIONS: dict[str, object] = {
         ("api", "faqquestion"): ["view"],
         ("api", "stationdetails"): ["view"],
         ("api", "stationoverride"): ["view"],
+        ("api", "institution"): ["view"],
+        ("api", "institutioncontract"): ["view"],
+        ("api", "institutionuser"): ["view"],
+        ("api", "institutionalert"): ["view"],
+        ("api", "actionlog"): ["view"],
     },
 }
 
