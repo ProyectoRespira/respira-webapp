@@ -4,11 +4,9 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('api', '0013_devicefollower'),
-        ('api', '0013_merge_0011_actionlog_0012_sensitive_groups'),
+        ("api", "0013_devicefollower"),
+        ("api", "0013_merge_0011_actionlog_0012_sensitive_groups"),
     ]
 
-    operations = [
-    ]
+    operations = []
