@@ -8,12 +8,16 @@ from accounts.admin_base import ReadOnlyModelAdmin, RoleBasedModelAdmin
 
 from .forms import StationStatusOverrideForm
 from .models import (
+    ActionLog,
     FaqCategory,
     FaqQuestion,
     Institution,
+    InstitutionAlert,
+    InstitutionAlertConfig,
     InstitutionContract,
     InstitutionUser,
     Regions,
+    SensitiveGroup,
     StationDetails,
     StationOverride,
     Stations,
@@ -365,6 +369,21 @@ class InstitutionUserInline(admin.TabularInline):
     verbose_name_plural = "Dashboard users"
 
 
+class InstitutionAlertConfigInline(admin.StackedInline):
+    """Alert configuration edited from the institution page.
+
+    ``InstitutionAlertConfig`` has no changelist of its own — same reasoning
+    as ``StationDetailsInline`` — and a config only makes sense alongside its
+    institution.
+    """
+
+    model = InstitutionAlertConfig
+    can_delete = False
+    extra = 1
+    filter_horizontal = ("sensitive_groups",)
+    readonly_fields = ("created_at", "updated_at")
+
+
 @admin.register(Institution)
 class InstitutionAdmin(RoleBasedModelAdmin):
     """Client organizations in the Sensor Leasing program."""
@@ -373,7 +392,7 @@ class InstitutionAdmin(RoleBasedModelAdmin):
     list_filter = ("institution_type", "city")
     search_fields = ("legal_name", "display_name", "contact_name", "contact_email")
     ordering = ("legal_name",)
-    inlines = (InstitutionUserInline,)
+    inlines = (InstitutionUserInline, InstitutionAlertConfigInline)
     fieldsets = (
         (None, {"fields": ("legal_name", "display_name", "institution_type")}),
         (
@@ -383,6 +402,15 @@ class InstitutionAdmin(RoleBasedModelAdmin):
         ("Location", {"fields": ("address", "city")}),
         ("Notes", {"fields": ("notes",)}),
     )
+
+
+@admin.register(SensitiveGroup)
+class SensitiveGroupAdmin(RoleBasedModelAdmin):
+    """Fixed catalog of at-risk groups institutions can flag for alerts."""
+
+    list_display = ("label", "key", "emoji")
+    search_fields = ("label", "key")
+    ordering = ("label",)
 
 
 @admin.register(InstitutionContract)
@@ -417,6 +445,95 @@ class InstitutionContractAdmin(RoleBasedModelAdmin):
         ("Document", {"fields": ("signed_contract_url",)}),
         ("Audit", {"fields": ("created_at", "updated_at")}),
     )
+
+
+@admin.register(InstitutionAlert)
+class InstitutionAlertAdmin(RoleBasedModelAdmin):
+    """Poor-air-quality events recorded for an institution's station.
+
+    Admin-owned for now: no generator writes these yet, so an operator records
+    the event an institution reacted to. ``search_fields`` is also what lets
+    ``ActionLogAdmin`` offer this model as an autocomplete target.
+    """
+
+    list_display = (
+        "institution",
+        "station",
+        "aqi_value",
+        "alert_threshold",
+        "triggered_at",
+        "resolved_at",
+    )
+    list_filter = ("institution", "station", "triggered_at")
+    search_fields = (
+        "institution__legal_name",
+        "institution__display_name",
+        "station__name",
+    )
+    ordering = ("-triggered_at",)
+    list_select_related = ("institution", "station")
+    autocomplete_fields = ("institution", "station")
+    fieldsets = (
+        (None, {"fields": ("institution", "station")}),
+        ("Measurement", {"fields": ("aqi_value", "alert_threshold")}),
+        ("Timeline", {"fields": ("triggered_at", "resolved_at")}),
+    )
+
+
+class AlertLinkFilter(admin.SimpleListFilter):
+    """Splits the history by whether an action responded to a recorded alert.
+
+    A plain ``("alert",)`` filter would list every alert individually, which is
+    not the question an operator asks here — they want the actions that answered
+    *some* alert, versus the ones logged on their own initiative.
+    """
+
+    title = "alert association"
+    parameter_name = "has_alert"
+
+    def lookups(self, request, model_admin):
+        return (("yes", "Linked to an alert"), ("no", "No alert linked"))
+
+    def queryset(self, request, queryset):
+        if self.value() == "yes":
+            return queryset.filter(alert__isnull=False)
+        if self.value() == "no":
+            return queryset.filter(alert__isnull=True)
+        return queryset
+
+
+@admin.register(ActionLog)
+class ActionLogAdmin(ReadOnlyModelAdmin):
+    """The institutional action history, for review from the backoffice.
+
+    ``ReadOnlyModelAdmin`` — for everyone, superadmins included — because this
+    is an audit trail: entries are written by the institutions themselves
+    through the API, and a history that the backoffice can rewrite after the
+    fact is not traceable. That also enforces the ticket's rule that
+    ``timestamp`` cannot be overwritten by hand.
+    """
+
+    list_display = ("timestamp", "institution", "station", "alert", "note_excerpt")
+    list_filter = (AlertLinkFilter, "institution", "station", "timestamp")
+    search_fields = (
+        "institution__legal_name",
+        "institution__display_name",
+        "station__name",
+        "note",
+    )
+    ordering = ("-timestamp", "-id")
+    list_select_related = ("institution", "station", "alert")
+    fieldsets = (
+        (None, {"fields": ("institution", "station", "timestamp")}),
+        ("Alert", {"fields": ("alert",)}),
+        ("Action", {"fields": ("note",)}),
+    )
+
+    @admin.display(description="Note")
+    def note_excerpt(self, obj):
+        """First line of the note, so the changelist stays one row per action."""
+        first_line = obj.note.strip().splitlines()[0] if obj.note.strip() else ""
+        return first_line if len(first_line) <= 80 else f"{first_line[:77]}…"
 
 
 @admin.register(StationOverride)

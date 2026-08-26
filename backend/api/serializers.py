@@ -6,16 +6,20 @@ from rest_framework.validators import UniqueValidator
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 from .models import (
+    ActionLog,
     FaqCategory,
     FaqQuestion,
     Institution,
     InstitutionContract,
     Regions,
+    SensitiveGroup,
     Stations,
     StationReadingsGold,
     UserProfile,
     UserRole,
     faq_localized_map,
+    get_institution_for_user,
+    get_institution_station_ids,
     user_role,
 )
 
@@ -385,3 +389,147 @@ class InstitutionLoginSerializer(serializers.Serializer):
             raise serializers.ValidationError("Invalid email or password.")
         attrs["user"] = user
         return attrs
+
+
+class ActionLogSerializer(serializers.ModelSerializer):
+    """Create and read the actions an institution recorded.
+
+    A single serializer for both directions: the fields a client must not
+    control — ``institution`` and ``timestamp`` — are read-only, so they are
+    ignored if posted and assigned by the backend instead. That is what makes
+    "the client cannot create a record on behalf of another institution" a
+    property of the serializer rather than a check the view has to remember.
+
+    ``station`` and ``alert`` *are* writable, so both are validated against the
+    caller's own institution below; the caller's institution comes from the
+    request (via the view's context), never from the payload.
+    """
+
+    institution_name = serializers.SerializerMethodField()
+    station_name = serializers.CharField(source="station.name", read_only=True)
+
+    class Meta:
+        model = ActionLog
+        fields = [
+            "id",
+            "institution",
+            "institution_name",
+            "station",
+            "station_name",
+            "alert",
+            "timestamp",
+            "note",
+        ]
+        read_only_fields = ["id", "institution", "timestamp"]
+
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_institution_name(self, obj) -> str:
+        return str(obj.institution)
+
+    def _institution(self):
+        """The caller's institution, resolved from the request — never the payload."""
+        institution = self.context.get("institution")
+        if institution is not None:
+            return institution
+        request = self.context.get("request")
+        return get_institution_for_user(getattr(request, "user", None))
+
+    def validate_station(self, value):
+        """Reject a station the caller's institution does not hold a contract for.
+
+        A caller with no institution at all resolves to an empty set of allowed
+        stations and lands here too, though in practice ``IsInstitutionUser``
+        has already answered that case with a 403.
+        """
+        if value.pk not in get_institution_station_ids(self._institution()):
+            raise serializers.ValidationError(
+                "This station is not assigned to your institution."
+            )
+        return value
+
+    def validate_alert(self, value):
+        if value is None:
+            return value
+        institution = self._institution()
+        if institution is None or value.institution_id != institution.pk:
+            raise serializers.ValidationError(
+                "This alert does not belong to your institution."
+            )
+        return value
+
+    def validate(self, attrs):
+        """Cross-field check: an alert must concern the station being acted on.
+
+        Both fields have already been confirmed to belong to the caller's
+        institution individually; this rejects the remaining inconsistent
+        combination, where a valid alert is attached to a different station.
+        """
+        alert = attrs.get("alert")
+        station = attrs.get("station")
+        if alert is not None and station is not None and alert.station_id != station.pk:
+            raise serializers.ValidationError(
+                {"alert": "This alert does not belong to the selected station."}
+            )
+        return attrs
+
+
+class SensitiveGroupSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SensitiveGroup
+        fields = ["key", "label", "emoji"]
+        read_only_fields = fields
+
+
+class DashboardLocationSerializer(serializers.Serializer):
+    city = serializers.CharField(allow_blank=True, allow_null=True)
+    specific_location = serializers.CharField(allow_blank=True, allow_null=True)
+    latitude = serializers.FloatField(allow_null=True)
+    longitude = serializers.FloatField(allow_null=True)
+
+
+class DashboardSensorSerializer(serializers.Serializer):
+    """The institution's assigned sensor, as shown on its dashboard."""
+
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    status = serializers.ChoiceField(choices=["online", "offline"])
+    location = DashboardLocationSerializer()
+    last_measurement_at = serializers.DateTimeField(allow_null=True)
+
+
+class DashboardAirQualitySerializer(serializers.Serializer):
+    """Current AQI plus the Proyecto Respira classification for it."""
+
+    aqi = serializers.FloatField()
+    category = serializers.CharField()
+    category_label = serializers.CharField()
+    message = serializers.CharField()
+    recommendations = serializers.ListField(child=serializers.CharField())
+
+
+class DashboardHistoryPointSerializer(serializers.Serializer):
+    date = serializers.DateField()
+    aqi = serializers.FloatField(allow_null=True)
+
+
+class InstitutionAlertConfigSerializer(serializers.Serializer):
+    """The institution's alert configuration, or a controlled default.
+
+    Backed by a plain dict built in the view rather than the model directly,
+    so an institution with no ``InstitutionAlertConfig`` row still gets a
+    valid, consistent shape (disabled, no threshold, no groups) instead of a
+    missing section.
+    """
+
+    is_enabled = serializers.BooleanField()
+    alert_threshold = serializers.IntegerField(allow_null=True)
+    sensitive_groups = SensitiveGroupSerializer(many=True)
+
+
+class InstitutionDashboardSerializer(serializers.Serializer):
+    """Consolidated payload for the institutional dashboard's single request."""
+
+    sensor = DashboardSensorSerializer()
+    air_quality = DashboardAirQualitySerializer(allow_null=True)
+    history = DashboardHistoryPointSerializer(many=True)
+    alert_config = InstitutionAlertConfigSerializer()
