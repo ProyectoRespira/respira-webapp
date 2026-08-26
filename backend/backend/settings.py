@@ -107,7 +107,17 @@ INSTALLED_APPS = [
 # Custom user model authenticated by email (see accounts app).
 AUTH_USER_MODEL = "accounts.User"
 
-REST_FRAMEWORK = {"DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema"}
+REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # Scoped, so only the endpoints that opt in are throttled — today that is
+    # the unauthenticated device-follower API (api.views.DeviceFollowerViewSet).
+    # The rate is counted per client IP and mobile carriers put many phones
+    # behind a single CGNAT address, so it is deliberately generous: it bounds
+    # abuse without cutting off a whole network.
+    "DEFAULT_THROTTLE_RATES": {
+        "device_followers": _env_str("BACKEND_DEVICE_FOLLOWER_THROTTLE", "120/min"),
+    },
+}
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "RespiraAPI",
