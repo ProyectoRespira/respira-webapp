@@ -14,6 +14,7 @@ fi
 LOG_FILE_FLAG_SET=false
 CERTBOT_CONFIG_DIR=
 CERT_NAME=
+CERTBOT_IMAGE="${CERTBOT_IMAGE:-certbot/certbot:latest}"
 
 init_log_file() {
   log_dir=$(dirname -- "$LOG_FILE")
@@ -100,7 +101,10 @@ run_compose() {
 
 renew() {
   log "[certbot] Running renewal check"
-  run_compose run --rm certbot renew --webroot -w /var/www/certbot --quiet >> "$LOG_FILE" 2>&1
+  docker run --rm --pull always \
+    -v "$PROJECT_ROOT/certbot/www:/var/www/certbot" \
+    -v "$PROJECT_ROOT/certbot/conf:/etc/letsencrypt" \
+    "$CERTBOT_IMAGE" renew --webroot -w /var/www/certbot --quiet >> "$LOG_FILE" 2>&1
 
   log "[proxy] Reloading Nginx"
   run_compose exec -T proxy nginx -s reload >> "$LOG_FILE" 2>&1
