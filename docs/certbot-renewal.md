@@ -9,6 +9,7 @@ This project stores Let's Encrypt assets on the host and mounts them into the pr
 Use the utility script at `utils/certbot-maintenance.sh` to keep certificates updated.
 It writes to `<project-root>/logs/certbot-maintenance.log` by default, or to the path passed with `--log-file`.
 For `check-expiry`, it reads certificates from `./certbot/conf` relative to the current working directory when present, otherwise it falls back to `<project-root>/certbot/conf`. You can also pass `--certbot-config-dir` explicitly.
+When `HOST_WORKSPACE_FOLDER` is set in the Compose environment, the maintenance script resolves the same host root before mounting `certbot/www` and `certbot/conf`; this keeps the renewal container and the proxy on the same certificate paths.
 
 ## 1) Initial certificate issuance (one-time)
 

@@ -84,6 +84,23 @@ resolve_certbot_config_dir() {
   resolve_user_path "$input_dir"
 }
 
+resolve_certbot_host_root() {
+  if [ -n "${HOST_WORKSPACE_FOLDER:-}" ]; then
+    case "$HOST_WORKSPACE_FOLDER" in
+      /*)
+        printf '%s\n' "$HOST_WORKSPACE_FOLDER"
+        ;;
+      *)
+        # Compose resolves relative bind sources from the Compose file directory.
+        printf '%s\n' "$PROJECT_ROOT/$HOST_WORKSPACE_FOLDER"
+        ;;
+    esac
+    return 0
+  fi
+
+  printf '%s\n' "$PROJECT_ROOT"
+}
+
 require_option_value() {
   option_name=${1:-}
   option_value=${2:-}
@@ -100,10 +117,12 @@ run_compose() {
 }
 
 renew() {
+  certbot_host_root=$(resolve_certbot_host_root)
   log "[certbot] Running renewal check"
+  log "[certbot] Using host certbot root: $certbot_host_root"
   docker run --rm --pull always \
-    -v "$PROJECT_ROOT/certbot/www:/var/www/certbot" \
-    -v "$PROJECT_ROOT/certbot/conf:/etc/letsencrypt" \
+    -v "$certbot_host_root/certbot/www:/var/www/certbot" \
+    -v "$certbot_host_root/certbot/conf:/etc/letsencrypt" \
     "$CERTBOT_IMAGE" renew --webroot -w /var/www/certbot --quiet >> "$LOG_FILE" 2>&1
 
   log "[proxy] Reloading Nginx"
