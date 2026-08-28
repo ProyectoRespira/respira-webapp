@@ -7,7 +7,7 @@ Respira is a web application for air quality data visualization and forecasting.
 - `backend` (Django + DRF API)
 - `frontend` (Astro + React)
 - `proxy` (Nginx)
-- `certbot` (certificate management)
+- `utils/certbot-maintenance.sh` (certificate management)
 
 ## Security
 
@@ -83,7 +83,7 @@ Configuration reference for all services:
 ## Nginx and SSL
 
 Proxy templates live in `proxy/nginx.conf*.template` and are selected with `ENVIRONMENT`.
-For production certificates, use the `certbot` service and the mounted `certbot/conf` and `certbot/www` directories.
+For production certificates, use `utils/certbot-maintenance.sh`; it runs Certbot independently and shares the mounted `certbot/conf` and `certbot/www` directories with the proxy.
 For automated renewal and monitoring setup, see [Certbot Renewal and TLS Monitoring](docs/certbot-renewal.md).
 
 ## System architecture

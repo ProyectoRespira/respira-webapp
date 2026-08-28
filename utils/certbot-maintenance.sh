@@ -14,6 +14,7 @@ fi
 LOG_FILE_FLAG_SET=false
 CERTBOT_CONFIG_DIR=
 CERT_NAME=
+CERTBOT_IMAGE="${CERTBOT_IMAGE:-certbot/certbot:latest}"
 
 init_log_file() {
   log_dir=$(dirname -- "$LOG_FILE")
@@ -83,6 +84,23 @@ resolve_certbot_config_dir() {
   resolve_user_path "$input_dir"
 }
 
+resolve_certbot_host_root() {
+  if [ -n "${HOST_WORKSPACE_FOLDER:-}" ]; then
+    case "$HOST_WORKSPACE_FOLDER" in
+      /*)
+        printf '%s\n' "$HOST_WORKSPACE_FOLDER"
+        ;;
+      *)
+        # Compose resolves relative bind sources from the Compose file directory.
+        printf '%s\n' "$PROJECT_ROOT/$HOST_WORKSPACE_FOLDER"
+        ;;
+    esac
+    return 0
+  fi
+
+  printf '%s\n' "$PROJECT_ROOT"
+}
+
 require_option_value() {
   option_name=${1:-}
   option_value=${2:-}
@@ -99,8 +117,13 @@ run_compose() {
 }
 
 renew() {
+  certbot_host_root=$(resolve_certbot_host_root)
   log "[certbot] Running renewal check"
-  run_compose run --rm certbot renew --webroot -w /var/www/certbot --quiet >> "$LOG_FILE" 2>&1
+  log "[certbot] Using host certbot root: $certbot_host_root"
+  docker run --rm --pull always \
+    -v "$certbot_host_root/certbot/www:/var/www/certbot" \
+    -v "$certbot_host_root/certbot/conf:/etc/letsencrypt" \
+    "$CERTBOT_IMAGE" renew --webroot -w /var/www/certbot --quiet >> "$LOG_FILE" 2>&1
 
   log "[proxy] Reloading Nginx"
   run_compose exec -T proxy nginx -s reload >> "$LOG_FILE" 2>&1

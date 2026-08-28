@@ -152,11 +152,6 @@ services:
       frontend:
         condition: service_healthy
 
-  certbot:
-    image: certbot/certbot:latest
-    volumes:
-      - ${HOST_WORKSPACE_FOLDER:-.}/certbot/www/:/var/www/certbot/:rw
-      - ${HOST_WORKSPACE_FOLDER:-.}/certbot/conf/:/etc/letsencrypt/:rw
 volumes:
   static_volume:
 
