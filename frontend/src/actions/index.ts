@@ -1,9 +1,10 @@
-import { defineAction } from "astro:actions";
+import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro:schema";
 import { Resend } from "resend";
 import { Email } from "../components/react/ContactEmail";
 import { JoinEmail } from "../components/react/JoinNetworkEmail";
 import { INSTITUTION_TYPES } from "../data/leasing";
+import { isHoneypotFilled, isRateLimited } from "../lib/antispam";
 import { getRequiredRuntimeEnv, normalizeSiteUrl } from "../runtime-env";
 
 const resend = new Resend(getRequiredRuntimeEnv("SMTP_KEY"));
@@ -25,6 +26,9 @@ const formInput = z.object({
   lastname: z.string().optional(),
   motive: z.string(),
   message: z.string(),
+  // Honeypot: hidden from real users via CSS, but bots that autofill every
+  // field tend to fill it. Never surfaced in the public schema/UI copy.
+  website: z.string().optional(),
 });
 
 export type EmailInput = z.infer<typeof formInput>;
@@ -56,6 +60,8 @@ const joinInput = z.object({
   approver: z.string().trim().optional(),
   message: z.string().trim().max(500).optional(),
   consent: z.literal("on"),
+  // Honeypot, see formInput.website above.
+  website: z.string().optional(),
 });
 
 export type JoinInput = z.infer<typeof joinInput>;
@@ -72,15 +78,34 @@ const sendJoinMail = async (values: JoinInput) => {
   return data;
 };
 
+const enforceRateLimit = (clientAddress: string): void => {
+  if (isRateLimited(clientAddress)) {
+    throw new ActionError({
+      code: "TOO_MANY_REQUESTS",
+      message: "Too many submissions, please try again later.",
+    });
+  }
+};
+
 export const server = {
   sendMail: defineAction({
     accept: "form",
     input: formInput,
-    handler: async (values: EmailInput) => sendMail(values),
+    handler: async (values: EmailInput, { clientAddress }) => {
+      // Bot filled the hidden field: report success without sending mail,
+      // so it has no signal to tell this submission apart from a real one.
+      if (isHoneypotFilled(values.website)) return null;
+      enforceRateLimit(clientAddress);
+      return sendMail(values);
+    },
   }),
   joinNetwork: defineAction({
     accept: "form",
     input: joinInput,
-    handler: async (values) => sendJoinMail(values),
+    handler: async (values, { clientAddress }) => {
+      if (isHoneypotFilled(values.website)) return null;
+      enforceRateLimit(clientAddress);
+      return sendJoinMail(values);
+    },
   }),
 };

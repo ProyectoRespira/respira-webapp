@@ -298,6 +298,19 @@ const labelClass = "block text-sm font-semibold text-black mb-2";
           {t("join.form.error")}
         </p>
 
+        <div
+          style="position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden;"
+        >
+          <label for="website">Website</label>
+          <input
+            id="website"
+            name="website"
+            type="text"
+            tabindex="-1"
+            autocomplete="off"
+          />
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
             <label class={labelClass} for="name">
