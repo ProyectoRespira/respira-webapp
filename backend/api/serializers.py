@@ -8,6 +8,7 @@ from drf_spectacular.utils import extend_schema_field
 from .models import (
     ActionLog,
     DeviceFollower,
+    DeviceInstallation,
     FaqCategory,
     FaqQuestion,
     Institution,
@@ -577,33 +578,28 @@ class InstitutionDashboardSerializer(serializers.Serializer):
 
 
 class DeviceFollowerSerializer(serializers.ModelSerializer):
-    """What a mobile installation gets back about the station it follows.
+    """One station a mobile installation follows.
 
     ``station`` is resolved from the stored ``station_code`` on every read, so
     the id handed to the app is the one that is current *now* — ids move when
     dbt renumbers ``stations``. It is null when the code no longer matches any
-    station, which tells the app the sensor is gone rather than silently
+    station, which tells the app that sensor is gone rather than silently
     pointing it at whichever station inherited the id.
 
-    The push token is reported as a boolean rather than echoed back: these
-    endpoints are unauthenticated, so anyone holding an installation id could
-    otherwise read the device's token.
+    The installation id is not echoed back on each row: the caller supplied it,
+    and repeating it once per follow is noise.
     """
 
     station = serializers.SerializerMethodField()
     station_name = serializers.SerializerMethodField()
-    has_push_token = serializers.SerializerMethodField()
 
     class Meta:
         model = DeviceFollower
         fields = [
-            "installation_id",
             "station",
             "station_code",
             "station_name",
-            "has_push_token",
             "created_at",
-            "updated_at",
         ]
         read_only_fields = fields
 
@@ -625,17 +621,43 @@ class DeviceFollowerSerializer(serializers.ModelSerializer):
         station = self._station(obj)
         return station.name if station else None
 
+
+class DeviceInstallationSerializer(serializers.ModelSerializer):
+    """The installation itself: its token status and how much it follows.
+
+    The push token is reported as a boolean rather than echoed back. These
+    endpoints are unauthenticated, so anyone holding an installation id could
+    otherwise read the device's token.
+    """
+
+    has_push_token = serializers.SerializerMethodField()
+    follow_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DeviceInstallation
+        fields = [
+            "installation_id",
+            "has_push_token",
+            "follow_count",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
     @extend_schema_field(OpenApiTypes.BOOL)
     def get_has_push_token(self, obj) -> bool:
         return bool(obj.push_token)
 
+    @extend_schema_field(OpenApiTypes.INT)
+    def get_follow_count(self, obj) -> int:
+        return obj.follows.count()
+
 
 class DeviceFollowerWriteSerializer(serializers.Serializer):
-    """Validates a follow / update request from a mobile installation.
+    """Validates a follow request from a mobile installation.
 
     Not a ``ModelSerializer``: the request speaks in station ids while the row
-    stores ``station_code``, and the write itself goes through
-    ``DeviceFollower.upsert`` so that creating and updating share one path.
+    stores ``station_code``.
 
     ``installation_id`` is declared here so it appears in the OpenAPI request
     body, but the view resolves it (header first, then query string, then body)
@@ -652,21 +674,16 @@ class DeviceFollowerWriteSerializer(serializers.Serializer):
     )
     station = serializers.PrimaryKeyRelatedField(
         queryset=Stations.objects.all(),
-        required=False,
         help_text="Id of the station to follow.",
     )
     push_token = serializers.CharField(
         required=False,
         allow_blank=True,
-        help_text="Current FCM/APNs token. Send an empty string to clear it.",
+        help_text=(
+            "Current FCM/APNs token, if the app has one to register alongside "
+            "the follow. Send an empty string to clear it."
+        ),
     )
-
-    def __init__(self, *args, require_station=False, **kwargs):
-        # Registration needs a station; a partial update may carry only a
-        # refreshed push token, so the requirement is set by the caller
-        # rather than baked into the field.
-        super().__init__(*args, **kwargs)
-        self._require_station = require_station
 
     def validate_station(self, value):
         if not value.station_code:
@@ -678,11 +695,24 @@ class DeviceFollowerWriteSerializer(serializers.Serializer):
             )
         return value
 
-    def validate(self, attrs):
-        if self._require_station and "station" not in attrs:
-            raise serializers.ValidationError({"station": "This field is required."})
-        if not self._require_station and not (attrs.keys() & {"station", "push_token"}):
-            raise serializers.ValidationError(
-                "Provide at least one of 'station' or 'push_token'."
-            )
-        return attrs
+
+class DeviceInstallationWriteSerializer(serializers.Serializer):
+    """Registers or refreshes the installation's push token.
+
+    Separate from following, because the OS rotates the token at any time and
+    independently of which stations the device follows — and because with
+    several follows the token belongs to the installation, not to any one of
+    them.
+    """
+
+    installation_id = serializers.UUIDField(
+        required=False,
+        help_text=(
+            "UUIDv4 identifying the app installation. May be sent in the "
+            "X-Installation-Id header instead, which is preferred."
+        ),
+    )
+    push_token = serializers.CharField(
+        allow_blank=True,
+        help_text="Current FCM/APNs token. Send an empty string to clear it.",
+    )

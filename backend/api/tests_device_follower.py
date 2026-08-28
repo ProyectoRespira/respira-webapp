@@ -1,23 +1,28 @@
 """Tests for the device-follower feature (model, API and admin).
 
 The feature is unauthenticated by design, so the tests carry two burdens the
-other API tests do not: proving that a device ends up with exactly one row no
-matter how the app retries, and proving that the identifier rules which stand
-in for authentication (random v4 UUIDs only) are actually enforced.
+other API tests do not: proving that a device's follows stay exactly as it left
+them no matter how the app retries, and proving that the identifier rules which
+stand in for authentication (random v4 UUIDs only) are actually enforced.
+
+A device may follow several stations, so the uniqueness that matters is on the
+*pair* — an installation and a station code — and the tests below are written
+around that rather than around one row per device.
 """
 
 import uuid
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.db import IntegrityError, connection, transaction
+from django.db.migrations.executor import MigrationExecutor
+from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .models import DeviceFollower, Regions, Stations
-from .views import INSTALLATION_ID_HEADER
+from .models import DeviceFollower, DeviceInstallation, Regions, Stations
+from .views import INSTALLATION_ID_HEADER, MAX_FOLLOWS_PER_INSTALLATION
 
 User = get_user_model()
 
@@ -29,6 +34,41 @@ OTHER_INSTALLATION_ID = "2c1f9b4a-77d3-4e21-9a5c-6b0e8d3f1a2b"
 V1_INSTALLATION_ID = "d9428888-122b-11e1-b85c-61cd3cbb3210"
 
 
+class DeviceInstallationModelTests(TestCase):
+    def test_installation_id_is_unique(self):
+        DeviceInstallation.objects.create(installation_id=INSTALLATION_ID)
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                DeviceInstallation.objects.create(installation_id=INSTALLATION_ID)
+
+    def test_register_creates_then_reuses_the_same_installation(self):
+        installation, created = DeviceInstallation.register(INSTALLATION_ID)
+        self.assertTrue(created)
+
+        again, created_again = DeviceInstallation.register(INSTALLATION_ID)
+        self.assertFalse(created_again)
+        self.assertEqual(installation.pk, again.pk)
+
+    def test_register_leaves_the_token_alone_when_none_is_sent(self):
+        DeviceInstallation.register(INSTALLATION_ID, push_token="tok-1")
+        installation, _ = DeviceInstallation.register(INSTALLATION_ID)
+
+        self.assertEqual(installation.push_token, "tok-1")
+
+    def test_a_push_token_is_claimed_from_any_previous_installation(self):
+        # A reinstall produces a new installation id while the OS may hand the
+        # app the same token. Without claiming, the abandoned installation
+        # keeps it and the device is notified twice.
+        DeviceInstallation.register(OTHER_INSTALLATION_ID, push_token="shared-token")
+        DeviceInstallation.register(INSTALLATION_ID, push_token="shared-token")
+
+        old = DeviceInstallation.objects.get(installation_id=OTHER_INSTALLATION_ID)
+        new = DeviceInstallation.objects.get(installation_id=INSTALLATION_ID)
+        self.assertEqual(old.push_token, "")
+        self.assertEqual(new.push_token, "shared-token")
+
+
 class DeviceFollowerModelTests(TestCase):
     def setUp(self):
         self.region = Regions.objects.create(name="Gran Asunción", region_code="GA")
@@ -38,83 +78,69 @@ class DeviceFollowerModelTests(TestCase):
         self.other_station = Stations.objects.create(
             name="Respira: San Lorenzo", region=self.region, station_code="RSP-002"
         )
+        self.installation, _ = DeviceInstallation.register(INSTALLATION_ID)
 
-    def test_installation_id_is_unique(self):
+    def test_an_installation_may_follow_several_stations(self):
         DeviceFollower.objects.create(
-            installation_id=INSTALLATION_ID, station_code="RSP-001"
+            installation=self.installation, station_code="RSP-001"
+        )
+        DeviceFollower.objects.create(
+            installation=self.installation, station_code="RSP-002"
+        )
+
+        self.assertEqual(self.installation.follows.count(), 2)
+
+    def test_the_same_station_cannot_be_followed_twice(self):
+        DeviceFollower.objects.create(
+            installation=self.installation, station_code="RSP-001"
         )
 
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
                 DeviceFollower.objects.create(
-                    installation_id=INSTALLATION_ID, station_code="RSP-002"
+                    installation=self.installation, station_code="RSP-001"
                 )
 
-    def test_upsert_creates_then_updates_the_same_row(self):
-        follower, created = DeviceFollower.upsert(
-            INSTALLATION_ID, station_code="RSP-001"
+    def test_two_installations_may_follow_the_same_station(self):
+        other, _ = DeviceInstallation.register(OTHER_INSTALLATION_ID)
+        DeviceFollower.objects.create(
+            installation=self.installation, station_code="RSP-001"
         )
-        self.assertTrue(created)
+        DeviceFollower.objects.create(installation=other, station_code="RSP-001")
 
-        updated, created_again = DeviceFollower.upsert(
-            INSTALLATION_ID, station_code="RSP-002"
-        )
-
-        self.assertFalse(created_again)
-        self.assertEqual(updated.pk, follower.pk)
-        self.assertEqual(updated.station_code, "RSP-002")
-        self.assertEqual(DeviceFollower.objects.count(), 1)
-
-    def test_upsert_leaves_untouched_fields_alone(self):
-        DeviceFollower.upsert(
-            INSTALLATION_ID, station_code="RSP-001", push_token="fcm:abc"
-        )
-
-        # A push-token refresh carries no station, and must not clear it.
-        follower, _ = DeviceFollower.upsert(INSTALLATION_ID, push_token="fcm:def")
-
-        self.assertEqual(follower.station_code, "RSP-001")
-        self.assertEqual(follower.push_token, "fcm:def")
-
-    def test_a_push_token_is_claimed_from_any_previous_installation(self):
-        """A reinstall gets a new installation id but may keep the OS token.
-
-        Without claiming, the abandoned row would keep the token and the phone
-        would be notified about two stations at once.
-        """
-        stale, _ = DeviceFollower.upsert(
-            OTHER_INSTALLATION_ID, station_code="RSP-002", push_token="fcm:shared"
-        )
-
-        DeviceFollower.upsert(
-            INSTALLATION_ID, station_code="RSP-001", push_token="fcm:shared"
-        )
-
-        stale.refresh_from_db()
-        self.assertEqual(stale.push_token, "")
         self.assertEqual(
-            DeviceFollower.objects.filter(push_token="fcm:shared").count(), 1
+            DeviceFollower.objects.filter(station_code="RSP-001").count(), 2
         )
+
+    def test_deleting_an_installation_removes_its_follows(self):
+        DeviceFollower.objects.create(
+            installation=self.installation, station_code="RSP-001"
+        )
+        self.installation.delete()
+
+        self.assertEqual(DeviceFollower.objects.count(), 0)
 
     def test_station_is_resolved_from_the_code_not_a_stored_id(self):
-        follower, _ = DeviceFollower.upsert(INSTALLATION_ID, station_code="RSP-001")
-        self.assertEqual(follower.station, self.station)
-
-        # What a dbt run does: the same station comes back under a new id.
+        follow = DeviceFollower.objects.create(
+            installation=self.installation, station_code="RSP-001"
+        )
         original_id = self.station.id
+
+        # dbt renumbers stations on every run: the same code comes back under
+        # a different id, and the follow has to track the code.
         self.station.delete()
         renumbered = Stations.objects.create(
-            id=original_id + 500,
-            name="Respira: Villa Morra",
-            region=self.region,
-            station_code="RSP-001",
+            name="Respira: Villa Morra", region=self.region, station_code="RSP-001"
         )
 
-        self.assertEqual(follower.station, renumbered)
+        self.assertNotEqual(renumbered.id, original_id)
+        self.assertEqual(follow.station.id, renumbered.id)
 
     def test_station_is_none_when_the_code_no_longer_exists(self):
-        follower, _ = DeviceFollower.upsert(INSTALLATION_ID, station_code="RSP-404")
-        self.assertIsNone(follower.station)
+        follow = DeviceFollower.objects.create(
+            installation=self.installation, station_code="GONE"
+        )
+        self.assertIsNone(follow.station)
 
 
 class DeviceFollowerAPITests(APITestCase):
@@ -129,413 +155,557 @@ class DeviceFollowerAPITests(APITestCase):
         self.other_station = Stations.objects.create(
             name="Respira: San Lorenzo", region=self.region, station_code="RSP-002"
         )
-        self.list_url = reverse("device-followers-list")
-        self.me_url = reverse("device-followers-me")
+        self.url = reverse("device-followers")
+        self.installation_url = reverse("device-installation")
 
     def _header(self, installation_id=INSTALLATION_ID):
         return {INSTALLATION_ID_HEADER: installation_id}
 
-    # --- registering ------------------------------------------------------
+    def _follow(self, station, installation_id=INSTALLATION_ID):
+        return self.client.post(
+            self.url,
+            {"station": station.id},
+            format="json",
+            headers=self._header(installation_id),
+        )
 
-    def test_first_registration_creates_the_follower(self):
+    # --- following --------------------------------------------------------
+
+    def test_first_follow_is_created(self):
+        response = self._follow(self.station)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["station"], self.station.id)
+        self.assertEqual(response.data["station_name"], self.station.name)
+        self.assertEqual(response.data["station_code"], "RSP-001")
+
+    def test_following_accepts_the_installation_id_in_the_body(self):
         response = self.client.post(
-            self.list_url,
+            self.url,
             {"installation_id": INSTALLATION_ID, "station": self.station.id},
             format="json",
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["station"], self.station.id)
-        self.assertEqual(response.data["station_code"], "RSP-001")
-        self.assertEqual(response.data["station_name"], self.station.name)
-        self.assertFalse(response.data["has_push_token"])
+        self.assertTrue(
+            DeviceInstallation.objects.filter(installation_id=INSTALLATION_ID).exists()
+        )
 
-        follower = DeviceFollower.objects.get()
-        self.assertEqual(str(follower.installation_id), INSTALLATION_ID)
-        self.assertEqual(follower.station_code, "RSP-001")
+    def test_a_second_station_is_added_rather_than_replacing_the_first(self):
+        self._follow(self.station)
+        response = self._follow(self.other_station)
 
-    def test_registration_accepts_the_installation_id_header(self):
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        installation = DeviceInstallation.objects.get(installation_id=INSTALLATION_ID)
+        self.assertEqual(
+            sorted(installation.follows.values_list("station_code", flat=True)),
+            ["RSP-001", "RSP-002"],
+        )
+
+    def test_a_duplicate_follow_returns_200_without_creating_a_second_row(self):
+        # The app retries on a flaky mobile network; the retry must land on the
+        # existing row rather than failing against the unique constraint.
+        self.assertEqual(
+            self._follow(self.station).status_code, status.HTTP_201_CREATED
+        )
+
+        repeat = self._follow(self.station)
+        self.assertEqual(repeat.status_code, status.HTTP_200_OK)
+        self.assertEqual(DeviceFollower.objects.count(), 1)
+
+    def test_following_registers_a_push_token_when_sent(self):
         response = self.client.post(
-            self.list_url,
-            {"station": self.station.id},
+            self.url,
+            {"station": self.station.id, "push_token": "tok-1"},
             format="json",
             headers=self._header(),
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(DeviceFollower.objects.count(), 1)
-
-    def test_registration_stores_a_push_token_when_sent(self):
-        response = self.client.post(
-            self.list_url,
-            {
-                "installation_id": INSTALLATION_ID,
-                "station": self.station.id,
-                "push_token": "fcm:abc123",
-            },
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(response.data["has_push_token"])
-        self.assertEqual(DeviceFollower.objects.get().push_token, "fcm:abc123")
+        installation = DeviceInstallation.objects.get(installation_id=INSTALLATION_ID)
+        self.assertEqual(installation.push_token, "tok-1")
 
     def test_the_push_token_is_never_echoed_back(self):
-        """These endpoints are unauthenticated: knowing an installation id must
-        not be enough to read back the device's push token."""
         self.client.post(
-            self.list_url,
-            {
-                "installation_id": INSTALLATION_ID,
-                "station": self.station.id,
-                "push_token": "fcm:abc123",
-            },
+            self.url,
+            {"station": self.station.id, "push_token": "secret-token"},
             format="json",
+            headers=self._header(),
         )
-
-        response = self.client.get(self.me_url, headers=self._header())
+        response = self.client.get(self.installation_url, headers=self._header())
 
         self.assertNotIn("push_token", response.data)
-        self.assertNotIn("fcm:abc123", str(response.data))
+        self.assertTrue(response.data["has_push_token"])
 
-    def test_a_duplicate_registration_updates_instead_of_failing(self):
-        payload = {"installation_id": INSTALLATION_ID, "station": self.station.id}
-        first = self.client.post(self.list_url, payload, format="json")
-        second = self.client.post(self.list_url, payload, format="json")
+    def test_two_devices_keep_separate_follows(self):
+        self._follow(self.station)
+        self._follow(self.other_station, installation_id=OTHER_INSTALLATION_ID)
 
-        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(second.status_code, status.HTTP_200_OK)
-        self.assertEqual(DeviceFollower.objects.count(), 1)
+        self.assertEqual(DeviceInstallation.objects.count(), 2)
+        response = self.client.get(self.url, headers=self._header())
+        self.assertEqual([row["station"] for row in response.data], [self.station.id])
 
-    def test_following_another_station_updates_the_existing_row(self):
-        self.client.post(
-            self.list_url,
-            {"installation_id": INSTALLATION_ID, "station": self.station.id},
-            format="json",
+    def test_the_cap_is_enforced(self):
+        for index in range(MAX_FOLLOWS_PER_INSTALLATION):
+            station = Stations.objects.create(
+                name=f"Respira: {index}",
+                region=self.region,
+                station_code=f"CAP-{index:03d}",
+            )
+            self.assertEqual(self._follow(station).status_code, status.HTTP_201_CREATED)
+
+        response = self._follow(self.station)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        # A code rather than prose: the app has to tell this apart from the
+        # other 400 this endpoint returns, and cannot do that by matching on an
+        # English sentence.
+        self.assertEqual(response.data["code"], "max_follows_reached")
+        self.assertEqual(response.data["max"], MAX_FOLLOWS_PER_INSTALLATION)
+
+    def test_the_two_kinds_of_400_are_distinguishable(self):
+        codeless = Stations.objects.create(
+            name="Respira: sin código", region=self.region, station_code=""
         )
+        not_followable = self._follow(codeless)
 
-        response = self.client.post(
-            self.list_url,
-            {"installation_id": INSTALLATION_ID, "station": self.other_station.id},
-            format="json",
-        )
+        self.assertEqual(not_followable.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("station", not_followable.data)
+        self.assertNotIn("code", not_followable.data)
 
+    def test_a_duplicate_follow_at_the_cap_still_succeeds(self):
+        # Re-following something already followed adds nothing, so the cap must
+        # not turn a harmless retry into an error.
+        stations = []
+        for index in range(MAX_FOLLOWS_PER_INSTALLATION):
+            station = Stations.objects.create(
+                name=f"Respira: {index}",
+                region=self.region,
+                station_code=f"CAP-{index:03d}",
+            )
+            stations.append(station)
+            self._follow(station)
+
+        response = self._follow(stations[0])
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["station"], self.other_station.id)
-        self.assertEqual(DeviceFollower.objects.count(), 1)
-        self.assertEqual(DeviceFollower.objects.get().station_code, "RSP-002")
-
-    def test_two_devices_keep_separate_rows(self):
-        self.client.post(
-            self.list_url,
-            {"installation_id": INSTALLATION_ID, "station": self.station.id},
-            format="json",
-        )
-        self.client.post(
-            self.list_url,
-            {
-                "installation_id": OTHER_INSTALLATION_ID,
-                "station": self.other_station.id,
-            },
-            format="json",
-        )
-
-        self.assertEqual(DeviceFollower.objects.count(), 2)
-
-    # --- validation -------------------------------------------------------
 
     def test_an_unknown_station_is_rejected(self):
         response = self.client.post(
-            self.list_url,
-            {"installation_id": INSTALLATION_ID, "station": 999999},
-            format="json",
+            self.url, {"station": 999999}, format="json", headers=self._header()
         )
-
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("station", response.data)
-        self.assertFalse(DeviceFollower.objects.exists())
 
     def test_a_station_without_a_station_code_cannot_be_followed(self):
-        unmapped = Stations.objects.create(name="Respira: nueva", region=self.region)
-
-        response = self.client.post(
-            self.list_url,
-            {"installation_id": INSTALLATION_ID, "station": unmapped.id},
-            format="json",
+        codeless = Stations.objects.create(
+            name="Respira: sin código", region=self.region, station_code=""
         )
+        response = self._follow(codeless)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("station", response.data)
 
-    def test_registration_requires_a_station(self):
-        response = self.client.post(
-            self.list_url, {"installation_id": INSTALLATION_ID}, format="json"
-        )
-
+    def test_following_requires_a_station(self):
+        response = self.client.post(self.url, {}, format="json", headers=self._header())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("station", response.data)
+
+    # --- the installation id --------------------------------------------
 
     def test_a_missing_installation_id_is_rejected(self):
         response = self.client.post(
-            self.list_url, {"station": self.station.id}, format="json"
+            self.url, {"station": self.station.id}, format="json"
         )
-
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("installation_id", response.data)
 
     def test_a_malformed_installation_id_is_rejected(self):
-        response = self.client.post(
-            self.list_url,
-            {"installation_id": "not-a-uuid", "station": self.station.id},
-            format="json",
-        )
-
+        response = self.client.get(self.url, headers=self._header("not-a-uuid"))
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("installation_id", response.data)
 
     def test_a_non_random_uuid_is_rejected(self):
-        response = self.client.post(
-            self.list_url,
-            {"installation_id": V1_INSTALLATION_ID, "station": self.station.id},
-            format="json",
-        )
-
+        # v1 encodes a MAC address and a timestamp — guessable, and therefore
+        # useless as the thing standing in for a credential.
+        response = self.client.get(self.url, headers=self._header(V1_INSTALLATION_ID))
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("installation_id", response.data)
-        self.assertFalse(DeviceFollower.objects.exists())
 
-    # --- retrieving -------------------------------------------------------
+    # --- listing ----------------------------------------------------------
 
-    def test_retrieving_the_followed_station_by_header(self):
-        DeviceFollower.upsert(INSTALLATION_ID, station_code="RSP-001")
-
-        response = self.client.get(self.me_url, headers=self._header())
+    def test_listing_an_unknown_installation_returns_an_empty_list(self):
+        # The normal state of a fresh install: an empty list, not a 404.
+        response = self.client.get(self.url, headers=self._header())
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["station"], self.station.id)
-        self.assertEqual(response.data["station_name"], self.station.name)
+        self.assertEqual(response.data, [])
 
-    def test_retrieving_the_followed_station_by_query_parameter(self):
-        DeviceFollower.upsert(INSTALLATION_ID, station_code="RSP-001")
-
-        response = self.client.get(self.me_url, {"installation_id": INSTALLATION_ID})
+    def test_listing_by_query_parameter(self):
+        self._follow(self.station)
+        response = self.client.get(self.url, {"installation_id": INSTALLATION_ID})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["station"], self.station.id)
+        self.assertEqual(len(response.data), 1)
 
-    def test_retrieving_returns_the_current_station_id_after_renumbering(self):
-        DeviceFollower.upsert(INSTALLATION_ID, station_code="RSP-001")
+    def test_listing_returns_the_current_station_id_after_renumbering(self):
+        self._follow(self.station)
         original_id = self.station.id
         self.station.delete()
         renumbered = Stations.objects.create(
-            id=original_id + 500,
-            name="Respira: Villa Morra",
-            region=self.region,
-            station_code="RSP-001",
+            name="Respira: Villa Morra", region=self.region, station_code="RSP-001"
         )
 
-        response = self.client.get(self.me_url, headers=self._header())
+        response = self.client.get(self.url, headers=self._header())
 
-        self.assertEqual(response.data["station"], renumbered.id)
+        self.assertNotEqual(renumbered.id, original_id)
+        self.assertEqual(response.data[0]["station"], renumbered.id)
 
-    def test_retrieving_an_unknown_installation_returns_404(self):
-        response = self.client.get(self.me_url, headers=self._header())
-
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_retrieving_reports_a_station_that_no_longer_exists_as_null(self):
-        DeviceFollower.upsert(INSTALLATION_ID, station_code="RSP-001")
+    def test_listing_reports_a_station_that_no_longer_exists_as_null(self):
+        self._follow(self.station)
         self.station.delete()
 
-        response = self.client.get(self.me_url, headers=self._header())
+        response = self.client.get(self.url, headers=self._header())
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIsNone(response.data["station"])
-        self.assertEqual(response.data["station_code"], "RSP-001")
-
-    # --- updating ---------------------------------------------------------
-
-    def test_updating_the_push_token(self):
-        DeviceFollower.upsert(
-            INSTALLATION_ID, station_code="RSP-001", push_token="fcm:old"
-        )
-
-        response = self.client.patch(
-            self.me_url,
-            {"installation_id": INSTALLATION_ID, "push_token": "fcm:new"},
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        follower = DeviceFollower.objects.get()
-        self.assertEqual(follower.push_token, "fcm:new")
-        # The station is untouched by a token refresh.
-        self.assertEqual(follower.station_code, "RSP-001")
-
-    def test_updating_a_push_token_clears_it_from_an_older_installation(self):
-        stale, _ = DeviceFollower.upsert(
-            OTHER_INSTALLATION_ID, station_code="RSP-002", push_token="fcm:shared"
-        )
-        DeviceFollower.upsert(INSTALLATION_ID, station_code="RSP-001")
-
-        self.client.patch(
-            self.me_url,
-            {"installation_id": INSTALLATION_ID, "push_token": "fcm:shared"},
-            format="json",
-        )
-
-        stale.refresh_from_db()
-        self.assertEqual(stale.push_token, "")
-
-    def test_updating_the_followed_station(self):
-        DeviceFollower.upsert(INSTALLATION_ID, station_code="RSP-001")
-
-        response = self.client.patch(
-            self.me_url,
-            {"installation_id": INSTALLATION_ID, "station": self.other_station.id},
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["station"], self.other_station.id)
-        self.assertEqual(DeviceFollower.objects.count(), 1)
-
-    def test_updating_an_unknown_installation_returns_404(self):
-        response = self.client.patch(
-            self.me_url,
-            {"installation_id": INSTALLATION_ID, "push_token": "fcm:new"},
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_an_empty_update_is_rejected(self):
-        DeviceFollower.upsert(INSTALLATION_ID, station_code="RSP-001")
-
-        response = self.client.patch(
-            self.me_url, {"installation_id": INSTALLATION_ID}, format="json"
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_an_update_to_an_unknown_station_is_rejected(self):
-        DeviceFollower.upsert(INSTALLATION_ID, station_code="RSP-001")
-
-        response = self.client.patch(
-            self.me_url,
-            {"installation_id": INSTALLATION_ID, "station": 999999},
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(DeviceFollower.objects.get().station_code, "RSP-001")
+        # Null rather than the id of whichever station inherited the number:
+        # the app needs to know the sensor is gone.
+        self.assertIsNone(response.data[0]["station"])
+        self.assertIsNone(response.data[0]["station_name"])
+        self.assertEqual(response.data[0]["station_code"], "RSP-001")
 
     # --- unfollowing ------------------------------------------------------
 
-    def test_unfollowing_deletes_the_record(self):
-        DeviceFollower.upsert(INSTALLATION_ID, station_code="RSP-001")
+    def test_unfollowing_one_station_leaves_the_others(self):
+        self._follow(self.station)
+        self._follow(self.other_station)
 
-        response = self.client.delete(self.me_url, headers=self._header())
+        response = self.client.delete(
+            f"{self.url}?station={self.station.id}", headers=self._header()
+        )
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(DeviceFollower.objects.exists())
+        remaining = DeviceFollower.objects.values_list("station_code", flat=True)
+        self.assertEqual(list(remaining), ["RSP-002"])
+
+    def test_unfollowing_without_a_station_removes_them_all(self):
+        self._follow(self.station)
+        self._follow(self.other_station)
+
+        response = self.client.delete(self.url, headers=self._header())
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(DeviceFollower.objects.count(), 0)
 
     def test_unfollowing_twice_is_idempotent(self):
-        DeviceFollower.upsert(INSTALLATION_ID, station_code="RSP-001")
-        self.client.delete(self.me_url, headers=self._header())
+        self._follow(self.station)
+        first = self.client.delete(
+            f"{self.url}?station={self.station.id}", headers=self._header()
+        )
+        second = self.client.delete(
+            f"{self.url}?station={self.station.id}", headers=self._header()
+        )
 
-        response = self.client.delete(self.me_url, headers=self._header())
+        self.assertEqual(first.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(second.status_code, status.HTTP_204_NO_CONTENT)
 
+    def test_unfollowing_a_station_that_no_longer_exists_succeeds(self):
+        # The caller asked for that station not to be followed, and it is not.
+        self._follow(self.station)
+        station_id = self.station.id
+        self.station.delete()
+
+        response = self.client.delete(
+            f"{self.url}?station={station_id}", headers=self._header()
+        )
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-    def test_unfollowing_leaves_other_installations_alone(self):
-        DeviceFollower.upsert(INSTALLATION_ID, station_code="RSP-001")
-        DeviceFollower.upsert(OTHER_INSTALLATION_ID, station_code="RSP-002")
+    def test_a_dropped_station_can_still_be_unfollowed_by_code(self):
+        # By id this is impossible — there is no station row left to resolve —
+        # yet it is exactly the follow a user most wants off their list.
+        self._follow(self.station)
+        self.station.delete()
 
-        self.client.delete(self.me_url, headers=self._header())
+        response = self.client.delete(
+            f"{self.url}?station_code=RSP-001", headers=self._header()
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(DeviceFollower.objects.count(), 0)
+
+    def test_unfollowing_by_code_leaves_the_others(self):
+        self._follow(self.station)
+        self._follow(self.other_station)
+
+        self.client.delete(f"{self.url}?station_code=RSP-001", headers=self._header())
+
+        remaining = DeviceFollower.objects.values_list("station_code", flat=True)
+        self.assertEqual(list(remaining), ["RSP-002"])
+
+    def test_unfollowing_rejects_a_non_numeric_station(self):
+        response = self.client.delete(f"{self.url}?station=abc", headers=self._header())
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_unfollowing_leaves_other_installations_alone(self):
+        self._follow(self.station)
+        self._follow(self.station, installation_id=OTHER_INSTALLATION_ID)
+
+        self.client.delete(self.url, headers=self._header())
 
         self.assertEqual(
-            DeviceFollower.objects.get().installation_id,
-            uuid.UUID(OTHER_INSTALLATION_ID),
+            DeviceFollower.objects.filter(
+                installation__installation_id=OTHER_INSTALLATION_ID
+            ).count(),
+            1,
         )
+
+    def test_unfollowing_keeps_the_installation_and_its_token(self):
+        # Unfollowing everything is not a deregistration: the device is still
+        # installed and its token still belongs to it.
+        self.client.put(
+            self.installation_url,
+            {"push_token": "tok-1"},
+            format="json",
+            headers=self._header(),
+        )
+        self._follow(self.station)
+        self.client.delete(self.url, headers=self._header())
+
+        installation = DeviceInstallation.objects.get(installation_id=INSTALLATION_ID)
+        self.assertEqual(installation.push_token, "tok-1")
+
+    # --- the installation endpoint ---------------------------------------
+
+    def test_registering_a_push_token_creates_the_installation(self):
+        response = self.client.put(
+            self.installation_url,
+            {"push_token": "tok-1"},
+            format="json",
+            headers=self._header(),
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["has_push_token"])
+        self.assertEqual(response.data["follow_count"], 0)
+
+    def test_refreshing_the_push_token(self):
+        self.client.put(
+            self.installation_url,
+            {"push_token": "tok-1"},
+            format="json",
+            headers=self._header(),
+        )
+        self.client.put(
+            self.installation_url,
+            {"push_token": "tok-2"},
+            format="json",
+            headers=self._header(),
+        )
+
+        installation = DeviceInstallation.objects.get(installation_id=INSTALLATION_ID)
+        self.assertEqual(installation.push_token, "tok-2")
+
+    def test_clearing_the_push_token(self):
+        self.client.put(
+            self.installation_url,
+            {"push_token": "tok-1"},
+            format="json",
+            headers=self._header(),
+        )
+        response = self.client.put(
+            self.installation_url,
+            {"push_token": ""},
+            format="json",
+            headers=self._header(),
+        )
+
+        self.assertFalse(response.data["has_push_token"])
+
+    def test_registering_a_token_clears_it_from_an_older_installation(self):
+        self.client.put(
+            self.installation_url,
+            {"push_token": "shared"},
+            format="json",
+            headers=self._header(OTHER_INSTALLATION_ID),
+        )
+        self.client.put(
+            self.installation_url,
+            {"push_token": "shared"},
+            format="json",
+            headers=self._header(),
+        )
+
+        old = DeviceInstallation.objects.get(installation_id=OTHER_INSTALLATION_ID)
+        self.assertEqual(old.push_token, "")
+
+    def test_reading_an_unregistered_installation_returns_404(self):
+        response = self.client.get(self.installation_url, headers=self._header())
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_the_installation_reports_how_much_it_follows(self):
+        self._follow(self.station)
+        self._follow(self.other_station)
+
+        response = self.client.get(self.installation_url, headers=self._header())
+        self.assertEqual(response.data["follow_count"], 2)
+
+    def test_a_push_token_is_required(self):
+        response = self.client.put(
+            self.installation_url, {}, format="json", headers=self._header()
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     # --- schema -----------------------------------------------------------
 
     def test_the_endpoints_are_documented_in_the_openapi_schema(self):
-        response = self.client.get(reverse("schema"), {"format": "json"})
+        response = self.client.get(reverse("schema"))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        paths = response.data["paths"]
-        self.assertIn("/api/device-followers/", paths)
-        self.assertIn("/api/device-followers/me/", paths)
-        self.assertEqual(
-            sorted(paths["/api/device-followers/me/"]),
-            ["delete", "get", "patch"],
-        )
+        body = response.content.decode()
+        self.assertIn("/api/device-followers/", body)
+        self.assertIn("/api/device-installations/me/", body)
 
 
 class DeviceFollowerAdminTests(TestCase):
-    """The admin is read-only over API-owned rows, but must stay searchable."""
-
     def setUp(self):
         self.region = Regions.objects.create(name="Gran Asunción", region_code="GA")
         self.station = Stations.objects.create(
             name="Respira: Villa Morra", region=self.region, station_code="RSP-001"
         )
-        self.push_token = "fcm:" + "AbCd1234" * 20 + "TailZ987"
-        DeviceFollower.upsert(
-            INSTALLATION_ID, station_code="RSP-001", push_token=self.push_token
+        # Realistic length: the admin masks a token down to its last 8
+        # characters, which only says anything for a token longer than that.
+        # Real FCM/APNs tokens are 150+.
+        self.push_token = "ExponentPushToken" + ("x" * 140) + "TAIL1234"
+        self.installation, _ = DeviceInstallation.register(
+            INSTALLATION_ID, push_token=self.push_token
         )
-        DeviceFollower.upsert(OTHER_INSTALLATION_ID, station_code="RSP-002")
+        DeviceFollower.objects.create(
+            installation=self.installation, station_code="RSP-001"
+        )
+        DeviceFollower.objects.create(
+            installation=self.installation, station_code="GONE"
+        )
 
-        self.superuser = User.objects.create_superuser(
-            email="admin@proyectorespira.net", password="Sup3r-s3cret-pass!"
+        self.admin_user = User.objects.create_superuser(
+            username="admin", email="admin@example.com", password="pw"
         )
-        self.client.force_login(self.superuser)
-        self.changelist_url = reverse("admin:api_devicefollower_changelist")
+        self.client.force_login(self.admin_user)
 
     def test_the_changelist_resolves_station_names(self):
-        response = self.client.get(self.changelist_url)
+        response = self.client.get("/admin/api/devicefollower/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertContains(response, "Respira: Villa Morra")
-        # The follower on RSP-002 points at a station that does not exist.
+        # A code the pipeline no longer publishes is worth showing as such
+        # rather than as an empty cell.
         self.assertContains(response, "unknown station")
 
-    def test_searching_by_installation_id(self):
-        response = self.client.get(self.changelist_url, {"q": INSTALLATION_ID})
+    def test_the_installation_changelist_counts_follows(self):
+        response = self.client.get("/admin/api/deviceinstallation/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.context["cl"].result_count, 1)
+        self.assertContains(response, str(INSTALLATION_ID))
+
+    def test_the_push_token_is_masked_on_the_changelist(self):
+        response = self.client.get("/admin/api/deviceinstallation/")
+
+        # Enough of the tail to tell two tokens apart, without printing a
+        # credential across a list page.
+        self.assertNotContains(response, self.push_token)
+        self.assertContains(response, "TAIL1234")
+
+    def test_searching_by_installation_id(self):
+        response = self.client.get(
+            "/admin/api/devicefollower/", {"q": str(INSTALLATION_ID)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertContains(response, "RSP-001")
 
     def test_searching_by_station_code(self):
-        response = self.client.get(self.changelist_url, {"q": "RSP-001"})
+        response = self.client.get("/admin/api/devicefollower/", {"q": "RSP-001"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertContains(response, "Respira: Villa Morra")
 
-        self.assertEqual(response.context["cl"].result_count, 1)
-
-    def test_filtering_by_push_token_presence(self):
-        with_token = self.client.get(self.changelist_url, {"has_push_token": "yes"})
-        without_token = self.client.get(self.changelist_url, {"has_push_token": "no"})
-
-        self.assertEqual(with_token.context["cl"].result_count, 1)
-        self.assertEqual(without_token.context["cl"].result_count, 1)
-
-    def test_the_changelist_masks_push_tokens(self):
-        response = self.client.get(self.changelist_url)
-
-        self.assertNotContains(response, self.push_token)
-        self.assertContains(response, "…TailZ987")
-
-    def test_followers_cannot_be_created_or_edited_from_the_admin(self):
-        follower = DeviceFollower.objects.get(installation_id=INSTALLATION_ID)
-
-        add = self.client.get(reverse("admin:api_devicefollower_add"))
-        change = self.client.get(
-            reverse("admin:api_devicefollower_change", args=[follower.pk])
+    def test_followers_cannot_be_added_or_changed_from_the_admin(self):
+        # A follow is a device's own state: editing it here would silently
+        # point somebody's phone at a different sensor.
+        self.assertEqual(
+            self.client.get("/admin/api/devicefollower/add/").status_code,
+            status.HTTP_403_FORBIDDEN,
         )
 
-        self.assertEqual(add.status_code, status.HTTP_403_FORBIDDEN)
-        # Django serves a read-only detail page when change permission is
-        # absent but view permission is present.
-        self.assertEqual(change.status_code, status.HTTP_200_OK)
-        self.assertFalse(change.context["has_change_permission"])
+
+class DeviceInstallationMigrationTests(TransactionTestCase):
+    """The split must not lose anybody's followed station or push token.
+
+    Running the migrations forward on an empty database — which every other
+    test here does — never exercises the data migration, and that is the one
+    step that can silently discard a user's choice. So this rewinds to the
+    shape before the split, writes a row the old way, and migrates forward.
+    """
+
+    migrate_from = [("api", "0014_merge_20260826_1744")]
+    migrate_to = [("api", "0015_device_installation_multi_follow")]
+
+    def setUp(self):
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.migrate_from)
+        executor.loader.build_graph()
+        self.old_apps = executor.loader.project_state(self.migrate_from).apps
+
+    def tearDown(self):
+        # Leave the database at the latest migration, since TransactionTestCase
+        # does not roll this back for whatever runs next.
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()
+        executor.migrate(executor.loader.graph.leaf_nodes())
+
+    def _migrate_forward(self):
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()
+        executor.migrate(self.migrate_to)
+        executor.loader.build_graph()
+        return executor.loader.project_state(self.migrate_to).apps
+
+    def test_an_existing_follower_keeps_its_station_and_token(self):
+        OldFollower = self.old_apps.get_model("api", "DeviceFollower")
+        OldFollower.objects.create(
+            installation_id=INSTALLATION_ID,
+            station_code="RSP-001",
+            push_token="tok-1",
+        )
+
+        new_apps = self._migrate_forward()
+        Installation = new_apps.get_model("api", "DeviceInstallation")
+        Follower = new_apps.get_model("api", "DeviceFollower")
+
+        installation = Installation.objects.get(installation_id=INSTALLATION_ID)
+        self.assertEqual(installation.push_token, "tok-1")
+
+        follow = Follower.objects.get()
+        self.assertEqual(follow.installation_id, installation.pk)
+        self.assertEqual(follow.station_code, "RSP-001")
+
+    def test_each_installation_gets_its_own_row(self):
+        OldFollower = self.old_apps.get_model("api", "DeviceFollower")
+        OldFollower.objects.create(
+            installation_id=INSTALLATION_ID, station_code="RSP-001", push_token=""
+        )
+        OldFollower.objects.create(
+            installation_id=OTHER_INSTALLATION_ID,
+            station_code="RSP-002",
+            push_token="tok-2",
+        )
+
+        new_apps = self._migrate_forward()
+        Installation = new_apps.get_model("api", "DeviceInstallation")
+
+        self.assertEqual(Installation.objects.count(), 2)
+        self.assertEqual(
+            Installation.objects.get(installation_id=OTHER_INSTALLATION_ID).push_token,
+            "tok-2",
+        )
+        self.assertEqual(
+            Installation.objects.get(installation_id=INSTALLATION_ID).follows.count(),
+            1,
+        )
+
+
+def test_uuid_constants_are_the_versions_they_claim():
+    """Guards the fixtures themselves: a typo here would silently weaken the
+    identifier tests above, which exist to prove v4 is required."""
+    assert uuid.UUID(INSTALLATION_ID).version == 4
+    assert uuid.UUID(OTHER_INSTALLATION_ID).version == 4
+    assert uuid.UUID(V1_INSTALLATION_ID).version == 1

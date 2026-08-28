@@ -119,6 +119,17 @@ REST_FRAMEWORK = {
     },
 }
 
+# How many stations one installation may follow (api.views.DeviceFollowerView).
+# A bound on abuse of an unauthenticated endpoint rather than a product limit,
+# which is why it is configurable here rather than a database constraint.
+MAX_FOLLOWS_PER_INSTALLATION = _env_int("BACKEND_MAX_FOLLOWS_PER_INSTALLATION", 10)
+
+# Whether the per-sensor push alerts actually go out (api.push).
+# Off by default so a freshly deployed environment cannot start notifying real
+# devices before somebody decides it should; the management command still
+# offers --dry-run and --force.
+SENSOR_ALERTS_ENABLED = _env_bool("BACKEND_SENSOR_ALERTS_ENABLED", False)
+
 SPECTACULAR_SETTINGS = {
     "TITLE": "RespiraAPI",
     "DESCRIPTION": "This is the Respira API",
