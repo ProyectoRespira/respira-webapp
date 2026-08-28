@@ -12,6 +12,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
 from django.core.cache import cache
+from django.db import transaction
 from django.db.models import Avg, Prefetch
 from django.db.models.functions import TruncDate, TruncMonth, TruncWeek
 from django.middleware.csrf import get_token
@@ -24,12 +25,14 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet, ModelViewSet, ReadOnlyModelViewSet
 
 from .aqi import classify_aqi
 from .models import (
     ActionLog,
     DeviceFollower,
+    DeviceInstallation,
     FaqCategory,
     FaqQuestion,
     InferenceResults,
@@ -52,6 +55,8 @@ from .serializers import (
     AdminUserUpdateSerializer,
     DeviceFollowerSerializer,
     DeviceFollowerWriteSerializer,
+    DeviceInstallationSerializer,
+    DeviceInstallationWriteSerializer,
     FaqCategorySerializer,
     ForecastSerializer,
     HealthSerializer,
@@ -1001,6 +1006,11 @@ class FaqListView(generics.ListAPIView):
 
 INSTALLATION_ID_HEADER = "X-Installation-Id"
 
+# How many stations one installation may follow. A bound on abuse of an
+# unauthenticated endpoint rather than a product limit, which is why it lives
+# here and is tunable rather than being a database constraint.
+MAX_FOLLOWS_PER_INSTALLATION = getattr(settings, "MAX_FOLLOWS_PER_INSTALLATION", 10)
+
 INSTALLATION_ID_PARAMETER = OpenApiParameter(
     name=INSTALLATION_ID_HEADER,
     type=OpenApiTypes.UUID,
@@ -1063,122 +1073,239 @@ def _resolve_installation_id(request) -> uuid.UUID:
 
 
 @extend_schema(tags=["Device Followers"])
-class DeviceFollowerViewSet(GenericViewSet):
-    """The station a mobile installation follows, with no login involved.
+class DeviceFollowerView(APIView):
+    """The stations a mobile installation follows, with no login involved.
 
     Deliberately unauthenticated: the app identifies itself with the UUIDv4 it
     generated on first launch, and that unguessable value is what stands in for
     a credential. The throttle below is the compensating control — it bounds
     what an abusive client can do without penalising a whole carrier NAT.
 
-    ``create`` upserts rather than inserting: the app retries on a flaky mobile
-    network, and a retry must land on the same row instead of failing against
-    the unique index.
+    Not a router-backed ``ViewSet``: the collection has to answer ``DELETE`` as
+    well as ``GET`` and ``POST``, and the default router only maps the first
+    two onto a list URL.
     """
 
-    serializer_class = DeviceFollowerSerializer
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "device_followers"
-    queryset = DeviceFollower.objects.all()
 
-    def _get_follower(self, installation_id) -> DeviceFollower:
-        follower = DeviceFollower.objects.filter(
-            installation_id=installation_id
-        ).first()
-        if follower is None:
-            raise NotFound("This installation is not following any station.")
-        return follower
+    @extend_schema(
+        summary="List the stations this installation follows",
+        description=(
+            "Returns an empty list — not a 404 — for an installation that has "
+            "never followed anything, which is the normal state of a fresh "
+            "install. Each `station` is resolved fresh on every read, so it is "
+            "always the station's current id even after the pipeline renumbers "
+            "them; it is null if that station no longer exists."
+        ),
+        parameters=[INSTALLATION_ID_PARAMETER, INSTALLATION_ID_QUERY_PARAMETER],
+        responses={200: DeviceFollowerSerializer(many=True)},
+    )
+    def get(self, request, *args, **kwargs):
+        installation_id = _resolve_installation_id(request)
+        follows = DeviceFollower.objects.filter(
+            installation__installation_id=installation_id
+        )
+        return Response(DeviceFollowerSerializer(follows, many=True).data)
 
     @extend_schema(
         summary="Follow a station",
         description=(
-            "Registers the station this installation follows, or updates it if "
-            "the installation already follows one — a device follows exactly "
-            "one station. Repeating the same request is safe: it updates the "
-            "existing row and returns 200 instead of failing. Returns 201 the "
-            "first time the installation is seen."
+            "Adds a station to what this installation follows. Repeating the "
+            "same request is safe: it returns 200 with the existing follow "
+            "instead of creating a second one or failing. Returns 201 the "
+            f"first time. An installation may follow up to "
+            f"{MAX_FOLLOWS_PER_INSTALLATION} stations."
         ),
         parameters=[INSTALLATION_ID_PARAMETER],
         request=DeviceFollowerWriteSerializer,
         responses={200: DeviceFollowerSerializer, 201: DeviceFollowerSerializer},
     )
-    def create(self, request, *args, **kwargs):
+    def post(self, request, *args, **kwargs):
         installation_id = _resolve_installation_id(request)
-        serializer = DeviceFollowerWriteSerializer(
-            data=request.data, require_station=True
-        )
+        serializer = DeviceFollowerWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        follower, created = DeviceFollower.upsert(
-            installation_id,
-            station_code=serializer.validated_data["station"].station_code,
-            push_token=serializer.validated_data.get("push_token"),
-        )
-        return Response(
-            DeviceFollowerSerializer(follower).data,
-            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
-        )
+        station = serializer.validated_data["station"]
+        push_token = serializer.validated_data.get("push_token")
 
-    @extend_schema(
-        methods=["GET"],
-        summary="Retrieve the station this installation follows",
-        description=(
-            "Returns 404 when the installation has never followed a station. "
-            "`station` is resolved fresh on every read, so it is always the "
-            "station's current id even after the pipeline renumbers them; it "
-            "is null if the followed station no longer exists."
-        ),
-        parameters=[INSTALLATION_ID_PARAMETER, INSTALLATION_ID_QUERY_PARAMETER],
-        responses={200: DeviceFollowerSerializer},
-    )
-    @extend_schema(
-        methods=["PATCH"],
-        summary="Update the followed station or the push token",
-        description=(
-            "Partial update: send `station`, `push_token`, or both. Used by "
-            "the app when the OS rotates the push token, which can happen at "
-            "any time and independently of the followed station."
-        ),
-        parameters=[INSTALLATION_ID_PARAMETER],
-        request=DeviceFollowerWriteSerializer,
-        responses={200: DeviceFollowerSerializer},
-    )
-    @extend_schema(
-        methods=["DELETE"],
-        summary="Stop following any station",
-        description=(
-            "Deletes the installation's record. Idempotent: returns 204 "
-            "whether or not a record existed."
-        ),
-        parameters=[INSTALLATION_ID_PARAMETER, INSTALLATION_ID_QUERY_PARAMETER],
-        responses={204: None},
-    )
-    @action(detail=False, methods=["get", "patch", "delete"])
-    def me(self, request, *args, **kwargs):
-        """The installation's own record, addressed by its installation id.
+        with transaction.atomic():
+            installation, _ = DeviceInstallation.register(
+                installation_id, push_token=push_token
+            )
+            # The *installation* is what gets locked, not the follow: two
+            # requests adding two different stations would each find no
+            # existing row to lock, both read a count under the cap, and both
+            # insert. Locking the row every follow of this installation hangs
+            # off serialises them, so the count below is the real one.
+            installation = DeviceInstallation.objects.select_for_update().get(
+                pk=installation.pk
+            )
+            existing = installation.follows.filter(
+                station_code=station.station_code
+            ).first()
+            if existing is not None:
+                return Response(DeviceFollowerSerializer(existing).data)
 
-        One action for three verbs because the router maps a URL to a single
-        action: separate methods sharing ``url_path="me"`` would register two
-        patterns for the same path and the first would answer — and reject —
-        every other verb.
-        """
-        installation_id = _resolve_installation_id(request)
+            if installation.follows.count() >= MAX_FOLLOWS_PER_INSTALLATION:
+                # A machine-readable `code`, not just prose: the app has to
+                # tell this apart from the other 400 this endpoint can return
+                # (a station with no `station_code`) to say something true to
+                # the user, and it cannot do that by matching on an English
+                # sentence it would then have to keep in step.
+                return Response(
+                    {
+                        "code": "max_follows_reached",
+                        "max": MAX_FOLLOWS_PER_INSTALLATION,
+                        "detail": (
+                            "This installation already follows the maximum of "
+                            f"{MAX_FOLLOWS_PER_INSTALLATION} stations. Unfollow "
+                            "one before adding another."
+                        ),
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        if request.method == "DELETE":
-            DeviceFollower.objects.filter(installation_id=installation_id).delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-
-        follower = self._get_follower(installation_id)
-
-        if request.method == "PATCH":
-            serializer = DeviceFollowerWriteSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            station = serializer.validated_data.get("station")
-            follower, _ = DeviceFollower.upsert(
-                installation_id,
-                station_code=station.station_code if station else None,
-                push_token=serializer.validated_data.get("push_token"),
+            follow = DeviceFollower.objects.create(
+                installation=installation, station_code=station.station_code
             )
 
-        return Response(DeviceFollowerSerializer(follower).data)
+        return Response(
+            DeviceFollowerSerializer(follow).data, status=status.HTTP_201_CREATED
+        )
+
+    @extend_schema(
+        summary="Stop following one station, or all of them",
+        description=(
+            "Pass `station_code` — or `station`, its current id — to unfollow "
+            "that one; omit both to unfollow everything this installation "
+            "follows. Idempotent: returns 204 whether or not anything was "
+            "there to delete.\n\n"
+            "`station_code` is the one that always works. A station the "
+            "pipeline has dropped no longer has an id to look up, so a follow "
+            "left pointing at it could never be removed by id — and that is "
+            "exactly the follow a user most wants off their list."
+        ),
+        parameters=[
+            INSTALLATION_ID_PARAMETER,
+            INSTALLATION_ID_QUERY_PARAMETER,
+            OpenApiParameter(
+                name="station_code",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description=(
+                    "Stable code of the station to unfollow. Preferred over "
+                    "`station`; takes precedence when both are sent. Sending "
+                    "it blank is a 400 — omit it to unfollow everything."
+                ),
+            ),
+            OpenApiParameter(
+                name="station",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description=(
+                    "Current id of the station to unfollow. Omit both to "
+                    "unfollow all of them."
+                ),
+            ),
+        ],
+        responses={204: None},
+    )
+    def delete(self, request, *args, **kwargs):
+        installation_id = _resolve_installation_id(request)
+        follows = DeviceFollower.objects.filter(
+            installation__installation_id=installation_id
+        )
+
+        station_code = request.query_params.get("station_code")
+        raw_station = request.query_params.get("station")
+
+        if station_code is not None:
+            # Rejected rather than ignored: omitting the parameter is how a
+            # caller asks to unfollow *everything*, so treating `?station_code=`
+            # as absent would turn a malformed single unfollow into wiping the
+            # whole list.
+            if not station_code:
+                raise ValidationError({"station_code": "Must not be blank."})
+            # Matched directly against what the row stores, so this works even
+            # for a station that no longer exists.
+            follows = follows.filter(station_code=station_code)
+        elif raw_station is not None:
+            try:
+                station_id = int(raw_station)
+            except (TypeError, ValueError):
+                raise ValidationError({"station": "Must be an integer station id."})
+
+            station = Stations.objects.filter(id=station_id).first()
+            # A station the pipeline has already dropped cannot be looked up to
+            # get its code, so there is nothing to match on. That is still a
+            # successful unfollow of nothing rather than an error — the caller
+            # asked for that station not to be followed, and it is not.
+            if station is None or not station.station_code:
+                return Response(status=status.HTTP_204_NO_CONTENT)
+
+            follows = follows.filter(station_code=station.station_code)
+
+        follows.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@extend_schema(tags=["Device Followers"])
+class DeviceInstallationView(APIView):
+    """The installation itself, addressed by its own id.
+
+    The push token lives here rather than on each follow: the OS rotates it at
+    any time and independently of which stations are followed, and with several
+    follows a per-row copy would have to be kept in step across all of them —
+    and a notification fan-out would deliver once per follow to the same phone.
+    """
+
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "device_followers"
+
+    @extend_schema(
+        summary="Read this installation's registration",
+        description=(
+            "Returns 404 for an installation the backend has never seen. The "
+            "push token is reported as a boolean, never echoed: these "
+            "endpoints are unauthenticated, so anyone holding an installation "
+            "id could otherwise read the device's token."
+        ),
+        parameters=[INSTALLATION_ID_PARAMETER, INSTALLATION_ID_QUERY_PARAMETER],
+        responses={200: DeviceInstallationSerializer},
+    )
+    def get(self, request, *args, **kwargs):
+        installation_id = _resolve_installation_id(request)
+        installation = DeviceInstallation.objects.filter(
+            installation_id=installation_id
+        ).first()
+        if installation is None:
+            raise NotFound("This installation has not registered.")
+        return Response(DeviceInstallationSerializer(installation).data)
+
+    @extend_schema(
+        summary="Register or refresh the push token",
+        description=(
+            "Creates the installation if the backend has not seen it before, "
+            "so the app can register a token before following anything. "
+            "Registering a token also clears it from any other installation "
+            "holding it, which is what stops a reinstall — new installation id, "
+            "same token from the OS — being notified twice."
+        ),
+        parameters=[INSTALLATION_ID_PARAMETER],
+        request=DeviceInstallationWriteSerializer,
+        responses={200: DeviceInstallationSerializer},
+    )
+    def put(self, request, *args, **kwargs):
+        installation_id = _resolve_installation_id(request)
+        serializer = DeviceInstallationWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        installation, _ = DeviceInstallation.register(
+            installation_id, push_token=serializer.validated_data["push_token"]
+        )
+        return Response(DeviceInstallationSerializer(installation).data)

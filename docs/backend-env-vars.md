@@ -92,6 +92,18 @@ All four are optional. Set only the ones your database provider requires.
 
 ---
 
+## Device Followers & Sensor Alerts (optional)
+
+The device-follower endpoints are unauthenticated by design (the app has no login), so the throttle and the follow cap are what bound abuse of them rather than product limits — expect to tune them per environment.
+
+| Variable                               | Required | Default    | Where used                       | Notes                                                                                                                                                                                              |
+| -------------------------------------- | -------- | ---------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BACKEND_DEVICE_FOLLOWER_THROTTLE`     | No       | `120/min`  | `backend/backend/settings.py`    | DRF rate for the `device_followers` scope, counted per client IP. Deliberately generous: mobile carriers put many phones behind one CGNAT address, and a tight limit cuts off a whole network.      |
+| `BACKEND_MAX_FOLLOWS_PER_INSTALLATION` | No       | `10`       | `backend/backend/settings.py`    | How many stations one installation may follow. Exceeding it returns 400 with `"code": "max_follows_reached"`.                                                                                       |
+| `BACKEND_SENSOR_ALERTS_ENABLED`        | No       | `false`    | `backend/backend/settings.py`    | Whether `send_sensor_alerts` actually delivers push notifications. Off by default so a freshly deployed environment cannot start notifying real devices; the command still offers `--dry-run`/`--force`. |
+
+---
+
 ## Model Column Overrides (optional)
 
 Override these only if your database schema uses different column names than the defaults.

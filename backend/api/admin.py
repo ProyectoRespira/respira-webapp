@@ -10,6 +10,7 @@ from .forms import StationStatusOverrideForm
 from .models import (
     ActionLog,
     DeviceFollower,
+    DeviceInstallation,
     FaqCategory,
     FaqQuestion,
     Institution,
@@ -449,10 +450,11 @@ class InstitutionContractAdmin(RoleBasedModelAdmin):
 
 
 class HasPushTokenFilter(admin.SimpleListFilter):
-    """Splits followers by whether the app has registered a push token yet.
+    """Splits installations by whether the app has registered a push token yet.
 
-    The operational question behind it: a follower with no token is following
-    a station but cannot be notified, so this is how that gap gets spotted.
+    The operational question behind it: an installation with follows but no
+    token is following stations and cannot be notified about any of them, so
+    this is how that gap gets spotted.
     """
 
     title = "push token"
@@ -469,15 +471,76 @@ class HasPushTokenFilter(admin.SimpleListFilter):
         return queryset
 
 
-@admin.register(DeviceFollower)
-class DeviceFollowerAdmin(RoleBasedModelAdmin):
-    """Mobile installations and the station each one follows.
+@admin.register(DeviceInstallation)
+class DeviceInstallationAdmin(RoleBasedModelAdmin):
+    """Installations of the mobile app, and the push token each one holds.
 
     Written exclusively by the device-follower API, so add and change are
-    disabled: a follower row is a device's own state, and editing it here
-    would silently point somebody's phone at a different sensor without the
-    app ever knowing. Delete stays available under the normal role matrix, so
-    a data-removal request can be honoured.
+    disabled: this is a device's own state and editing it here would silently
+    redirect somebody's notifications without the app ever knowing. Delete
+    stays available under the normal role matrix, so a data-removal request can
+    be honoured — and it cascades to the installation's follows, which is what
+    such a request means.
+    """
+
+    list_display = (
+        "installation_id",
+        "follow_count",
+        "masked_push_token",
+        "updated_at",
+    )
+    list_filter = (HasPushTokenFilter, "updated_at")
+    search_fields = ("installation_id", "push_token")
+    ordering = ("-updated_at",)
+    readonly_fields = (
+        "installation_id",
+        "push_token",
+        "follow_count",
+        "created_at",
+        "updated_at",
+    )
+    fieldsets = (
+        (None, {"fields": ("installation_id", "follow_count")}),
+        ("Notifications", {"fields": ("push_token",)}),
+        ("Audit", {"fields": ("created_at", "updated_at")}),
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def get_queryset(self, request):
+        # Counted in the query rather than per row: the changelist would
+        # otherwise issue one COUNT per installation.
+        return super().get_queryset(request).annotate(_follow_count=Count("follows"))
+
+    @admin.display(description="Follows", ordering="_follow_count")
+    def follow_count(self, obj):
+        count = getattr(obj, "_follow_count", None)
+        if count is None:
+            count = obj.follows.count()
+        return count
+
+    @admin.display(description="Push token")
+    def masked_push_token(self, obj):
+        """Show only enough of the token to tell two of them apart.
+
+        Full tokens are 150+ characters and would swamp the changelist; the
+        detail page carries the real value for anyone debugging delivery.
+        """
+        if not obj.push_token:
+            return "—"
+        return f"…{obj.push_token[-8:]}"
+
+
+@admin.register(DeviceFollower)
+class DeviceFollowerAdmin(RoleBasedModelAdmin):
+    """Which stations each installation follows — one row per pair.
+
+    Read-only for the same reason as the installation above: this is a device's
+    own state, written only by the API.
 
     Rows address their station by ``station_code``, not by a foreign key, so
     the station's name is resolved with a subquery rather than a join — one
@@ -485,27 +548,24 @@ class DeviceFollowerAdmin(RoleBasedModelAdmin):
     """
 
     list_display = (
-        "installation_id",
+        "installation_uuid",
         "station_code",
         "station_name",
-        "masked_push_token",
-        "updated_at",
+        "created_at",
     )
-    list_filter = (HasPushTokenFilter, "station_code", "updated_at")
-    search_fields = ("installation_id", "station_code", "push_token")
-    ordering = ("-updated_at",)
+    list_filter = ("station_code", "created_at")
+    search_fields = ("installation__installation_id", "station_code")
+    ordering = ("-created_at",)
     readonly_fields = (
-        "installation_id",
+        "installation",
         "station_code",
         "station_name",
-        "push_token",
         "created_at",
         "updated_at",
     )
     fieldsets = (
-        (None, {"fields": ("installation_id",)}),
+        (None, {"fields": ("installation",)}),
         ("Followed station", {"fields": ("station_code", "station_name")}),
-        ("Notifications", {"fields": ("push_token",)}),
         ("Audit", {"fields": ("created_at", "updated_at")}),
     )
 
@@ -522,8 +582,13 @@ class DeviceFollowerAdmin(RoleBasedModelAdmin):
         return (
             super()
             .get_queryset(request)
+            .select_related("installation")
             .annotate(_station_name=Subquery(station_names))
         )
+
+    @admin.display(description="Installation", ordering="installation__installation_id")
+    def installation_uuid(self, obj):
+        return obj.installation.installation_id
 
     @admin.display(description="Station", ordering="_station_name")
     def station_name(self, obj):
@@ -536,17 +601,6 @@ class DeviceFollowerAdmin(RoleBasedModelAdmin):
         # An unknown code means the pipeline dropped the station the device
         # follows — worth showing as such rather than as an empty cell.
         return name or "unknown station"
-
-    @admin.display(description="Push token")
-    def masked_push_token(self, obj):
-        """Show only enough of the token to tell two of them apart.
-
-        Full tokens are 150+ characters and would swamp the changelist; the
-        detail page carries the real value for anyone debugging delivery.
-        """
-        if not obj.push_token:
-            return "—"
-        return f"…{obj.push_token[-8:]}"
 
 
 @admin.register(InstitutionAlert)
