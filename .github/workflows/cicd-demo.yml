@@ -731,7 +731,8 @@ jobs:
           docker compose \
             $compose_files \
             --env-file .env.demo \
-            up --force-recreate --remove-orphans --wait --wait-timeout 600
+            up --force-recreate --remove-orphans --wait --wait-timeout 600 \
+            backend frontend proxy
 
           deploy_phase="[3/3] Validate the running containers use the pulled images"
           echo "$deploy_phase"

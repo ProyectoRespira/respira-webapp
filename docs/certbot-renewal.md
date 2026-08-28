@@ -1,21 +1,25 @@
 # Certbot Renewal and TLS Monitoring
 
-This project stores Let's Encrypt assets on the host and mounts them into both services:
+This project stores Let's Encrypt assets on the host and mounts them into the proxy and the standalone Certbot container:
 
-- `certbot/conf` -> certbot container (`/etc/letsencrypt`)
+- `certbot/conf` -> standalone Certbot container (`/etc/letsencrypt`)
 - `certbot/conf` -> proxy container (`/etc/nginx/ssl`)
 - `certbot/www` -> shared ACME webroot (`/var/www/certbot`)
 
 Use the utility script at `utils/certbot-maintenance.sh` to keep certificates updated.
 It writes to `<project-root>/logs/certbot-maintenance.log` by default, or to the path passed with `--log-file`.
 For `check-expiry`, it reads certificates from `./certbot/conf` relative to the current working directory when present, otherwise it falls back to `<project-root>/certbot/conf`. You can also pass `--certbot-config-dir` explicitly.
+When `HOST_WORKSPACE_FOLDER` is set in the Compose environment, the maintenance script resolves the same host root before mounting `certbot/www` and `certbot/conf`; this keeps the renewal container and the proxy on the same certificate paths.
 
 ## 1) Initial certificate issuance (one-time)
 
 If you have not issued a certificate yet:
 
 ```bash
-docker compose run --rm certbot certonly \
+docker run --rm --pull always \
+  -v "$PWD/certbot/www:/var/www/certbot" \
+  -v "$PWD/certbot/conf:/etc/letsencrypt" \
+  certbot/certbot:latest certonly \
   --webroot -w /var/www/certbot \
   -d your-domain.example -d www.your-domain.example \
   --email your-email@example.com --agree-tos --no-eff-email
@@ -29,7 +33,7 @@ docker compose exec -T proxy nginx -s reload
 
 ## 2) Renewal command
 
-The renewal flow runs certbot and then reloads nginx:
+The renewal flow pulls the Certbot image, runs it independently of the application Compose stack, and then reloads nginx:
 
 ```bash
 ./utils/certbot-maintenance.sh renew
@@ -43,6 +47,7 @@ If the compose project lives elsewhere, pass it explicitly:
 
 This is safe to run frequently. It does not force a new certificate every time; Certbot only renews certificates that are close enough to expiry.
 All command output is appended to the maintenance log file for troubleshooting.
+Set `CERTBOT_IMAGE` to a pinned, tested image tag when upgrading Certbot deliberately. The default is `certbot/certbot:latest`.
 
 ## 3) Expiry check command
 
