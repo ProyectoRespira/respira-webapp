@@ -239,7 +239,10 @@ def send_sensor_alerts(dry_run: bool = False) -> SendResult:
         classified = classify_aqi(reading.aqi_pm2_5)
         if classified is None:
             continue
-        level = classified["key"]
+        level = {
+            "unhealthy_sensitive": "unhealthySensitive",
+            "very_unhealthy": "veryUnhealthy",
+        }.get(classified["key"], classified["key"])
 
         last = SensorAlert.objects.filter(station_code=station_code).first()
         if not should_alert(level, last.level if last else None):
