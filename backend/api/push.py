@@ -29,6 +29,7 @@ from .models import (
     DeviceFollower,
     DeviceInstallation,
     SensorAlert,
+    SensorAlertState,
     StationReadingsGold,
     Stations,
 )
@@ -92,26 +93,72 @@ class SendResult:
     errors: list[str] = field(default_factory=list)
 
 
-def should_alert(level: str, last_level: str | None) -> bool:
+@dataclass
+class Delivery:
+    """What Expo did with one station's batch of alerts."""
+
+    accepted: int = 0
+    cleared: int = 0
+    # Errors worth trying again: anything that is not a device that has
+    # unregistered, plus messages Expo answered 200 to without a ticket.
+    retriable_failures: int = 0
+
+    @property
+    def delivered(self) -> bool:
+        """Whether the alerting state may advance past this level.
+
+        The partial-delivery policy, stated once: one accepted message is
+        enough. Retrying the whole station because a single token was rate
+        limited would re-notify everyone the first attempt did reach, and
+        duplicate alerts are the failure this feature exists to avoid.
+
+        Nothing to retry also counts — no follower holds a token, or every
+        token turned out to be dead — since a later run would find exactly the
+        same nobody to send to.
+        """
+        return self.accepted > 0 or self.retriable_failures == 0
+
+
+def should_alert(level: str, last_alerted_level: str | None) -> bool:
     """Whether a station at ``level`` warrants notifying its followers now.
 
     Mirrors the rule the app already applies to its own local notifications:
     only alert-worthy levels, and only when the air has actually got worse than
     what these followers were last told. Without the second half, a station
     hovering at the boundary would notify on every single reading.
+
+    ``last_alerted_level`` is blank both for a station that has never alerted
+    and for one that has since recovered to a safe level (see
+    :meth:`_remember`), so the next bad episode alerts from its first reading
+    rather than having to beat the worst level of the previous one.
     """
     if level not in ALERT_LEVELS:
         return False
-    if last_level is None:
+    if not last_alerted_level:
         return True
-    return LEVEL_RANK[level] > LEVEL_RANK[last_level]
+    return LEVEL_RANK[level] > LEVEL_RANK[last_alerted_level]
+
+
+def _remember(state: SensorAlertState, level: str, *, alerted: bool) -> None:
+    """Writes back what this run saw, and whether it alerted on it."""
+    state.last_level = level
+    if alerted:
+        state.last_alerted_level = level
+    elif level not in ALERT_LEVELS:
+        # Recovered. Clearing this is what ends the episode: without it a
+        # station that alerted at `hazardous` could never alert again, since no
+        # later level outranks it.
+        state.last_alerted_level = ""
+    state.save(update_fields=["last_level", "last_alerted_level", "updated_at"])
 
 
 def _tokens_following(station_code: str) -> list[str]:
     """Push tokens of every installation following ``station_code``.
 
-    Deduplicated: two installations can legitimately hold the same token for a
-    while after a reinstall, and the device should be told once.
+    Deduplicated, even though ``uniq_active_push_token`` now keeps a live token
+    on a single installation: sending the same device two copies of one alert
+    is the failure this whole path is trying to avoid, and it is cheap to be
+    sure of it here rather than infer it from a constraint two models away.
     """
     tokens = (
         DeviceInstallation.objects.filter(follows__station_code=station_code)
@@ -148,19 +195,25 @@ def _message(token: str, station: Stations, level: str, aqi: float) -> dict:
     }
 
 
+def _is_dead(ticket: dict) -> bool:
+    """Whether Expo says this token belongs to an app that is gone.
+
+    Only ``DeviceNotRegistered`` counts — other errors are transient and acting
+    on them would lose a live device's token.
+    """
+    return (
+        ticket.get("status") == "error"
+        and (ticket.get("details") or {}).get("error") == "DeviceNotRegistered"
+    )
+
+
 def _clear_dead_tokens(tokens: list[str], tickets: list[dict]) -> int:
     """Blanks the tokens Expo says are no longer registered.
 
     An uninstalled app keeps its row forever otherwise, and every later run
-    pays to deliver to it. Only ``DeviceNotRegistered`` is acted on — other
-    errors are transient and would lose a live device's token.
+    pays to deliver to it.
     """
-    dead = [
-        token
-        for token, ticket in zip(tokens, tickets)
-        if ticket.get("status") == "error"
-        and ticket.get("details", {}).get("error") == "DeviceNotRegistered"
-    ]
+    dead = [token for token, ticket in zip(tokens, tickets) if _is_dead(ticket)]
     if not dead:
         return 0
 
@@ -182,26 +235,32 @@ def _post_batch(messages: list[dict]) -> list[dict]:
     return data if isinstance(data, list) else []
 
 
-def notify_followers(station: Stations, level: str, aqi: float) -> tuple[int, int]:
-    """Sends one alert about ``station`` to everyone following it.
+def notify_followers(station: Stations, level: str, aqi: float) -> Delivery:
+    """Sends one alert about ``station`` to everyone following it."""
+    delivery = Delivery()
 
-    Returns ``(messages_sent, tokens_cleared)``.
-    """
     tokens = _tokens_following(station.station_code)
     if not tokens:
         logger.info("No registered tokens follow %s", station.station_code)
-        return 0, 0
+        return delivery
 
-    sent = 0
-    cleared = 0
     for start in range(0, len(tokens), EXPO_BATCH_SIZE):
         batch = tokens[start : start + EXPO_BATCH_SIZE]
         messages = [_message(token, station, level, aqi) for token in batch]
         tickets = _post_batch(messages)
-        sent += sum(1 for ticket in tickets if ticket.get("status") == "ok")
-        cleared += _clear_dead_tokens(batch, tickets)
+        delivery.accepted += sum(1 for t in tickets if t.get("status") == "ok")
+        delivery.cleared += _clear_dead_tokens(batch, tickets)
+        # A 200 with fewer tickets than messages, or none at all, is not a
+        # delivery: those messages were never accepted and there is no ticket
+        # to check later, so they count as failures like any rejection does.
+        delivery.retriable_failures += len(batch) - len(tickets[: len(batch)])
+        delivery.retriable_failures += sum(
+            1
+            for ticket in tickets[: len(batch)]
+            if ticket.get("status") != "ok" and not _is_dead(ticket)
+        )
 
-    return sent, cleared
+    return delivery
 
 
 def send_sensor_alerts(dry_run: bool = False) -> SendResult:
@@ -209,6 +268,11 @@ def send_sensor_alerts(dry_run: bool = False) -> SendResult:
 
     Only stations somebody actually follows are read: with no followers there
     is no one to notify, and the reading would be wasted work.
+
+    Every station that is read has its level written to
+    :class:`SensorAlertState`, alert or not — that record of the safe readings
+    is what lets the sender tell a station that has recovered from one still
+    sitting at the level it last warned about.
     """
     result = SendResult()
 
@@ -228,7 +292,13 @@ def send_sensor_alerts(dry_run: bool = False) -> SendResult:
             continue
 
         reading = (
-            StationReadingsGold.objects.filter(station_id=station.id)
+            # Rows without a timestamp are excluded rather than sorted around:
+            # `date_utc` is nullable and PostgreSQL puts nulls first on a
+            # descending sort, so one undated row would shadow the genuinely
+            # latest reading and alert on air of unknown age.
+            StationReadingsGold.objects.filter(
+                station_id=station.id, date_utc__isnull=False
+            )
             .order_by("-date_utc")
             .first()
         )
@@ -244,29 +314,55 @@ def send_sensor_alerts(dry_run: bool = False) -> SendResult:
             "very_unhealthy": "veryUnhealthy",
         }.get(classified["key"], classified["key"])
 
-        last = SensorAlert.objects.filter(station_code=station_code).first()
-        if not should_alert(level, last.level if last else None):
-            continue
-
         if dry_run:
-            result.alerted_stations += 1
+            state = SensorAlertState.objects.filter(station_code=station_code).first()
+            if should_alert(level, state.last_alerted_level if state else ""):
+                result.alerted_stations += 1
             continue
 
         try:
             with transaction.atomic():
-                sent, cleared = notify_followers(station, level, reading.aqi_pm2_5)
-                SensorAlert.record(station_code, level, reading.aqi_pm2_5, sent)
+                # Held for the whole send. Two overlapping scheduled runs would
+                # otherwise both read the same state, both decide to alert and
+                # both call Expo before either wrote anything back — the same
+                # warning twice on one phone.
+                state = SensorAlertState.lock(station_code)
+                if not should_alert(level, state.last_alerted_level):
+                    # Still recorded: a reading below the alert threshold is
+                    # what ends an episode and lets the station alert again.
+                    _remember(state, level, alerted=False)
+                    continue
+
+                delivery = notify_followers(station, level, reading.aqi_pm2_5)
+                if delivery.accepted:
+                    SensorAlert.record(
+                        station_code, level, reading.aqi_pm2_5, delivery.accepted
+                    )
+                _remember(state, level, alerted=delivery.delivered)
         except requests.RequestException as error:
             # One station's delivery failing must not stop the others, and the
-            # alert is deliberately *not* recorded so the next run retries it.
+            # state is deliberately left untouched so the next run retries it.
             message = f"{station_code}: {error}"
             logger.error("Push delivery failed for %s", message)
             result.errors.append(message)
             continue
 
+        result.tokens_cleared += delivery.cleared
+
+        if not delivery.delivered:
+            # Expo answered, but for nobody. Leaving `last_alerted_level` where
+            # it was is what makes the next run try this level again instead of
+            # treating followers as warned.
+            message = (
+                f"{station_code}: {delivery.retriable_failures} message(s) rejected, "
+                "none accepted; will retry"
+            )
+            logger.warning("Push delivery not accepted for %s", message)
+            result.errors.append(message)
+            continue
+
         result.alerted_stations += 1
-        result.messages_sent += sent
-        result.tokens_cleared += cleared
+        result.messages_sent += delivery.accepted
 
     return result
 

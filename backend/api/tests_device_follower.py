@@ -68,6 +68,29 @@ class DeviceInstallationModelTests(TestCase):
         self.assertEqual(old.push_token, "")
         self.assertEqual(new.push_token, "shared-token")
 
+    def test_a_live_token_cannot_be_held_by_two_installations(self):
+        # The invariant `register()` maintains, enforced by the database as
+        # well: two registrations racing for the same token can each find
+        # nothing to clear, and only a constraint can stop both from keeping
+        # it — which would notify the device twice for ever after.
+        DeviceInstallation.objects.create(
+            installation_id=INSTALLATION_ID, push_token="shared-token"
+        )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                DeviceInstallation.objects.create(
+                    installation_id=OTHER_INSTALLATION_ID, push_token="shared-token"
+                )
+
+    def test_any_number_of_installations_may_have_no_token_yet(self):
+        # "No token" is the normal state of a fresh install, so the constraint
+        # above has to exempt it.
+        DeviceInstallation.objects.create(installation_id=INSTALLATION_ID)
+        DeviceInstallation.objects.create(installation_id=OTHER_INSTALLATION_ID)
+
+        self.assertEqual(DeviceInstallation.objects.filter(push_token="").count(), 2)
+
 
 class DeviceFollowerModelTests(TestCase):
     def setUp(self):
@@ -438,6 +461,21 @@ class DeviceFollowerAPITests(APITestCase):
         response = self.client.delete(f"{self.url}?station=abc", headers=self._header())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_unfollowing_rejects_a_blank_station_code(self):
+        # Omitting the parameter is how a caller unfollows everything, so a
+        # blank one must not be read as omitted: an app that built the query
+        # string from an empty variable would wipe the whole list instead of
+        # removing one station.
+        self._follow(self.station)
+        self._follow(self.other_station)
+
+        response = self.client.delete(
+            f"{self.url}?station_code=", headers=self._header()
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(DeviceFollower.objects.count(), 2)
+
     def test_unfollowing_leaves_other_installations_alone(self):
         self._follow(self.station)
         self._follow(self.station, installation_id=OTHER_INSTALLATION_ID)
@@ -659,6 +697,13 @@ class DeviceInstallationMigrationTests(TransactionTestCase):
         executor.loader.build_graph()
         return executor.loader.project_state(self.migrate_to).apps
 
+    def _migrate_backward(self):
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()
+        executor.migrate(self.migrate_from)
+        executor.loader.build_graph()
+        return executor.loader.project_state(self.migrate_from).apps
+
     def test_an_existing_follower_keeps_its_station_and_token(self):
         OldFollower = self.old_apps.get_model("api", "DeviceFollower")
         OldFollower.objects.create(
@@ -701,6 +746,46 @@ class DeviceInstallationMigrationTests(TransactionTestCase):
             Installation.objects.get(installation_id=INSTALLATION_ID).follows.count(),
             1,
         )
+
+    def test_the_split_can_be_reversed_with_rows_in_the_table(self):
+        # The rollback path, which only has value if it works on a database
+        # that has data: re-adding the old UUID column has to make room for the
+        # data migration to fill it, not demand a value the rows do not have
+        # yet.
+        OldFollower = self.old_apps.get_model("api", "DeviceFollower")
+        OldFollower.objects.create(
+            installation_id=INSTALLATION_ID,
+            station_code="RSP-001",
+            push_token="tok-1",
+        )
+
+        self._migrate_forward()
+        old_apps = self._migrate_backward()
+
+        Follower = old_apps.get_model("api", "DeviceFollower")
+        follow = Follower.objects.get()
+        self.assertEqual(follow.installation_id, uuid.UUID(INSTALLATION_ID))
+        self.assertEqual(follow.station_code, "RSP-001")
+        self.assertEqual(follow.push_token, "tok-1")
+
+    def test_reversing_refuses_to_discard_a_second_follow(self):
+        # The old shape holds one station per device, so going back with two
+        # would have to drop one — a choice the user made, silently undone.
+        OldFollower = self.old_apps.get_model("api", "DeviceFollower")
+        OldFollower.objects.create(
+            installation_id=INSTALLATION_ID, station_code="RSP-001", push_token=""
+        )
+
+        new_apps = self._migrate_forward()
+        Installation = new_apps.get_model("api", "DeviceInstallation")
+        Follower = new_apps.get_model("api", "DeviceFollower")
+        Follower.objects.create(
+            installation=Installation.objects.get(installation_id=INSTALLATION_ID),
+            station_code="RSP-002",
+        )
+
+        with self.assertRaises(RuntimeError):
+            self._migrate_backward()
 
 
 def test_uuid_constants_are_the_versions_they_claim():

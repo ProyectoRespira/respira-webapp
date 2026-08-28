@@ -3,7 +3,7 @@ import uuid
 from typing import Any
 
 from django.conf import settings
-from django.db import models, transaction
+from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
 
@@ -476,6 +476,13 @@ class StationOverride(models.Model):
         return f"{self.station_code}: {self.field} = {self.value}"
 
 
+# One retry is enough for the token claim: the conflict can only be lost to a
+# transaction that has since committed, so the second attempt sees its row and
+# clears it. The third is there so a pathological pile-up raises rather than
+# loops.
+_TOKEN_CLAIM_ATTEMPTS = 3
+
+
 class DeviceInstallation(models.Model):
     """One installation of the mobile app, without any login.
 
@@ -515,6 +522,20 @@ class DeviceInstallation(models.Model):
     class Meta:
         db_table = "device_installation"
         ordering = ("-updated_at",)
+        constraints = [
+            # The invariant behind `register()`: a live token identifies exactly
+            # one installation. Enforced by the database rather than by the
+            # clearing query alone, because two registrations of the same
+            # previously-unclaimed token can each clear nothing and then both
+            # write it — application code cannot see a row the other
+            # transaction has not committed yet. Blank is exempt: "no token" is
+            # the normal state of any number of installations.
+            models.UniqueConstraint(
+                fields=["push_token"],
+                condition=~models.Q(push_token=""),
+                name="uniq_active_push_token",
+            )
+        ]
 
     def __str__(self):
         return str(self.installation_id)
@@ -529,19 +550,32 @@ class DeviceInstallation(models.Model):
         Without this, the abandoned installation keeps the token and the device
         receives a second copy of every notification, for stations it no longer
         follows.
+
+        The claim races with itself: two installations registering the same
+        token concurrently both find nothing to clear. ``uniq_active_push_token``
+        turns that into an :class:`IntegrityError` on whichever commits second,
+        and the retry then sees the winner's row and clears it — so the loser of
+        the race ends up the sole holder instead of both keeping the token.
         """
-        with transaction.atomic():
-            installation, created = cls.objects.get_or_create(
-                installation_id=installation_id
-            )
-            if push_token is not None:
-                if push_token:
-                    cls.objects.filter(push_token=push_token).exclude(
-                        pk=installation.pk
-                    ).update(push_token="", updated_at=timezone.now())
-                installation.push_token = push_token
-                installation.save(update_fields=["push_token", "updated_at"])
-            return installation, created
+        for attempt in range(_TOKEN_CLAIM_ATTEMPTS):
+            try:
+                # A savepoint when there is an outer transaction, which is what
+                # lets the caller keep using it after the retry below.
+                with transaction.atomic():
+                    installation, created = cls.objects.get_or_create(
+                        installation_id=installation_id
+                    )
+                    if push_token is not None:
+                        if push_token:
+                            cls.objects.filter(push_token=push_token).exclude(
+                                pk=installation.pk
+                            ).update(push_token="", updated_at=timezone.now())
+                        installation.push_token = push_token
+                        installation.save(update_fields=["push_token", "updated_at"])
+                    return installation, created
+            except IntegrityError:
+                if attempt == _TOKEN_CLAIM_ATTEMPTS - 1:
+                    raise
 
 
 class DeviceFollower(models.Model):
@@ -603,18 +637,21 @@ class DeviceFollower(models.Model):
 
 
 class SensorAlert(models.Model):
-    """A per-sensor push alert that was sent to that sensor's followers.
+    """A per-sensor push alert that reached at least one of that sensor's followers.
 
-    Two jobs, and both need the row to survive:
+    The audit trail, and only that: Sensor Leasing is a paid, institutional
+    programme, so "this sensor was alerted on, at this level, at this time, and
+    the push service accepted it for this many devices" has to be answerable
+    from our own data rather than from a push provider's dashboard. It is a
+    count, not a roster — reconstructing *which* devices were warned would need
+    a row per recipient, which is a deliberate non-goal here: it would build a
+    lasting per-device record of an endpoint that has no login and is
+    identified only by an installation UUID.
 
-    Deduplication — the sender compares a station's current level against the
-    last one recorded here, so a station sitting just over a threshold notifies
-    once instead of on every reading. Without this the table is the only thing
-    standing between an alert and a stream of them.
-
-    Audit — Sensor Leasing is a paid, institutional programme, so "who was
-    warned about this sensor, at what level, and when" has to be answerable
-    from our own data rather than from a push provider's dashboard.
+    Deciding whether to alert is a separate question with separate state, in
+    :class:`SensorAlertState`. Keeping the two apart is what lets a failed
+    delivery be retried without the audit log claiming an alert that never
+    landed, and what lets a station recover and alert again later.
 
     History is kept rather than one row per station: the latest is just the
     first by ``sent_at``, and the older rows are the audit trail.
@@ -654,6 +691,70 @@ class SensorAlert(models.Model):
             aqi=aqi,
             recipients=recipients,
         )
+
+
+class SensorAlertState(models.Model):
+    """What one station's alerting knows about that station, run to run.
+
+    Split from :class:`SensorAlert` because the audit log is a poor memory for
+    two reasons:
+
+    Recovery. An audit log only ever holds levels that were alerted on, so a
+    station that alerted at ``hazardous``, cleared to ``good`` and worsened
+    again to ``unhealthy`` still shows ``hazardous`` as its last entry — and
+    since nothing outranks ``hazardous``, that station could never alert again.
+    ``last_level`` records every reading's level, safe ones included, which is
+    what makes the recovery visible and reopens alerting.
+
+    Delivery. ``last_alerted_level`` only moves when an alert actually reached
+    somebody, so a push that Expo rejected is retried on the next run instead
+    of being suppressed by an audit row for a warning nobody received.
+
+    One row per station, taken with ``select_for_update`` for the length of a
+    send, which is also what stops two overlapping scheduled runs from both
+    deciding to alert the same station.
+    """
+
+    station_code = models.CharField(
+        max_length=255,
+        unique=True,
+        help_text="The pipeline's stable natural key for the station.",
+    )
+    last_level = models.CharField(
+        max_length=32,
+        blank=True,
+        default="",
+        help_text="AQI level key of the most recent reading, alert-worthy or not.",
+    )
+    last_alerted_level = models.CharField(
+        max_length=32,
+        blank=True,
+        default="",
+        help_text=(
+            "Level of the last alert that reached a device; blank once the "
+            "station drops back below the alert threshold."
+        ),
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "sensor_alert_state"
+        ordering = ("station_code",)
+
+    def __str__(self):
+        return f"{self.station_code}: {self.last_level or '—'}"
+
+    @classmethod
+    def lock(cls, station_code: str) -> "SensorAlertState":
+        """The station's state row, locked until the caller's transaction ends.
+
+        Created first and locked second because there is no row to lock on a
+        station's first run. ``get_or_create`` is safe against a concurrent run
+        creating it too — the unique constraint makes one of them lose and
+        re-read — and the lock is what serialises everything after it.
+        """
+        cls.objects.get_or_create(station_code=station_code)
+        return cls.objects.select_for_update().get(station_code=station_code)
 
 
 class RegionReadings(models.Model):

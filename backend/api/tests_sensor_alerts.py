@@ -12,7 +12,9 @@ be sent, which is what determines who gets warned.
 from unittest.mock import patch
 
 import requests
-from django.test import TestCase
+from django.db import connection
+from django.db.migrations.executor import MigrationExecutor
+from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 
 from .models import (
@@ -20,6 +22,7 @@ from .models import (
     DeviceInstallation,
     Regions,
     SensorAlert,
+    SensorAlertState,
     StationReadingsGold,
     Stations,
 )
@@ -52,6 +55,12 @@ class ShouldAlertTests(TestCase):
 
     def test_improving_into_a_safe_level_does_not_notify(self):
         self.assertFalse(should_alert("good", "hazardous"))
+
+    def test_a_station_with_no_open_episode_alerts_from_its_first_bad_reading(self):
+        # Blank is both "never alerted" and "recovered since", which is what
+        # makes a new episode start from scratch instead of having to beat the
+        # worst level of the previous one.
+        self.assertTrue(should_alert("unhealthySensitive", ""))
 
 
 class SendSensorAlertsTests(TestCase):
@@ -149,6 +158,113 @@ class SendSensorAlertsTests(TestCase):
             [m["data"]["level"] for m in capture.messages], ["unhealthy", "hazardous"]
         )
 
+    def test_a_station_that_recovered_alerts_again_on_the_next_episode(self):
+        # The bug this guards: with only the alert log to go on, the last thing
+        # known about this station stays `hazardous` for ever, and since
+        # nothing outranks it the station could never alert again.
+        self._follower("RSP-001", "token-a")
+        self._reading(self.station, 320)
+
+        capture = Capture()
+        with patch("api.push._post_batch", side_effect=capture):
+            send_sensor_alerts()
+            self._reading(self.station, 20)  # good
+            send_sensor_alerts()
+            self._reading(self.station, 165)  # unhealthy
+            send_sensor_alerts()
+
+        self.assertEqual(
+            [m["data"]["level"] for m in capture.messages], ["hazardous", "unhealthy"]
+        )
+
+    def test_a_reading_below_the_threshold_is_remembered_even_though_it_is_silent(self):
+        self._follower("RSP-001", "token-a")
+        self._reading(self.station, 20)
+
+        with patch("api.push._post_batch", side_effect=Capture()):
+            send_sensor_alerts()
+
+        state = SensorAlertState.objects.get(station_code="RSP-001")
+        self.assertEqual(state.last_level, "good")
+        self.assertEqual(state.last_alerted_level, "")
+
+    def test_an_undated_reading_never_stands_in_for_the_latest_one(self):
+        # `date_utc` is nullable and PostgreSQL sorts nulls first descending,
+        # so an undated row would otherwise shadow the real latest reading and
+        # alert on air of unknown age.
+        self._follower("RSP-001", "token-a")
+        self._reading(self.station, 20)
+        StationReadingsGold.objects.create(
+            station=self.station, date_utc=None, aqi_pm2_5=320
+        )
+
+        capture = Capture()
+        with patch("api.push._post_batch", side_effect=capture):
+            send_sensor_alerts()
+
+        self.assertEqual(capture.messages, [])
+
+    def test_a_rejected_delivery_is_retried_and_not_recorded(self):
+        # Expo answered, but for nobody: the followers were never warned, so
+        # the next run has to try again rather than treat them as told.
+        self._follower("RSP-001", "token-a")
+        self._reading(self.station, 165)
+
+        def throttled(messages):
+            return [
+                {"status": "error", "details": {"error": "MessageRateExceeded"}}
+                for _ in messages
+            ]
+
+        with patch("api.push._post_batch", side_effect=throttled):
+            result = send_sensor_alerts()
+
+        self.assertEqual(result.alerted_stations, 0)
+        self.assertEqual(len(result.errors), 1)
+        self.assertEqual(SensorAlert.objects.count(), 0)
+
+        capture = Capture()
+        with patch("api.push._post_batch", side_effect=capture):
+            send_sensor_alerts()
+
+        self.assertEqual(capture.recipients(), ["token-a"])
+
+    def test_a_reply_missing_its_tickets_is_treated_as_undelivered(self):
+        # A 200 with no ticket for a message is not a delivery: there is
+        # nothing that says it was accepted and nothing to check later.
+        self._follower("RSP-001", "token-a")
+        self._reading(self.station, 165)
+
+        with patch("api.push._post_batch", return_value=[]):
+            result = send_sensor_alerts()
+
+        self.assertEqual(result.alerted_stations, 0)
+        self.assertEqual(SensorAlert.objects.count(), 0)
+
+    def test_one_accepted_message_is_enough_not_to_alert_everyone_again(self):
+        # Retrying the station because a single token was rate limited would
+        # send a second copy to everyone the first attempt did reach.
+        self._follower("RSP-001", "token-a")
+        self._follower("RSP-001", "token-b", OTHER_INSTALLATION_ID)
+        self._reading(self.station, 165)
+
+        def one_of_each(messages):
+            return [
+                {"status": "ok", "id": "tk-1"},
+                {"status": "error", "details": {"error": "MessageRateExceeded"}},
+            ]
+
+        with patch("api.push._post_batch", side_effect=one_of_each):
+            first = send_sensor_alerts()
+
+        self.assertEqual(first.alerted_stations, 1)
+
+        capture = Capture()
+        with patch("api.push._post_batch", side_effect=capture):
+            send_sensor_alerts()
+
+        self.assertEqual(capture.messages, [])
+
     def test_a_station_switched_off_is_skipped(self):
         self._follower("RSP-001", "token-a")
         self._reading(self.station, 300)
@@ -185,14 +301,12 @@ class SendSensorAlertsTests(TestCase):
         self.assertEqual(result.considered, 1)
         self.assertEqual(capture.messages, [])
 
-    def test_a_token_shared_by_two_installations_is_sent_once(self):
-        # A reinstall can leave the same token on two installations briefly.
-        # The device is one device and should be told once.
+    def test_a_reinstall_taking_over_a_token_is_sent_one_copy(self):
+        # A reinstall produces a new installation while the OS may hand the app
+        # the same token. The device is one device and must be told once, so
+        # the new installation takes the token off the old one.
         self._follower("RSP-001", "same-token", INSTALLATION_ID)
-        second, _ = DeviceInstallation.objects.get_or_create(
-            installation_id=OTHER_INSTALLATION_ID, defaults={"push_token": "same-token"}
-        )
-        DeviceFollower.objects.create(installation=second, station_code="RSP-001")
+        self._follower("RSP-001", "same-token", OTHER_INSTALLATION_ID)
         self._reading(self.station, 165)
 
         capture = Capture()
@@ -200,6 +314,10 @@ class SendSensorAlertsTests(TestCase):
             send_sensor_alerts()
 
         self.assertEqual(capture.recipients(), ["same-token"])
+        self.assertEqual(
+            DeviceInstallation.objects.get(installation_id=INSTALLATION_ID).push_token,
+            "",
+        )
 
     def test_a_dead_token_is_cleared(self):
         self._follower("RSP-001", "token-a")
@@ -294,6 +412,50 @@ class SendSensorAlertsTests(TestCase):
         self.assertEqual(result.alerted_stations, 1)
         self.assertEqual(capture.messages, [])
         self.assertEqual(SensorAlert.objects.count(), 0)
+
+
+class SensorAlertStateMigrationTests(TransactionTestCase):
+    """The deploy that introduces the state table must not re-alert everybody.
+
+    Before it, the last alert in the log *was* the dedup state. Arriving with
+    an empty state table would make every station currently over a threshold
+    look like it had never alerted, and the first run after deploy would
+    notify all of their followers a second time.
+    """
+
+    migrate_from = [("api", "0016_sensor_alert")]
+    migrate_to = [("api", "0017_sensor_alert_state_and_token_claim")]
+
+    def setUp(self):
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.migrate_from)
+        executor.loader.build_graph()
+        self.old_apps = executor.loader.project_state(self.migrate_from).apps
+
+    def tearDown(self):
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()
+        executor.migrate(executor.loader.graph.leaf_nodes())
+
+    def test_the_last_alert_becomes_the_stations_state(self):
+        OldAlert = self.old_apps.get_model("api", "SensorAlert")
+        OldAlert.objects.create(
+            station_code="RSP-001", level="unhealthy", aqi=165, recipients=2
+        )
+        OldAlert.objects.create(
+            station_code="RSP-001", level="hazardous", aqi=320, recipients=2
+        )
+
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()
+        executor.migrate(self.migrate_to)
+        executor.loader.build_graph()
+        new_apps = executor.loader.project_state(self.migrate_to).apps
+
+        State = new_apps.get_model("api", "SensorAlertState")
+        state = State.objects.get(station_code="RSP-001")
+        self.assertEqual(state.last_alerted_level, "hazardous")
+        self.assertEqual(state.last_level, "hazardous")
 
 
 class Capture:

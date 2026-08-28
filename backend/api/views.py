@@ -1134,13 +1134,17 @@ class DeviceFollowerView(APIView):
             installation, _ = DeviceInstallation.register(
                 installation_id, push_token=push_token
             )
-            # Locked for the duration: two follows arriving together would
-            # otherwise both read a count under the cap and both insert.
-            existing = (
-                DeviceFollower.objects.select_for_update()
-                .filter(installation=installation, station_code=station.station_code)
-                .first()
+            # The *installation* is what gets locked, not the follow: two
+            # requests adding two different stations would each find no
+            # existing row to lock, both read a count under the cap, and both
+            # insert. Locking the row every follow of this installation hangs
+            # off serialises them, so the count below is the real one.
+            installation = DeviceInstallation.objects.select_for_update().get(
+                pk=installation.pk
             )
+            existing = installation.follows.filter(
+                station_code=station.station_code
+            ).first()
             if existing is not None:
                 return Response(DeviceFollowerSerializer(existing).data)
 
@@ -1193,7 +1197,8 @@ class DeviceFollowerView(APIView):
                 required=False,
                 description=(
                     "Stable code of the station to unfollow. Preferred over "
-                    "`station`; takes precedence when both are sent."
+                    "`station`; takes precedence when both are sent. Sending "
+                    "it blank is a 400 — omit it to unfollow everything."
                 ),
             ),
             OpenApiParameter(
@@ -1218,7 +1223,13 @@ class DeviceFollowerView(APIView):
         station_code = request.query_params.get("station_code")
         raw_station = request.query_params.get("station")
 
-        if station_code:
+        if station_code is not None:
+            # Rejected rather than ignored: omitting the parameter is how a
+            # caller asks to unfollow *everything*, so treating `?station_code=`
+            # as absent would turn a malformed single unfollow into wiping the
+            # whole list.
+            if not station_code:
+                raise ValidationError({"station_code": "Must not be blank."})
             # Matched directly against what the row stores, so this works even
             # for a station that no longer exists.
             follows = follows.filter(station_code=station_code)
