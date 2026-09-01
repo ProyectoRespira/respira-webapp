@@ -5,10 +5,7 @@
 // below sends them straight to their dashboard, so the browser's back button
 // after login does not land on an empty form.
 
-import { Image } from "astro:assets";
-
-import InstitutionLayout from "../../layouts/InstitutionLayout.astro";
-import RespiraLogo from "../../assets/logo.svg";
+import InstitutionAuthLayout from "../../layouts/InstitutionAuthLayout.astro";
 import { LoginForm } from "../../components/react/institution/LoginForm";
 import { institutionCopy as copy } from "../../i18n/institution";
 import { getFrontendRuntimeConfig } from "../../runtime-env";
@@ -37,33 +34,10 @@ try {
 }
 ---
 
-<InstitutionLayout title={copy.loginTitle}>
-  <div class="grid min-h-screen grid-cols-1 md:grid-cols-2">
-    <aside
-      class="flex flex-col justify-center gap-4 bg-near_black px-8 py-12 md:px-11"
-    >
-      {
-        /* Inverted for the same reason as the top bar: the mark is drawn dark. */
-      }
-      <Image
-        src={RespiraLogo}
-        alt="Respira"
-        class="h-14 w-auto self-start invert md:h-16"
-        loading="eager"
-      />
-      <span class="h-[3px] w-12 bg-green"></span>
-      <h2
-        class="max-w-[18ch] text-balance font-serif text-2xl font-bold leading-tight text-white md:text-3xl"
-      >
-        {copy.loginTagline}
-      </h2>
-      <p class="max-w-[34ch] text-sm text-bg-gray">{copy.loginBlurb}</p>
-    </aside>
-
-    <div class="flex flex-col justify-center bg-base px-8 py-12 md:px-11">
-      <div class="mx-auto w-full max-w-md">
-        <LoginForm contactMail={contactMail} client:load />
-      </div>
-    </div>
-  </div>
-</InstitutionLayout>
+<InstitutionAuthLayout
+  title={copy.loginTitle}
+  tagline={copy.loginTagline}
+  blurb={copy.loginBlurb}
+>
+  <LoginForm contactMail={contactMail} client:load />
+</InstitutionAuthLayout>

@@ -1,0 +1,20 @@
+---
+// Step one of password recovery: ask for the account's email.
+//
+// Public by design — a visitor who has lost their password has no session to
+// check, so there is no guard here. The form itself is a React island because
+// the whole interaction (submit, error, "check your inbox") happens without a
+// page change.
+
+import InstitutionAuthLayout from "../../layouts/InstitutionAuthLayout.astro";
+import { ForgotPasswordForm } from "../../components/react/institution/ForgotPasswordForm";
+import { institutionCopy as copy } from "../../i18n/institution";
+---
+
+<InstitutionAuthLayout
+  title={copy.forgotTitle}
+  tagline={copy.forgotTagline}
+  blurb={copy.forgotBlurb}
+>
+  <ForgotPasswordForm client:load />
+</InstitutionAuthLayout>

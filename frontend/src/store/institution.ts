@@ -250,6 +250,39 @@ export const login = (email: string, password: string): Promise<Institution> =>
     body: { email, password },
   });
 
+/**
+ * Asks for a password reset email.
+ *
+ * Resolves for any well-formed address, registered or not — the backend answers
+ * the same way either way on purpose (account enumeration), so a caller has no
+ * way to tell, and the UI must not pretend otherwise.
+ */
+export const requestPasswordReset = async (email: string): Promise<void> => {
+  await request(INSTITUTION_ENDPOINTS.passwordReset, {
+    method: "POST",
+    body: { email },
+  });
+};
+
+/**
+ * Sets a new password from an emailed reset link.
+ *
+ * Rejects with `code: "invalid"` in two distinguishable cases: the link is
+ * unusable (expired, tampered with, already spent), which surfaces under
+ * `non_field_errors`, or the password does not meet the platform's rules,
+ * which surfaces under `new_password`.
+ */
+export const confirmPasswordReset = async (
+  uid: string,
+  token: string,
+  newPassword: string,
+): Promise<void> => {
+  await request(INSTITUTION_ENDPOINTS.passwordResetConfirm, {
+    method: "POST",
+    body: { uid, token, new_password: newPassword },
+  });
+};
+
 /** Ends the session. Resolves even if the session was already gone. */
 export const logout = async (): Promise<void> => {
   try {

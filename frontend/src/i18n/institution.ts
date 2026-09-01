@@ -37,6 +37,63 @@ export const institutionCopy = {
   loginErrorUnexpected:
     "No pudimos completar el ingreso. Intentá de nuevo en unos segundos.",
 
+  // --- Password recovery ---------------------------------------------------
+  // Two screens: asking for the email, and choosing the new password from the
+  // emailed link. The first one never says whether the address is registered —
+  // the backend answers the same way either way, and the copy has to match.
+  forgotLink: "¿Olvidaste tu contraseña?",
+  forgotTagline: "Recuperá el acceso a tu panel.",
+  forgotBlurb:
+    "Te mandamos un enlace por correo para que elijas una contraseña nueva.",
+  forgotTitle: "Recuperar contraseña",
+  forgotSubtitle:
+    "Escribí el correo de tu cuenta y te enviamos un enlace para restablecerla.",
+  forgotEmail: "Correo de la cuenta",
+  forgotSubmit: "Enviar enlace",
+  forgotSubmitting: "Enviando…",
+  forgotSentTitle: "Revisá tu correo",
+  forgotSentBody:
+    "Si ese correo tiene una cuenta en Respira, en unos minutos vas a recibir un enlace para elegir una contraseña nueva. Mirá también la carpeta de spam.",
+  forgotSentHint: "El enlace vence en 24 horas y se puede usar una sola vez.",
+  forgotBackToLogin: "Volver al ingreso",
+  forgotErrorThrottled:
+    "Pediste el enlace demasiadas veces. Esperá un rato antes de volver a intentar.",
+  forgotErrorUnexpected:
+    "No pudimos enviar el correo. Intentá de nuevo en unos segundos.",
+
+  resetTagline: "Elegí tu nueva contraseña.",
+  resetBlurb: "Después de guardarla vas a poder ingresar con ella al panel.",
+  resetTitle: "Nueva contraseña",
+  resetSubtitle: "Elegí una contraseña nueva para tu cuenta.",
+  resetPassword: "Nueva contraseña",
+  resetPasswordConfirm: "Repetí la contraseña",
+  resetRules:
+    "Al menos 10 caracteres, con una letra, un número y un carácter especial.",
+  resetSubmit: "Guardar contraseña",
+  resetSubmitting: "Guardando…",
+  resetMismatch: "Las dos contraseñas no coinciden.",
+  // Keyed by the `new_password_codes` the backend returns alongside Django's
+  // own (English) validator messages.
+  resetRuleTooShort: "La contraseña es demasiado corta.",
+  resetRuleTooCommon: "Esa contraseña es demasiado común. Elegí otra.",
+  resetRuleAllNumbers: "La contraseña no puede ser solo números.",
+  resetRuleTooSimilar:
+    "La contraseña se parece demasiado a tu correo o a tu nombre.",
+  resetRuleNotComplex:
+    "Falta mezclar caracteres: necesitás una letra, un número y un carácter especial.",
+  resetRuleGeneric: "Esa contraseña no cumple los requisitos.",
+  resetDoneTitle: "Listo, ya tenés contraseña nueva",
+  resetDoneBody: "Ingresá al panel con tu correo y la contraseña que elegiste.",
+  resetGoToLogin: "Ir al ingreso",
+  resetInvalidTitle: "Este enlace ya no sirve",
+  resetInvalidBody:
+    "Puede haber vencido o haberse usado. Pedí uno nuevo y volvé a intentar.",
+  resetRequestAnother: "Pedir un enlace nuevo",
+  resetErrorThrottled:
+    "Demasiados intentos. Esperá un rato antes de volver a probar.",
+  resetErrorUnexpected:
+    "No pudimos guardar la contraseña. Intentá de nuevo en unos segundos.",
+
   // --- Page ----------------------------------------------------------------
   pageTitle: "Estado de tu sensor",
   updatedAt: "Actualizado",

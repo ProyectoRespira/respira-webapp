@@ -15,7 +15,7 @@ import {
   OpenIcon,
   CloseIcon,
 } from "astro-navbar";
-import { menu } from "../data/menu";
+import { INSTITUTION_ACCESS, menu } from "../data/menu";
 import LanguageSelector from "./LanguageSelector.astro";
 import { getLangFromLocals, useTranslations } from "../i18n/utils";
 import type { UIKey } from "../i18n/ui";
@@ -61,6 +61,25 @@ const baseUrl = await getSiteUrl();
             />
           ))
         }
+        {
+          /*
+            The institutional door, for the collapsed menu. The desktop cluster
+            below carries its own copy: `MenuItems` is hidden from `lg` up on
+            everything but the section links, and duplicating the anchor is what
+            keeps the entry point reachable at every width without moving the
+            existing items around.
+          */
+        }
+        <li class="block lg:hidden">
+          <a
+            href={INSTITUTION_ACCESS.route}
+            class="font-sans font-semibold text-green_darker underline underline-offset-4"
+            data-track-nav={t("nav.institution")}
+            data-track-route={INSTITUTION_ACCESS.route}
+          >
+            {t("nav.institution")}
+          </a>
+        </li>
         <li class="lg:hidden block">
           <LanguageSelector />
         </li>
@@ -68,6 +87,21 @@ const baseUrl = await getSiteUrl();
     </MenuItems>
     <div class="hidden lg:flex min-w-30 content-center items-center gap-4">
       <LanguageSelector />
+      {
+        /*
+          A site-relative path, not `baseUrl` + path: it resolves against the
+          origin serving the page, so the link follows the environment instead
+          of depending on the runtime config being right.
+        */
+      }
+      <a
+        href={INSTITUTION_ACCESS.route}
+        class="whitespace-nowrap"
+        data-track-nav={t("nav.institution")}
+        data-track-route={INSTITUTION_ACCESS.route}
+      >
+        <Button text={t("nav.institution")} variant="void" />
+      </a>
       <a href={baseUrl}>
         <Button text={t("nav.map")} variant="void" />
       </a>

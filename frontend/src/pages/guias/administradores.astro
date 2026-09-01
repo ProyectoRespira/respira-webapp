@@ -1,0 +1,429 @@
+---
+// User Guide — administrators.
+//
+// Adapted from the Product artifact "Alta de una institución en Respira — Guía
+// QA" (f8e2cefe-462b-4665-8622-477241f1af09). Static markup, no CMS.
+//
+// The source is a QA runbook; this is a user guide, and the difference is what
+// drove the departures from it:
+//
+//   * the closing checklist, the endpoint reference table and the Swagger
+//     walkthrough are gone. They verify the API, which is a developer's job,
+//     not the job of somebody registering an institution — the verification
+//     step here goes through the panel's own screen instead;
+//   * "Errores comunes" is written in terms of what the administrator sees
+//     ("el usuario no puede entrar") rather than HTTP status codes;
+//   * source-file references ("backend/api/models.py:147-168") are dropped —
+//     useful to a reviewer reading the repo, not to somebody following steps,
+//     and this page is served publicly;
+//   * the guide's Part 2 no longer says the institutional panel has no login
+//     screen of its own. It has one, so that is what the verification uses;
+//   * password recovery is added, since administrators now have one.
+//
+// Everything that is an instruction — the steps, the field lists, the gotchas —
+// is carried over. Screenshots are captures of the running admin against seeded
+// sample data; see the note in `instituciones.astro` for how to refresh them,
+// and pin `prefers-color-scheme: light` so the admin does not come out dark.
+//
+// Spanish only, like the guide it sits next to.
+
+import { Image } from "astro:assets";
+
+import GuideLayout from "../../layouts/GuideLayout.astro";
+import Callout from "../../components/guides/Callout.astro";
+import AdminHome from "../../assets/guias/admin-inicio.png";
+import AdminInstitution from "../../assets/guias/admin-institucion.png";
+import AdminContract from "../../assets/guias/admin-contrato.png";
+import { GUIDE_ROUTES, INSTITUTION_ACCESS } from "../../data/menu";
+
+// Unnumbered, like the institutions guide. Numbering only fit six of these
+// eight: "Recuperar tu contraseña" and "Si algo no sale bien" are not steps in
+// the sequence, which is what left the sidebar half-numbered. The order of the
+// procedure is carried by the document order and by the prose, which
+// cross-references sections by name rather than by number.
+const sections = [
+  { id: "admin", label: "Entrar al admin" },
+  { id: "institucion", label: "Crear la institución" },
+  { id: "usuario", label: "Asociar un usuario" },
+  { id: "alertas", label: "Configurar alertas" },
+  { id: "estacion", label: "Asociar una estación" },
+  { id: "verificar", label: "Verificar el panel" },
+  { id: "clave", label: "Recuperar tu contraseña" },
+  { id: "errores", label: "Si algo no sale bien" },
+];
+
+// Shared by the three admin captures: the same shell at the same width, so they
+// read as one sequence rather than three unrelated pictures.
+const shotClass = "h-auto w-full rounded-xl border border-bg-gray";
+const shotSizes = "(min-width: 1024px) 700px, 100vw";
+const shotWidths = [640, 960, 1280];
+---
+
+<GuideLayout
+  eyebrow="Guía de uso · Administradores"
+  title="Alta de una institución, de cero a panel activo"
+  dek="Cómo crear una institución en el backoffice de Respira, asociarle un usuario y una estación, y confirmar que su panel funciona. Son cinco formularios y una comprobación final; no hace falta tocar nada del pipeline de datos."
+  meta={[
+    "Para el equipo interno de Respira",
+    "Requiere una cuenta con permisos en el backoffice",
+    "Última revisión: setiembre 2026",
+  ]}
+  sections={sections}
+>
+  <section id="admin">
+    <h2>Entrar al admin</h2>
+    <p class="lede">
+      El <strong>admin</strong> es la interfaz de trabajo interna de Respira: una
+      serie de formularios web donde el equipo crea y edita los datos del sistema
+      — instituciones, usuarios, estaciones. Es distinto del <strong
+        >panel institucional</strong
+      >, que es lo que ve el cliente final y se explica en la <a
+        href={GUIDE_ROUTES.institution}>guía para instituciones</a
+      >. Pensá el admin como la trastienda, y el panel como la vitrina.
+    </p>
+
+    <ol class="steps">
+      <li>
+        Abrí el navegador y entrá a esta dirección:
+        <span class="menu-path"
+          >https://&lt;host&gt;<span class="sep">/</span>admin<span class="sep"
+            >/</span
+          ></span
+        >
+      </li>
+      <li>
+        Vas a ver una pantalla con dos campos: <strong>email</strong> y
+        <strong>contraseña</strong>. Escribí las credenciales de tu cuenta y
+        presioná el botón de login.
+      </li>
+      <li>
+        Si todo salió bien, entrás a la pantalla principal: una lista de
+        secciones agrupadas en <span class="path">Accounts</span> y
+        <span class="path">Api</span>. Esa es tu base de operaciones para todo
+        lo que sigue.
+      </li>
+    </ol>
+
+    <figure class="my-6">
+      <Image
+        src={AdminHome}
+        alt="Pantalla principal del admin de Respira. A la izquierda, la lista de secciones agrupadas en Accounts (Roles, Users) y Api (Action logs, Institution alerts, Institution contracts, Institutions, Sensitive groups, Stations, entre otras), cada una con un enlace «Add». Arriba a la derecha, los enlaces para ver el sitio, cambiar la contraseña y cerrar sesión."
+        widths={shotWidths}
+        sizes={shotSizes}
+        loading="lazy"
+        class={shotClass}
+      />
+      <figcaption>
+        La pantalla principal del admin. Las secciones que vas a usar en esta
+        guía están todas bajo <span class="path">Api</span>.
+      </figcaption>
+    </figure>
+
+    <p>¿No tenés cuenta todavía? Hay dos caminos:</p>
+    <ul>
+      <li>
+        Un <strong>superusuario</strong> siempre puede entrar y ve todo. Se crea corriendo
+        <code>python manage.py createsuperuser</code>, o de forma reproducible
+        con <code>python manage.py bootstrap_superuser</code> (usa las variables de
+        entorno <code>BACKEND_SUPERUSER_EMAIL</code> /
+        <code>BACKEND_SUPERUSER_PASSWORD</code>).
+      </li>
+      <li>
+        Una cuenta con rol <code>admin</code> o <code>editor</code> alcanza para lo
+        de esta guía — pero solo funciona si alguien ya corrió
+        <code>python manage.py sync_roles</code> después de asignarle ese rol.
+      </li>
+    </ul>
+
+    <Callout label="Lo que más se traba" tone="warn">
+      <p>
+        Cambiar el campo <code>role</code> de un usuario en
+        <span class="path">Accounts → Users</span> no le da permisos por sí solo —
+        es solo una etiqueta. Los permisos reales viven en grupos que
+        <code>sync_roles</code> sincroniza. Si entraste al admin pero no ves el botón
+        "Add" en Institutions, ese es el primer sospechoso.
+      </p>
+    </Callout>
+  </section>
+
+  <section id="institucion">
+    <h2>Crear la institución</h2>
+    <p class="lede">
+      Es el registro raíz: todo lo demás — el usuario que entra al panel, la
+      estación, las alertas — cuelga de esta institución.
+    </p>
+
+    <span class="menu-path"
+      >Admin<span class="sep">→</span>Api<span class="sep">→</span
+      >Institutions<span class="sep">→</span>Add institution</span
+    >
+
+    <figure class="my-6">
+      <Image
+        src={AdminInstitution}
+        alt="Formulario «Add institution» del admin, completo. Arriba, los campos Legal name, Display name e Institution type; después los bloques Contact (nombre, correo y teléfono), Location (dirección y ciudad) y Notes. Más abajo, la sección «Dashboard users» con un selector de usuario y el enlace «Add another Dashboard user», y la sección «Institution alert config» con la casilla «Is enabled», el campo «Alert threshold» y el selector de doble lista de grupos sensibles. Al pie, los botones Save."
+        widths={shotWidths}
+        sizes={shotSizes}
+        loading="lazy"
+        class={shotClass}
+      />
+      <figcaption>
+        Un solo formulario cubre tres cosas: los datos de la institución, el
+        usuario que va a entrar al panel y la configuración de alertas.
+      </figcaption>
+    </figure>
+
+    <dl class="fields">
+      <dt>legal_name</dt>
+      <dd>
+        <span class="req">Requerido.</span> Razón social de la institución.
+      </dd>
+      <dt>display_name</dt>
+      <dd>Nombre corto para mostrar. Opcional.</dd>
+      <dt>institution_type</dt>
+      <dd>Tipo de institución. Opcional.</dd>
+      <dt>contact_name / contact_email / contact_phone</dt>
+      <dd>Datos del contacto. Opcionales.</dd>
+      <dt>address / city</dt>
+      <dd>Ubicación. Opcionales.</dd>
+      <dt>notes</dt>
+      <dd>Notas internas. Opcional.</dd>
+    </dl>
+
+    <p>
+      Guardá el formulario con solo <code>legal_name</code> y ya existe la institución
+      — el resto se puede completar después. No hace falta salir de esta pantalla
+      para los dos pasos siguientes: son secciones de este
+      <strong>mismo formulario</strong>.
+    </p>
+  </section>
+
+  <section id="usuario">
+    <h2>Asociar un usuario — esto es lo que da acceso al panel</h2>
+    <p class="lede">
+      Sin este paso la institución existe pero nadie puede entrar a su panel.
+    </p>
+
+    <ul>
+      <li>
+        En la misma página de la institución, bajá hasta la sección
+        <strong>"Dashboard users"</strong>.
+      </li>
+      <li>
+        Usá el buscador para elegir un <code>User</code> que ya exista. Si todavía
+        no existe, crealo antes en
+        <span class="path">Admin → Accounts → Users</span> y volvé.
+      </li>
+      <li>
+        Guardá el formulario de Institution — el vínculo se crea junto con el
+        resto de los datos.
+      </li>
+    </ul>
+
+    <Callout label="Cómo funciona el acceso">
+      <p>
+        Ese usuario <strong>no necesita ser staff ni tener rol de admin</strong
+        >. El único requisito para entrar al panel institucional es tener este
+        vínculo. Es una relación uno a uno: un usuario pertenece como máximo a
+        una institución a la vez. <strong>Guardá su correo</strong> — lo vas a usar
+        para la comprobación final.
+      </p>
+    </Callout>
+  </section>
+
+  <section id="alertas">
+    <h2>Configurar alertas — opcional</h2>
+    <p class="lede">
+      Solo si la institución va a usar el sistema de alertas por grupos
+      sensibles.
+    </p>
+    <p>
+      Misma página, sección <strong>"Institution alert config"</strong>. Activá
+      la casilla, poné el umbral de AQI a partir del cual se dispara una alerta,
+      y elegí los grupos sensibles en el selector de doble lista. Se puede
+      omitir por completo sin bloquear los pasos siguientes.
+    </p>
+  </section>
+
+  <section id="estacion">
+    <h2>Asociar una estación</h2>
+    <p class="lede">
+      Esta es la parte que conecta con el pipeline de datos — pero desde el
+      admin es un formulario más.
+    </p>
+
+    <span class="menu-path"
+      >Admin<span class="sep">→</span>Api<span class="sep">→</span>Institution
+      contracts<span class="sep">→</span>Add</span
+    >
+
+    <figure class="my-6">
+      <Image
+        src={AdminContract}
+        alt="Formulario «Add institution contract» del admin, con los campos Institution y Station como buscadores, el desplegable Contract status con las opciones draft, active, expired y cancelled, las fechas Start date y End date, el campo Monthly fee y el campo Signed contract url."
+        widths={shotWidths}
+        sizes={shotSizes}
+        loading="lazy"
+        class={shotClass}
+      />
+      <figcaption>
+        El contrato es lo que liga la institución con su sensor: sin él, el
+        panel abre pero no tiene datos que mostrar.
+      </figcaption>
+    </figure>
+
+    <dl class="fields">
+      <dt>institution</dt>
+      <dd><span class="req">Requerido.</span> Se elige con el buscador.</dd>
+      <dt>station</dt>
+      <dd>
+        <span class="req">Requerido.</span> Se busca por nombre o por
+        <code>station_code</code>.
+      </dd>
+      <dt>contract_status</dt>
+      <dd>draft / active / expired / cancelled.</dd>
+      <dt>start_date</dt>
+      <dd><span class="req">Requerido.</span></dd>
+      <dt>end_date / monthly_fee / signed_contract_url</dt>
+      <dd>Opcionales.</dd>
+    </dl>
+
+    <Callout label="Una restricción que conviene saber de antemano" tone="warn">
+      <p>
+        Institución y estación son <strong>uno a uno en ambos sentidos</strong>:
+        una institución solo puede tener un contrato, y una estación solo puede
+        estar ligada a una institución. Si necesitás reasignar una estación,
+        primero hay que borrar o expirar el contrato anterior.
+      </p>
+    </Callout>
+
+    <p>
+      El campo <code>station_code</code> de la estación es de solo lectura acá — lo
+      genera el pipeline de datos, no se edita desde este formulario.
+    </p>
+  </section>
+
+  <section id="verificar">
+    <h2>Verificar que el panel funciona</h2>
+    <p class="lede">
+      Ya tenés la institución, su usuario y su estación. La comprobación es
+      entrar como si fueras esa institución y ver que carga sus propios datos.
+    </p>
+
+    <ol class="steps">
+      <li>
+        Abrí <a href={INSTITUTION_ACCESS.route}>Acceso institucional</a> desde el
+        menú del sitio, o directamente
+        <span class="path">/institucion/login</span>.
+      </li>
+      <li>
+        Ingresá con el <strong
+          >correo y la contraseña del usuario que asociaste</strong
+        > — no con tu cuenta de admin. Una cuenta de backoffice sin ese vínculo no
+        entra acá, aunque sus credenciales sean correctas.
+      </li>
+      <li>
+        Deberías caer en el panel y ver el nombre de la institución en la barra
+        superior, con el sensor, el AQI del día y el historial cargados. Eso
+        confirma que los cinco pasos anteriores quedaron bien.
+      </li>
+    </ol>
+
+    <p>
+      Si querés saber qué va a ver exactamente la institución cuando entre, el
+      recorrido completo del panel está en la <a href={GUIDE_ROUTES.institution}
+        >guía para instituciones</a
+      >.
+    </p>
+  </section>
+
+  <section id="clave">
+    <h2>Recuperar tu contraseña de administrador</h2>
+    <p class="lede">
+      Si perdiste el acceso al admin, no hace falta que otra persona te lo
+      restablezca.
+    </p>
+    <ol class="steps">
+      <li>
+        En <span class="path">/admin/login/</span>, tocá <strong
+          >"Forgotten your password or username?"</strong
+        >, debajo del formulario.
+      </li>
+      <li>Escribí el correo de tu cuenta y enviá.</li>
+      <li>
+        Vas a recibir un correo con un enlace. Abrilo y elegí la contraseña
+        nueva, dos veces.
+      </li>
+      <li>
+        Volvé a <span class="path">/admin/login/</span> y entrá con la nueva.
+      </li>
+    </ol>
+
+    <Callout label="Lo que conviene saber" tone="warn">
+      <p>
+        El enlace vence a las 24 horas y se puede usar una sola vez; volver a
+        entrar con la contraseña vieja también lo invalida. El formulario no
+        dice si el correo existe o no — es para que nadie pueda usarlo para
+        averiguar qué cuentas hay.
+      </p>
+      <p>
+        Las pantallas de recuperación viven bajo <span class="path"
+          >/admin/</span
+        >, así que están detrás de la misma lista de IPs permitidas que el resto
+        del backoffice: si el admin no te abre desde donde estás, el enlace del
+        correo tampoco va a abrir.
+      </p>
+    </Callout>
+
+    <p>
+      Las instituciones tienen su propio flujo, desde la pantalla de ingreso del
+      panel — está explicado en la <a href={GUIDE_ROUTES.institution}
+        >guía para instituciones</a
+      >.
+    </p>
+  </section>
+
+  <section id="errores">
+    <h2>Si algo no sale bien</h2>
+
+    <Callout
+      label="El usuario no entra, aunque la contraseña sea correcta"
+      tone="danger"
+    >
+      <p>
+        Le falta el vínculo con la institución, o quedó asociado a otra. Volvé
+        al paso <a href="#usuario">Asociar un usuario</a> y revisá la sección "Dashboard
+        users". Ojo también con usar por error una cuenta de backoffice: tener permisos
+        en <span class="path">/admin/</span> no da acceso al panel institucional.
+      </p>
+    </Callout>
+
+    <Callout
+      label="El panel abre pero dice que no hay sensor asignado"
+      tone="danger"
+    >
+      <p>
+        La institución no tiene contrato. Volvé al paso <a href="#estacion"
+          >Asociar una estación</a
+        >.
+      </p>
+    </Callout>
+
+    <Callout label="La cuenta quedó bloqueada tras varios intentos" tone="warn">
+      <p>
+        El ingreso al panel comparte la protección del admin: 5 intentos
+        fallidos bloquean la cuenta por 1 hora. Si vas a probar credenciales
+        inválidas a propósito, no repitas más de 4 veces seguidas con el mismo
+        usuario.
+      </p>
+    </Callout>
+
+    <Callout label="El panel abre pero el historial está vacío">
+      <p>
+        La estación existe y el contrato también, pero el sensor todavía no
+        reportó mediciones — o reportó menos de dos días. El gráfico aparece
+        solo cuando hay al menos dos días de datos.
+      </p>
+    </Callout>
+  </section>
+</GuideLayout>

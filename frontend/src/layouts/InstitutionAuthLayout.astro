@@ -1,0 +1,57 @@
+---
+// The split screen shared by every unauthenticated institutional page: login,
+// "I forgot my password" and "choose a new password".
+//
+// Extracted from `pages/institucion/login.astro` when the recovery pages were
+// added, so the three screens cannot drift apart. The brand panel on the left
+// is the only thing that changes between them, through `tagline` and `blurb`.
+//
+// On narrow screens the grid collapses to a single column and the brand panel
+// stacks above the form, which is what keeps the form reachable without
+// scrolling past a full-height hero on a phone.
+
+import { Image } from "astro:assets";
+
+import InstitutionLayout from "./InstitutionLayout.astro";
+import RespiraLogo from "../assets/logo.svg";
+
+interface Props {
+  /** Browser title; `InstitutionLayout` appends "· Respira". */
+  title: string;
+  tagline: string;
+  blurb: string;
+}
+
+const { title, tagline, blurb } = Astro.props;
+---
+
+<InstitutionLayout title={title}>
+  <div class="grid min-h-screen grid-cols-1 md:grid-cols-2">
+    <aside
+      class="flex flex-col justify-center gap-4 bg-near_black px-8 py-12 md:px-11"
+    >
+      {
+        /* Inverted for the same reason as the top bar: the mark is drawn dark. */
+      }
+      <Image
+        src={RespiraLogo}
+        alt="Respira"
+        class="h-14 w-auto self-start invert md:h-16"
+        loading="eager"
+      />
+      <span class="h-[3px] w-12 bg-green"></span>
+      <h2
+        class="max-w-[18ch] text-balance font-serif text-2xl font-bold leading-tight text-white md:text-3xl"
+      >
+        {tagline}
+      </h2>
+      <p class="max-w-[34ch] text-sm text-bg-gray">{blurb}</p>
+    </aside>
+
+    <div class="flex flex-col justify-center bg-base px-8 py-12 md:px-11">
+      <div class="mx-auto w-full max-w-md">
+        <slot />
+      </div>
+    </div>
+  </div>
+</InstitutionLayout>

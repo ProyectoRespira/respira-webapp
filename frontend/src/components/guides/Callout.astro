@@ -1,0 +1,41 @@
+---
+// A labelled aside inside a User Guide.
+//
+// The three tones map onto what the Product source material distinguishes:
+// something worth knowing (`info`), a trap that will cost the reader time
+// (`warn`), and a failure they will actually hit (`danger`). Colour alone never
+// carries that difference — the `label` above the text always states it, so the
+// distinction survives greyscale printing and screen readers.
+
+interface Props {
+  tone?: "info" | "warn" | "danger";
+  label: string;
+}
+
+const { tone = "info", label } = Astro.props;
+
+const TONE_CLASS = {
+  info: "border-l-green_dark bg-white",
+  warn: "border-l-aqi-orange-dark bg-aqi-yellow-light/40",
+  danger: "border-l-aqi-red-dark bg-aqi-red-light/20",
+} as const;
+
+const LABEL_CLASS = {
+  info: "text-green_darker",
+  warn: "text-near_black",
+  danger: "text-near_black",
+} as const;
+---
+
+<aside
+  class={`my-5 max-w-[68ch] rounded-md border border-bg-gray border-l-[3px] px-4 py-4 ${TONE_CLASS[tone]}`}
+>
+  <p
+    class={`mb-1.5 font-sans text-[11px] font-bold uppercase tracking-[0.08em] ${LABEL_CLASS[tone]}`}
+  >
+    {label}
+  </p>
+  <div class="guide-prose text-[15px] leading-relaxed text-near_black">
+    <slot />
+  </div>
+</aside>

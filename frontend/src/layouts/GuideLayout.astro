@@ -1,0 +1,363 @@
+---
+// Shell for the static User Guides (`pages/guias/`).
+//
+// Static on purpose: the guides are written by Product and shipped as markup,
+// with no CMS behind them. What this layout adds around that markup is the
+// site's chrome (navbar, footer) plus the two things a long document needs —
+// a masthead that says what the guide is and when it was last revised, and a
+// table of contents that is sticky on desktop and collapsible on smaller
+// screens, so a phone reader is not scrolled past a full index to reach the
+// text.
+//
+// The `guide-prose` class at the bottom is what styles the guide body. Guides
+// are plain semantic HTML (h2/h3/p/ul/table); keeping the typography here
+// rather than in per-element classes is what stops the two guides drifting
+// apart, and makes adding a third one a matter of writing content only.
+
+import BaseLayout from "./BaseLayout.astro";
+import Footer from "../components/atoms/Footer.astro";
+import BackTop from "../components/atoms/BackTop.astro";
+import { GUIDE_ROUTES } from "../data/menu";
+
+export interface GuideSection {
+  id: string;
+  label: string;
+}
+
+interface Props {
+  eyebrow: string;
+  title: string;
+  /** One-paragraph summary under the title. */
+  dek: string;
+  /** Small facts shown as a dotted list under the dek (scope, last revision). */
+  meta?: string[];
+  sections: GuideSection[];
+}
+
+const { eyebrow, title, dek, meta = [], sections } = Astro.props;
+
+// Straight from the site's other long-form page (`recursos.astro`), so the
+// guides line up with it at every breakpoint.
+const GUTTER = "px-[clamp(20px,5vw,64px)]";
+---
+
+<BaseLayout>
+  <article
+    class={`mx-auto max-w-[1100px] ${GUTTER} pb-16 pt-[clamp(32px,6vw,64px)]`}
+  >
+    <header class="border-b border-bg-gray pb-8">
+      {
+        /*
+          Back to the section index. Without it `/guias` is only reachable from
+          the footer, and a reader who arrived at one guide from a search result
+          has no way to discover that the other one exists.
+        */
+      }
+      <a
+        class="font-sans text-[13px] font-semibold text-gray hover:text-near_black hover:underline"
+        href={GUIDE_ROUTES.index}
+      >
+        ← Guías de uso
+      </a>
+      <p
+        class="mt-4 font-sans text-[12px] font-bold uppercase tracking-[0.09em] text-green_darker"
+      >
+        {eyebrow}
+      </p>
+      <h1
+        class="mt-3 text-balance font-serif text-[clamp(28px,4.5vw,44px)] font-black leading-[1.12] text-near_black"
+      >
+        {title}
+      </h1>
+      <p
+        class="mt-4 max-w-[62ch] font-sans text-[17px] leading-relaxed text-gray"
+      >
+        {dek}
+      </p>
+      {
+        meta.length > 0 && (
+          <ul class="mt-5 flex flex-wrap gap-x-5 gap-y-1 font-sans text-[13px] text-lightgray">
+            {meta.map((item) => (
+              <li class="before:mr-2 before:text-bg-gray before:content-['·'] first:before:content-['']">
+                {item}
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    </header>
+
+    <div
+      class="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[220px_minmax(0,1fr)]"
+    >
+      {/* Desktop: a sticky rail alongside the text. */}
+      <nav
+        class="hidden self-start lg:sticky lg:top-8 lg:block"
+        aria-label="Contenido de la guía"
+      >
+        <p
+          class="mb-3 font-sans text-[11px] font-bold uppercase tracking-[0.08em] text-lightgray"
+        >
+          En esta guía
+        </p>
+        <ol class="border-l border-bg-gray">
+          {
+            sections.map((section) => (
+              <li>
+                <a
+                  class="-ml-px block border-l-2 border-transparent py-1.5 pl-3.5 font-sans text-[14px] text-gray hover:border-green_dark hover:text-near_black"
+                  href={`#${section.id}`}
+                >
+                  {section.label}
+                </a>
+              </li>
+            ))
+          }
+        </ol>
+      </nav>
+
+      {/* Below `lg`: the same list, folded away behind a native disclosure. */}
+      <details class="rounded-lg border border-bg-gray bg-white lg:hidden">
+        <summary
+          class="cursor-pointer px-4 py-3 font-sans text-[12px] font-bold uppercase tracking-[0.08em] text-gray"
+        >
+          En esta guía
+        </summary>
+        <ol class="px-4 pb-4">
+          {
+            sections.map((section) => (
+              <li class="border-t border-bg-gray first:border-t-0">
+                <a
+                  class="block py-2 font-sans text-[15px] text-near_black"
+                  href={`#${section.id}`}
+                >
+                  {section.label}
+                </a>
+              </li>
+            ))
+          }
+        </ol>
+      </details>
+
+      <main class="guide-prose min-w-0">
+        <slot />
+      </main>
+    </div>
+  </article>
+
+  <BackTop />
+  <Footer />
+</BaseLayout>
+
+<style is:global>
+  /*
+    Typography for guide bodies. Scoped to `.guide-prose` rather than applied
+    globally so it cannot leak into the rest of the site, and written against
+    bare elements so the guide markup stays readable as a document.
+
+    Colours and families are the literal values from `tailwind.config.mjs`
+    (near_black, gray, lightgray, bg-gray, base, green*, aqi.red.light). Spelled
+    out rather than pulled through `theme()` because this block is plain CSS in
+    an Astro `<style>` tag, not a Tailwind-processed utility layer.
+  */
+  .guide-prose {
+    color: #1a1a1a;
+    font-family: "Open Sans Variable", sans-serif;
+    font-size: 16px;
+    line-height: 1.7;
+  }
+
+  .guide-prose section {
+    scroll-margin-top: 6rem;
+    margin-bottom: 3rem;
+  }
+
+  .guide-prose h2 {
+    font-family: Merriweather, serif;
+    font-weight: 700;
+    font-size: clamp(1.35rem, 2.6vw, 1.7rem);
+    line-height: 1.25;
+    margin-bottom: 0.5rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid #91be7b;
+    text-wrap: balance;
+  }
+
+  .guide-prose section:first-child h2 {
+    border-top: none;
+    padding-top: 0;
+  }
+
+  .guide-prose h3 {
+    font-family: Merriweather, serif;
+    font-weight: 700;
+    font-size: 1.15rem;
+    line-height: 1.3;
+    margin: 2rem 0 0.4rem;
+    text-wrap: balance;
+  }
+
+  .guide-prose h4 {
+    font-family: "Open Sans Variable", sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    margin: 1.4rem 0 0.3rem;
+  }
+
+  .guide-prose p,
+  .guide-prose ul,
+  .guide-prose ol,
+  .guide-prose dl {
+    max-width: 68ch;
+  }
+
+  .guide-prose p {
+    margin: 0 0 1rem;
+  }
+
+  .guide-prose .lede {
+    color: #535353;
+    font-size: 1.05rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .guide-prose ul,
+  .guide-prose ol {
+    margin: 0 0 1rem;
+    padding-left: 1.35rem;
+  }
+
+  .guide-prose ul {
+    list-style: disc;
+  }
+
+  .guide-prose ol {
+    list-style: decimal;
+  }
+
+  .guide-prose li {
+    margin-bottom: 0.5rem;
+  }
+
+  .guide-prose li > ul,
+  .guide-prose li > ol {
+    margin-top: 0.5rem;
+  }
+
+  .guide-prose a {
+    color: #3e5a2e;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .guide-prose strong {
+    font-weight: 700;
+  }
+
+  .guide-prose code,
+  .guide-prose .path {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.86em;
+    background: #f0ecea;
+    border-radius: 4px;
+    padding: 0.1em 0.4em;
+    /* Long paths must be able to wrap on a phone rather than widen the page. */
+    overflow-wrap: anywhere;
+  }
+
+  /* A menu trail: Admin -> Api -> Institutions. */
+  .guide-prose .menu-path {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    background: #fff;
+    border: 1px solid #dbd3d0;
+    border-radius: 6px;
+    padding: 0.4rem 0.7rem;
+    margin: 0.25rem 0 1rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+  }
+
+  .guide-prose .menu-path .sep {
+    color: #a1a1a1;
+  }
+
+  /* Field reference: name on the left, meaning on the right. */
+  .guide-prose dl.fields {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 0.5rem 1.1rem;
+    margin: 1rem 0 1.25rem;
+  }
+
+  .guide-prose dl.fields dt {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.82rem;
+    background: #fff;
+    border: 1px solid #dbd3d0;
+    border-radius: 4px;
+    padding: 0.05rem 0.45rem;
+    height: fit-content;
+    overflow-wrap: anywhere;
+  }
+
+  .guide-prose dl.fields dd {
+    margin: 0;
+    color: #535353;
+  }
+
+  .guide-prose dl.fields .req {
+    color: #b3382c;
+    font-weight: 700;
+  }
+
+  /* Tables scroll inside their own box; the page itself never does. */
+  .guide-prose .table-wrap {
+    overflow-x: auto;
+    margin: 1rem 0 1.5rem;
+    border: 1px solid #dbd3d0;
+    border-radius: 8px;
+    background: #fff;
+  }
+
+  .guide-prose table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 520px;
+    font-size: 0.9rem;
+  }
+
+  .guide-prose th,
+  .guide-prose td {
+    text-align: left;
+    padding: 0.6rem 0.8rem;
+    border-bottom: 1px solid #dbd3d0;
+    vertical-align: top;
+  }
+
+  .guide-prose tr:last-child td {
+    border-bottom: none;
+  }
+
+  .guide-prose th {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #535353;
+    font-weight: 700;
+  }
+
+  .guide-prose ol.steps li::marker {
+    font-weight: 700;
+    color: #3e5a2e;
+  }
+
+  .guide-prose figcaption {
+    color: #a1a1a1;
+    font-size: 0.85rem;
+    margin-top: 0.4rem;
+  }
+</style>
