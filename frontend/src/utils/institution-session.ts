@@ -12,6 +12,14 @@ import { InstitutionApiError, fetchInstitution } from "../store/institution";
 
 export const INSTITUTION_LOGIN_PATH = "/institucion/login";
 export const INSTITUTION_DASHBOARD_PATH = "/institucion/dashboard";
+export const INSTITUTION_FORGOT_PASSWORD_PATH = "/institucion/recuperar-clave";
+/**
+ * Where the reset email points. Must stay in step with
+ * `INSTITUTION_PASSWORD_RESET_URL` in `backend/backend/settings.py`, which is
+ * what builds the link: the backend only supplies the path, and the scheme and
+ * host come from the request, so the same link works in every environment.
+ */
+export const INSTITUTION_RESET_PASSWORD_PATH = "/institucion/restablecer-clave";
 
 export type InstitutionSession =
   /** A valid session belonging to an institution. */

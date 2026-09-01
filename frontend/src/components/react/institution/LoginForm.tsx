@@ -2,7 +2,10 @@ import { useId, useState, type FormEvent } from "react";
 
 import { institutionCopy as copy } from "../../../i18n/institution";
 import { InstitutionApiError, login } from "../../../store/institution";
-import { INSTITUTION_DASHBOARD_PATH } from "../../../utils/institution-session";
+import {
+  INSTITUTION_DASHBOARD_PATH,
+  INSTITUTION_FORGOT_PASSWORD_PATH,
+} from "../../../utils/institution-session";
 import { Button, FieldLabel, fieldClassName } from "./ui";
 
 /**
@@ -101,6 +104,18 @@ export function LoginForm({ contactMail }: { contactMail: string }) {
       <Button type="submit" block disabled={submitting}>
         {submitting ? copy.loginSubmitting : copy.loginSubmit}
       </Button>
+
+      {/*
+        Below the button rather than beside the password label: recovery is the
+        exception, and putting it in the field's tab order competes with the
+        password manager most institutions use to fill this form.
+      */}
+      <a
+        className="text-[13px] font-semibold text-green_dark hover:underline"
+        href={INSTITUTION_FORGOT_PASSWORD_PATH}
+      >
+        {copy.forgotLink}
+      </a>
 
       {contactMail && (
         <p className="text-xs text-lightgray">

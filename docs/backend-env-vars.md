@@ -187,6 +187,10 @@ Enables Django's email password-reset flow when SMTP is configured. In dev
 | `BACKEND_EMAIL_HOST_PASSWORD`| No       | `""`                                        | `backend/backend/settings.py` | SMTP password.                                    |
 | `BACKEND_EMAIL_USE_TLS`      | No       | `true`                                      | `backend/backend/settings.py` | Use STARTTLS.                                     |
 | `BACKEND_DEFAULT_FROM_EMAIL` | No       | `no-reply@proyectorespira.net`              | `backend/backend/settings.py` | Default From address for outgoing admin emails.   |
+| `BACKEND_PASSWORD_RESET_TIMEOUT_HOURS` | No | `24` | `backend/backend/settings.py` | How long a reset link stays valid, for both the admin and institutional flows. Django's own default is 72 hours. |
+| `BACKEND_INSTITUTION_PASSWORD_RESET_URL` | No | `/institucion/restablecer-clave` | `backend/backend/settings.py` | Where the institutional reset email points. A path by default, so scheme and host come from the request and the link resolves per environment; an absolute URL overrides that, for a deployment where the site and the API are on different origins. |
+| `BACKEND_PASSWORD_RESET_THROTTLE` | No | `10/hour` | `backend/backend/settings.py` | DRF rate for `POST /api/institution/password-reset/`, per client IP. This endpoint sends mail to an address the caller chose, so the rate is what stops it being used to flood an inbox. |
+| `BACKEND_PASSWORD_RESET_CONFIRM_THROTTLE` | No | `30/hour` | `backend/backend/settings.py` | DRF rate for `POST /api/institution/password-reset/confirm/`, per client IP. Looser than the request above — a visitor may need several tries to satisfy the password rules — but still bounds token guessing. |
 
 ---
 

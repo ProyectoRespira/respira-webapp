@@ -1,6 +1,9 @@
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.tokens import default_token_generator
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
+from django.utils.http import urlsafe_base64_decode
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from drf_spectacular.types import OpenApiTypes
@@ -392,6 +395,96 @@ class InstitutionLoginSerializer(serializers.Serializer):
             raise serializers.ValidationError("Invalid email or password.")
         attrs["user"] = user
         return attrs
+
+
+class InstitutionPasswordResetSerializer(serializers.Serializer):
+    """Accepts the email a password reset was requested for.
+
+    Deliberately does nothing beyond validating the address' shape. Whether an
+    account exists is decided (and acted on) in the view, which answers the same
+    way either way — see ``InstitutionViewSet.password_reset``. Rejecting an
+    unknown address here would turn this endpoint into an account oracle.
+    """
+
+    email = serializers.EmailField()
+
+
+class InstitutionPasswordResetConfirmSerializer(serializers.Serializer):
+    """Validates a reset link and the new password chosen through it.
+
+    The token machinery is Django's own
+    (``default_token_generator`` + ``urlsafe_base64`` uid), so an expired,
+    tampered-with or already-used link fails here exactly as it would in the
+    admin flow: ``check_token`` hashes the user's current password and
+    ``last_login`` into the token, so consuming a link invalidates it.
+
+    Password rules come from ``AUTH_PASSWORD_VALIDATORS`` via
+    ``validate_password``, the same pipeline the admin and the user API use.
+    """
+
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    new_password = serializers.CharField(
+        write_only=True, style={"input_type": "password"}
+    )
+
+    default_error_messages = {
+        "invalid_link": "This password reset link is invalid or has expired.",
+    }
+
+    def _user_from_uid(self, uid: str):
+        try:
+            pk = urlsafe_base64_decode(uid).decode()
+            return User.objects.get(pk=pk)
+        except (
+            TypeError,
+            ValueError,
+            OverflowError,
+            # `User.pk` is a UUID, so a decodable-but-nonsensical uid fails in
+            # the field's `to_python` rather than as a plain ValueError.
+            DjangoValidationError,
+            User.DoesNotExist,
+        ):
+            return None
+
+    def validate(self, attrs):
+        user = self._user_from_uid(attrs["uid"])
+        # One message for every way a link can be unusable — a decodable uid
+        # that maps to no user would otherwise confirm which ids exist.
+        if (
+            user is None
+            or not user.is_active
+            or not default_token_generator.check_token(user, attrs["token"])
+        ):
+            self.fail("invalid_link")
+
+        # Run the validators against the target user so the ones that compare
+        # the password to account attributes (similarity) have something to
+        # compare with. Errors are re-raised under `new_password` so the form
+        # can put them next to the field the visitor has to fix.
+        try:
+            validate_password(attrs["new_password"], user=user)
+        except DjangoValidationError as error:
+            raise serializers.ValidationError(
+                {
+                    "new_password": error.messages,
+                    # Django's messages are English whatever the client speaks.
+                    # The codes are stable identifiers a client can map onto its
+                    # own copy — which is what the Spanish reset page does.
+                    "new_password_codes": [
+                        item.code for item in error.error_list if item.code
+                    ],
+                }
+            )
+
+        attrs["user"] = user
+        return attrs
+
+    def save(self, **kwargs):
+        user = self.validated_data["user"]
+        user.set_password(self.validated_data["new_password"])
+        user.save(update_fields=["password"])
+        return user
 
 
 class InstitutionAlertSerializer(serializers.ModelSerializer):

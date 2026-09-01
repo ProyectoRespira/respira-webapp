@@ -11,6 +11,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
+from django.contrib.auth.forms import PasswordResetForm
 from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Avg, Prefetch
@@ -63,6 +64,8 @@ from .serializers import (
     InstitutionAlertSerializer,
     InstitutionDashboardSerializer,
     InstitutionLoginSerializer,
+    InstitutionPasswordResetConfirmSerializer,
+    InstitutionPasswordResetSerializer,
     InstitutionSerializer,
     MapSerializer,
     RegionSerializer,
@@ -770,6 +773,20 @@ def _build_institution_dashboard(institution):
     }
 
 
+def _absolute_for_email(request, configured: str) -> str:
+    """Resolves a configured path (or URL) against the request being served.
+
+    Settings that end up inside an email hold a *path* by default, and the
+    scheme and host come from the request — so what the recipient receives
+    points at whatever environment they asked from (local, demo, production)
+    rather than a URL baked into the image. An absolute URL in the setting wins,
+    for a deployment where the site and the API do not share an origin.
+    """
+    if configured.startswith(("http://", "https://")):
+        return configured.rstrip("/")
+    return request.build_absolute_uri(configured).rstrip("/")
+
+
 @extend_schema(tags=["Institutional Dashboard"])
 class InstitutionViewSet(ReadOnlyModelViewSet):
     """Self-service, read-only view of an institution's own dashboard data.
@@ -788,6 +805,11 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
 
     serializer_class = InstitutionSerializer
     permission_classes = [IsAuthenticated, IsInstitutionUser, IsOwnInstitution]
+    # Declared so the password-reset actions below can override it through
+    # `@action(throttle_scope=...)`: DRF's `as_view` rejects any initkwarg that
+    # is not already an attribute of the viewset. `None` leaves every other
+    # route unthrottled, which is what `ScopedRateThrottle` does with no scope.
+    throttle_scope = None
     # "get" for list/retrieve/me, "post" for the login/logout actions below —
     # this viewset otherwise offers no write access to Institution itself.
     http_method_names = ["get", "post"]
@@ -904,6 +926,106 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
     @action(detail=False, methods=["post"])
     def logout(self, request, *args, **kwargs):
         auth_logout(request)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @extend_schema(
+        summary="Request a password reset email",
+        description=(
+            "Starts Django's password reset workflow for the given address. "
+            "Always answers 204, whether or not an account exists, so the "
+            "endpoint cannot be used to find out which addresses are "
+            "registered. The email carries a signed, time-limited link "
+            "(`PASSWORD_RESET_TIMEOUT`) pointing at the public reset page."
+        ),
+        request=InstitutionPasswordResetSerializer,
+        responses={204: None},
+    )
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="password-reset",
+        permission_classes=[AllowAny],
+        throttle_classes=[ScopedRateThrottle],
+        throttle_scope="password_reset",
+        serializer_class=InstitutionPasswordResetSerializer,
+    )
+    def password_reset(self, request, *args, **kwargs):
+        """Send a reset link, without revealing whether the address is known.
+
+        Built on ``django.contrib.auth.forms.PasswordResetForm``, so the set of
+        accounts that may be reset is Django's own: active users with a usable
+        password. Nothing about the outcome reaches the caller — the response is
+        identical for a registered address, an unregistered one, and an inactive
+        account.
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        form = PasswordResetForm(data={"email": serializer.validated_data["email"]})
+        # `is_valid` only re-checks the address' shape here, which the serializer
+        # already did; `save` is what looks accounts up and sends the mail.
+        if form.is_valid():
+            form.save(
+                request=request,
+                use_https=request.is_secure(),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                subject_template_name="institution/password_reset_subject.txt",
+                email_template_name="institution/password_reset_email.txt",
+                # Sent as a multipart message: the plain-text body above stays
+                # the fallback (clients with HTML off, and what spam filters
+                # read), with this as the alternative part.
+                html_email_template_name="institution/password_reset_email.html",
+                extra_email_context={
+                    "reset_base_url": _absolute_for_email(
+                        request, settings.INSTITUTION_PASSWORD_RESET_URL
+                    ),
+                    # Remote image: it has to be reachable from the recipient's
+                    # mail client, so it resolves to the public site rather than
+                    # to anything internal.
+                    "logo_url": _absolute_for_email(
+                        request, settings.INSTITUTION_EMAIL_LOGO_URL
+                    ),
+                    "timeout_hours": settings.PASSWORD_RESET_TIMEOUT // 3600,
+                },
+            )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @extend_schema(
+        summary="Set a new password from a reset link",
+        description=(
+            "Completes the password reset. `uid` and `token` are the values "
+            "carried by the emailed link. Returns 400 when the link is "
+            "expired, malformed, already used or belongs to an inactive "
+            "account, and 400 with `new_password` errors when the password "
+            "does not satisfy the platform's password rules."
+        ),
+        request=InstitutionPasswordResetConfirmSerializer,
+        responses={204: None},
+    )
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="password-reset/confirm",
+        permission_classes=[AllowAny],
+        throttle_classes=[ScopedRateThrottle],
+        throttle_scope="password_reset_confirm",
+        serializer_class=InstitutionPasswordResetConfirmSerializer,
+    )
+    def password_reset_confirm(self, request, *args, **kwargs):
+        """Consume a reset link and store the new password.
+
+        The old password stops working the moment this succeeds, and so does
+        the link: Django's token hashes the password and ``last_login``, so a
+        second POST with the same `uid`/`token` fails validation.
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        # Sessions the account had open elsewhere die with the old password:
+        # Django stores a hash of it in the session and `auth.get_user` rejects
+        # any session whose hash no longer matches. Nothing to flush by hand.
+        serializer.save()
+
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

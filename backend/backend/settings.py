@@ -116,6 +116,18 @@ REST_FRAMEWORK = {
     # abuse without cutting off a whole network.
     "DEFAULT_THROTTLE_RATES": {
         "device_followers": _env_str("BACKEND_DEVICE_FOLLOWER_THROTTLE", "120/min"),
+        # Password recovery (api.views.InstitutionViewSet). Counted per client
+        # IP, and much tighter than the follower API: this endpoint sends mail
+        # to an address the caller chose, so the rate is what stops it being
+        # used to flood somebody's inbox or to walk a list of addresses.
+        "password_reset": _env_str("BACKEND_PASSWORD_RESET_THROTTLE", "10/hour"),
+        # Setting the new password. Looser than the request above because
+        # nothing is sent anywhere and a visitor may legitimately need several
+        # tries to satisfy the password rules, but still bounded so the reset
+        # tokens themselves cannot be brute-forced.
+        "password_reset_confirm": _env_str(
+            "BACKEND_PASSWORD_RESET_CONFIRM_THROTTLE", "30/hour"
+        ),
     },
 }
 
@@ -331,6 +343,30 @@ EMAIL_USE_TLS = _env_bool("BACKEND_EMAIL_USE_TLS", True)
 DEFAULT_FROM_EMAIL = _env_str(
     "BACKEND_DEFAULT_FROM_EMAIL", "no-reply@proyectorespira.net"
 )
+
+# How long a password reset link stays valid, for both the admin flow
+# (backend/backend/urls.py) and the institutional one (api.views). Django's own
+# default is three days; one day is short enough that a link left sitting in an
+# inbox stops working, and long enough for somebody who requests a reset before
+# a weekend. The token is invalidated earlier than this by any password change.
+PASSWORD_RESET_TIMEOUT = _env_int("BACKEND_PASSWORD_RESET_TIMEOUT_HOURS", 24) * 3600
+
+# Where the institutional reset email points. Only the path is configured: the
+# scheme and host come from the request that asked for the reset, so the link
+# resolves to whichever environment the user is on rather than a hardcoded one.
+# An absolute URL here overrides that, for the case where the public site and
+# the API are not served from the same origin.
+INSTITUTION_PASSWORD_RESET_URL = _env_str(
+    "BACKEND_INSTITUTION_PASSWORD_RESET_URL", "/institucion/restablecer-clave"
+)
+
+# Logo shown in the HTML part of that email. Resolved the same way as the reset
+# URL, with one difference that matters: this one is fetched by the recipient's
+# mail client, not by a browser on the site, so it only ever renders when it
+# points at a publicly reachable host. In local development it resolves to
+# localhost and the client falls back to the image's alt text — set an absolute
+# URL here if a local run needs the logo to load.
+INSTITUTION_EMAIL_LOGO_URL = _env_str("BACKEND_EMAIL_LOGO_URL", "/favicon.png")
 
 
 # Login rate limiting (django-axes)

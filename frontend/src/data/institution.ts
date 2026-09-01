@@ -13,6 +13,13 @@ export const INSTITUTION_ENDPOINTS = {
   me: "/institution/me/",
   dashboard: "/institution/dashboard/",
 
+  // Password recovery. Both are open (no session, by definition) and answer
+  // 204; `passwordReset` answers 204 even for an address that is not
+  // registered, so the UI must never treat its response as confirmation that
+  // an account exists.
+  passwordReset: "/institution/password-reset/",
+  passwordResetConfirm: "/institution/password-reset/confirm/",
+
   // Implemented in RES-370. Note it is registered at the API root
   // (`/action-logs/`), not nested under `/institution/`: the router entry is
   // `router.register(r"action-logs", ActionLogViewSet, ...)`. The institution is
