@@ -17,6 +17,7 @@
 import BaseLayout from "./BaseLayout.astro";
 import Footer from "../components/atoms/Footer.astro";
 import BackTop from "../components/atoms/BackTop.astro";
+import { GUIDE_ROUTES } from "../data/menu";
 
 export interface GuideSection {
   id: string;
@@ -45,8 +46,21 @@ const GUTTER = "px-[clamp(20px,5vw,64px)]";
     class={`mx-auto max-w-[1100px] ${GUTTER} pb-16 pt-[clamp(32px,6vw,64px)]`}
   >
     <header class="border-b border-bg-gray pb-8">
+      {
+        /*
+          Back to the section index. Without it `/guias` is only reachable from
+          the footer, and a reader who arrived at one guide from a search result
+          has no way to discover that the other one exists.
+        */
+      }
+      <a
+        class="font-sans text-[13px] font-semibold text-gray hover:text-near_black hover:underline"
+        href={GUIDE_ROUTES.index}
+      >
+        ← Guías de uso
+      </a>
       <p
-        class="font-sans text-[12px] font-bold uppercase tracking-[0.09em] text-green_darker"
+        class="mt-4 font-sans text-[12px] font-bold uppercase tracking-[0.09em] text-green_darker"
       >
         {eyebrow}
       </p>

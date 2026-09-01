@@ -36,13 +36,18 @@ import AdminInstitution from "../../assets/guias/admin-institucion.png";
 import AdminContract from "../../assets/guias/admin-contrato.png";
 import { GUIDE_ROUTES, INSTITUTION_ACCESS } from "../../data/menu";
 
+// Unnumbered, like the institutions guide. Numbering only fit six of these
+// eight: "Recuperar tu contraseña" and "Si algo no sale bien" are not steps in
+// the sequence, which is what left the sidebar half-numbered. The order of the
+// procedure is carried by the document order and by the prose, which
+// cross-references sections by name rather than by number.
 const sections = [
-  { id: "admin", label: "1 · Entrar al admin" },
-  { id: "institucion", label: "2 · Crear la institución" },
-  { id: "usuario", label: "3 · Asociar un usuario" },
-  { id: "alertas", label: "4 · Configurar alertas" },
-  { id: "estacion", label: "5 · Asociar una estación" },
-  { id: "verificar", label: "6 · Verificar el panel" },
+  { id: "admin", label: "Entrar al admin" },
+  { id: "institucion", label: "Crear la institución" },
+  { id: "usuario", label: "Asociar un usuario" },
+  { id: "alertas", label: "Configurar alertas" },
+  { id: "estacion", label: "Asociar una estación" },
+  { id: "verificar", label: "Verificar el panel" },
   { id: "clave", label: "Recuperar tu contraseña" },
   { id: "errores", label: "Si algo no sale bien" },
 ];
@@ -163,9 +168,8 @@ const shotWidths = [640, 960, 1280];
         class={shotClass}
       />
       <figcaption>
-        Un solo formulario cubre los pasos 2, 3 y 4: los datos de la
-        institución, el usuario que va a entrar al panel y la configuración de
-        alertas.
+        Un solo formulario cubre tres cosas: los datos de la institución, el
+        usuario que va a entrar al panel y la configuración de alertas.
       </figcaption>
     </figure>
 

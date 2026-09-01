@@ -33,10 +33,11 @@ const es = {
   "footer.project": "El proyecto",
   "footer.project.about": "Sobre el proyecto",
   "footer.project.contact": "Contacto",
-  "footer.institutions": "Para instituciones",
-  "footer.institutions.login": "Acceso institucional",
-  "footer.institutions.guideInstitution": "Guía para instituciones",
-  "footer.institutions.guideAdmin": "Guía para administradores",
+  "footer.access": "Acceso",
+  "footer.access.institution": "Panel institucional",
+  "footer.guides": "Guías de uso",
+  "footer.guides.admin": "Para administradores",
+  "footer.guides.institution": "Para instituciones",
 
   // Home
   "home.intro.particles":
@@ -394,10 +395,11 @@ const en: Dictionary = {
   "footer.project": "The project",
   "footer.project.about": "About the project",
   "footer.project.contact": "Contact",
-  "footer.institutions": "For institutions",
-  "footer.institutions.login": "Institutional access",
-  "footer.institutions.guideInstitution": "Guide for institutions",
-  "footer.institutions.guideAdmin": "Guide for administrators",
+  "footer.access": "Access",
+  "footer.access.institution": "Institutional panel",
+  "footer.guides": "User guides",
+  "footer.guides.admin": "For administrators",
+  "footer.guides.institution": "For institutions",
 
   "home.intro.particles":
     "Particle pollution can cause serious health problems, such as asthma attacks, heart attacks, strokes and early death.",
@@ -728,10 +730,11 @@ const pt: Dictionary = {
   "footer.project": "O projeto",
   "footer.project.about": "Sobre o projeto",
   "footer.project.contact": "Contato",
-  "footer.institutions": "Para instituições",
-  "footer.institutions.login": "Acesso institucional",
-  "footer.institutions.guideInstitution": "Guia para instituições",
-  "footer.institutions.guideAdmin": "Guia para administradores",
+  "footer.access": "Acesso",
+  "footer.access.institution": "Painel institucional",
+  "footer.guides": "Guias de uso",
+  "footer.guides.admin": "Para administradores",
+  "footer.guides.institution": "Para instituições",
 
   "home.intro.particles":
     "A poluição por partículas pode causar problemas graves de saúde, como crises de asma, ataques cardíacos, derrames e morte precoce.",

@@ -94,23 +94,31 @@ export const FOOTER_MENU: MenuItem[] = [
     ],
   },
   {
-    title: "Para instituciones",
-    id: "institutions-menu",
+    title: "Acceso",
+    id: "access-menu",
     route: [
       {
-        title: "Acceso institucional",
+        title: "Panel institucional",
         route: INSTITUTION_ACCESS.route,
         id: "institution-login",
       },
+    ],
+  },
+  // Named for the section, not for its audiences: "Guías de uso" is what the
+  // footer has to say out loud, with the two guides under it as subsections.
+  {
+    title: "Guías de uso",
+    id: "guides-menu",
+    route: [
       {
-        title: "Guía para instituciones",
-        route: GUIDE_ROUTES.institution,
-        id: "guide-institution",
-      },
-      {
-        title: "Guía para administradores",
+        title: "Para administradores",
         route: GUIDE_ROUTES.admin,
         id: "guide-admin",
+      },
+      {
+        title: "Para instituciones",
+        route: GUIDE_ROUTES.institution,
+        id: "guide-institution",
       },
     ],
   },
