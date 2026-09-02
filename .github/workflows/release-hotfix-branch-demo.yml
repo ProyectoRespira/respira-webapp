@@ -608,8 +608,9 @@ jobs:
 
           capture_pulled_image_id() {
             service_name="$1"
-            image_refs="$(docker compose $compose_files --env-file .env.demo config --images "$service_name")"
-            IFS=$'\n' read -r image_ref _ <<< "$image_refs"
+            # docker compose config --images ignores the service-name filter and
+            # lists every service's image, so filter explicitly by repository name.
+            image_ref="$(docker compose $compose_files --env-file .env.demo config --images | grep -F "/respira-$service_name:" | head -n1)"
 
             if [ -z "$image_ref" ]; then
               fail_deploy_step "Resolve image reference for $service_name" "Failed to resolve the image reference for service $service_name."
