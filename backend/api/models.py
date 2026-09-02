@@ -3,7 +3,7 @@ import uuid
 from typing import Any
 
 from django.conf import settings
-from django.db import models
+from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
 
@@ -253,6 +253,21 @@ def get_institution_for_user(user) -> "Institution | None":
     return link.institution if link else None
 
 
+def get_institution_station_ids(institution) -> set[int]:
+    """Station ids an institution is entitled to act on.
+
+    Today that is the single station bound by its :class:`InstitutionContract`
+    — an institution leases at most one sensor. Centralized here (like
+    :func:`get_institution_for_user`) so every institutional endpoint resolves
+    "which stations are mine" identically, and so widening the rule later
+    (several contracts per institution) is a one-place change.
+    """
+    if institution is None:
+        return set()
+    contract = getattr(institution, "contract", None)
+    return {contract.station_id} if contract is not None else set()
+
+
 class SensitiveGroup(models.Model):
     """Catalog of at-risk population groups an institution can flag for alerts.
 
@@ -307,6 +322,112 @@ class InstitutionAlertConfig(models.Model):
         return f"Alert config for {self.institution}"
 
 
+class InstitutionAlert(models.Model):
+    """A poor-air-quality event recorded for an institution's station.
+
+    Records that an institution's AQI threshold was actually crossed, so an
+    :class:`ActionLog` entry can point at the event it responded to. The
+    threshold itself is per-institution configuration, tracked separately.
+
+    Nothing writes these automatically yet — alerts are computed client-side in
+    respira-mobile and never stored — so rows are created from the admin until
+    an alert generator exists. Adding one is purely additive: it neither reads
+    nor changes the existing notification path.
+
+    ``station`` mirrors :class:`InstitutionContract`: ``db_constraint=False``
+    because dbt drops and recreates ``stations`` on every gold run, so a
+    physical FOREIGN KEY would not survive it.
+    """
+
+    institution = models.ForeignKey(
+        "Institution", on_delete=models.CASCADE, related_name="alerts"
+    )
+    station = models.ForeignKey(
+        "Stations",
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        related_name="institution_alerts",
+    )
+    aqi_value = models.FloatField(
+        help_text="AQI reading that triggered the alert.",
+    )
+    alert_threshold = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        help_text=(
+            "Threshold in force when the alert fired, copied from the "
+            "institution's alert configuration so later edits to that "
+            "configuration don't rewrite history."
+        ),
+    )
+    triggered_at = models.DateTimeField(default=timezone.now)
+    resolved_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Left empty while the event is still ongoing.",
+    )
+
+    class Meta:
+        db_table = "institution_alert"
+        ordering = ("-triggered_at", "-id")
+
+    def __str__(self):
+        return f"{self.institution} — AQI {self.aqi_value} at {self.triggered_at:%Y-%m-%d %H:%M}"
+
+
+class ActionLog(models.Model):
+    """An action an institution took in response to an air quality event.
+
+    The institutional audit trail: what was decided or done, when, on which
+    station, and — when applicable — which alert prompted it. Written through
+    the institutional API (never by the pipeline), which is why ``timestamp``
+    is ``auto_now_add``: the backend stamps it, and no client can backdate an
+    entry.
+
+    Deletion behaviour follows what each relationship means for the record:
+
+    * ``institution`` cascades — the history belongs to the institution and has
+      no meaning once the institution is gone (same as ``InstitutionContract``
+      and ``InstitutionUser``).
+    * ``station`` is ``DO_NOTHING`` with ``db_constraint=False``, like every
+      other backend-owned model pointing at the dbt-managed ``stations``.
+    * ``alert`` is ``SET_NULL`` — the alert is context, not the record's
+      subject. Removing an alert must not erase the fact that the institution
+      acted, so the entry survives as an action without a linked alert.
+    """
+
+    institution = models.ForeignKey(
+        "Institution", on_delete=models.CASCADE, related_name="action_logs"
+    )
+    station = models.ForeignKey(
+        "Stations",
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        related_name="action_logs",
+    )
+    alert = models.ForeignKey(
+        "InstitutionAlert",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="action_logs",
+        help_text="Optional: the alert this action responded to.",
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
+    note = models.TextField(help_text="The action taken by the institution.")
+
+    class Meta:
+        db_table = "action_log"
+        # Most recent action first, as the institutional history is read.
+        # ``-id`` breaks ties so two entries written in the same instant (a
+        # realistic case for a stamped-by-the-server timestamp) still come back
+        # in a stable, newest-first order.
+        ordering = ("-timestamp", "-id")
+
+    def __str__(self):
+        return f"{self.institution} — {self.timestamp:%Y-%m-%d %H:%M}"
+
+
 class StationOverride(models.Model):
     """An operational override of a station field, editable from the admin.
 
@@ -353,6 +474,324 @@ class StationOverride(models.Model):
 
     def __str__(self):
         return f"{self.station_code}: {self.field} = {self.value}"
+
+
+# One retry is enough for the token claim: the conflict can only be lost to a
+# transaction that has since committed, so the second attempt sees its row and
+# clears it. The third is there so a pathological pile-up raises rather than
+# loops.
+_TOKEN_CLAIM_ATTEMPTS = 3
+
+
+class DeviceInstallation(models.Model):
+    """One installation of the mobile app, without any login.
+
+    Split out from :class:`DeviceFollower` when a device became able to follow
+    several stations. The push token belongs to the *installation*, not to any
+    one follow: while the rule was one station per device the two were the same
+    row, but with N follows the token would otherwise be stored N times and
+    every write would have to keep the copies in step — and a notification
+    fan-out would deliver N times to the same phone.
+
+    ``installation_id`` is a UUIDv4 the app generates on first launch and
+    stores locally (Keystore on Android, Keychain on iOS). It is deliberately
+    *not* derived from a hardware or OS identifier: a derived value would be
+    predictable, would be correlatable with the same device across other apps,
+    and — since it is a pure function of the device — would collide
+    deterministically whenever an installation is cloned or restored from a
+    backup. 122 random bits from a CSPRNG make an accidental collision
+    negligible (~10⁻²⁵ across a million installations) and, more importantly,
+    make the identifier unguessable, which is what stands in for authentication
+    on these endpoints. See
+    docs/device-follower-identifier-investigation.md.
+    """
+
+    installation_id = models.UUIDField(
+        unique=True,
+        editable=False,
+        help_text="UUIDv4 generated by the app on first launch.",
+    )
+    push_token = models.TextField(
+        blank=True,
+        default="",
+        help_text="Current FCM/APNs token; blank until the app registers one.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "device_installation"
+        ordering = ("-updated_at",)
+        constraints = [
+            # The invariant behind `register()`: a live token identifies exactly
+            # one installation. Enforced by the database rather than by the
+            # clearing query alone, because two registrations of the same
+            # previously-unclaimed token can each clear nothing and then both
+            # write it — application code cannot see a row the other
+            # transaction has not committed yet. Blank is exempt: "no token" is
+            # the normal state of any number of installations.
+            models.UniqueConstraint(
+                fields=["push_token"],
+                condition=~models.Q(push_token=""),
+                name="uniq_active_push_token",
+            )
+        ]
+
+    def __str__(self):
+        return str(self.installation_id)
+
+    @classmethod
+    def register(cls, installation_id, *, push_token=None):
+        """Get or create the installation, optionally refreshing its token.
+
+        Claiming the push token — clearing it from any other installation that
+        holds it — matters because a reinstall produces a new
+        ``installation_id`` while the OS may hand the app the same token.
+        Without this, the abandoned installation keeps the token and the device
+        receives a second copy of every notification, for stations it no longer
+        follows.
+
+        The claim races with itself: two installations registering the same
+        token concurrently both find nothing to clear. ``uniq_active_push_token``
+        turns that into an :class:`IntegrityError` on whichever commits second,
+        and the retry then sees the winner's row and clears it — so the loser of
+        the race ends up the sole holder instead of both keeping the token.
+        """
+        for attempt in range(_TOKEN_CLAIM_ATTEMPTS):
+            try:
+                # A savepoint when there is an outer transaction, which is what
+                # lets the caller keep using it after the retry below.
+                with transaction.atomic():
+                    installation, created = cls.objects.get_or_create(
+                        installation_id=installation_id
+                    )
+                    if push_token is not None:
+                        if push_token:
+                            cls.objects.filter(push_token=push_token).exclude(
+                                pk=installation.pk
+                            ).update(push_token="", updated_at=timezone.now())
+                        installation.push_token = push_token
+                        installation.save(update_fields=["push_token", "updated_at"])
+                    return installation, created
+            except IntegrityError:
+                if attempt == _TOKEN_CLAIM_ATTEMPTS - 1:
+                    raise
+
+
+class DeviceFollower(models.Model):
+    """One station a mobile installation follows.
+
+    A device may follow several, so uniqueness is on the *pair*: re-following a
+    station it already follows updates nothing rather than creating a second
+    row, which is what makes the follow endpoint safe to retry on a flaky
+    mobile network. The cap on how many a single installation may hold is a
+    view concern (`MAX_FOLLOWS_PER_INSTALLATION`) rather than a constraint,
+    since it is about bounding abuse of an unauthenticated endpoint and is
+    expected to be tuned.
+
+    Stations are addressed by ``station_code``, not by ``stations.id``, for the
+    same reason as :class:`StationOverride`: dbt derives that id from a
+    ``row_number()`` and regenerates it on every run, so a stored id would
+    silently come to mean a different station. The API still speaks in station
+    ids — the code is resolved on write and back to the current id on read — so
+    respira-mobile is unaffected.
+    """
+
+    installation = models.ForeignKey(
+        DeviceInstallation,
+        on_delete=models.CASCADE,
+        related_name="follows",
+        help_text="The installation that follows this station.",
+    )
+    station_code = models.CharField(
+        max_length=255,
+        db_index=True,
+        help_text="The pipeline's stable natural key for the followed station.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "device_follower"
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["installation", "station_code"],
+                name="uniq_follow_per_installation",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.installation.installation_id} → {self.station_code}"
+
+    @property
+    def station(self) -> "Stations | None":
+        """The station currently carrying ``station_code``, if it still exists.
+
+        Resolved per call rather than stored, since the id it returns is only
+        valid until the next dbt run renumbers ``stations``.
+        """
+        if not self.station_code:
+            return None
+        return Stations.objects.filter(station_code=self.station_code).first()
+
+
+class SensorAlert(models.Model):
+    """A per-sensor push alert that reached at least one of that sensor's followers.
+
+    The audit trail, and only that: Sensor Leasing is a paid, institutional
+    programme, so "this sensor was alerted on, at this level, at this time, and
+    the push service accepted it for this many devices" has to be answerable
+    from our own data rather than from a push provider's dashboard. It is a
+    count, not a roster — reconstructing *which* devices were warned would need
+    a row per recipient, which is a deliberate non-goal here: it would build a
+    lasting per-device record of an endpoint that has no login and is
+    identified only by an installation UUID.
+
+    Deciding whether to alert is a separate question with separate state, in
+    :class:`SensorAlertState`. Keeping the two apart is what lets a failed
+    delivery be retried without the audit log claiming an alert that never
+    landed, and what lets a station recover and alert again later.
+
+    History is kept rather than one row per station: the latest is just the
+    first by ``sent_at``, and the older rows are the audit trail.
+
+    Addressed by ``station_code`` for the same reason as
+    :class:`DeviceFollower` — dbt regenerates ``stations.id`` on every run.
+    """
+
+    # Which way the air moved. Without it a row reading "level: good" is
+    # indistinguishable from a warning about good air, which is not a thing —
+    # the audit has to say whether followers were warned or stood down.
+    #
+    # `catch_up` is neither: it goes to one installation that has just followed
+    # a station already sitting in an alert level, telling it how the air is
+    # right now. Distinct from the other two because it is not about a change,
+    # and because its audience is one device rather than every follower.
+    TREND_WORSENING = "worsening"
+    TREND_IMPROVING = "improving"
+    TREND_CATCH_UP = "catch_up"
+    TREND_CHOICES = (
+        (TREND_WORSENING, "Worsening"),
+        (TREND_IMPROVING, "Improving"),
+        (TREND_CATCH_UP, "Catch-up on follow"),
+    )
+
+    station_code = models.CharField(
+        max_length=255,
+        db_index=True,
+        help_text="The pipeline's stable natural key for the station alerted about.",
+    )
+    level = models.CharField(
+        max_length=32,
+        help_text="AQI level key at the time of the alert, e.g. 'unhealthy'.",
+    )
+    trend = models.CharField(
+        max_length=16,
+        choices=TREND_CHOICES,
+        default=TREND_WORSENING,
+        help_text=(
+            "Why followers were notified: the air got worse, it improved, or "
+            "one installation was caught up on a station it just followed. "
+            "Defaults to worsening: every row predating this field was a "
+            "warning."
+        ),
+    )
+    aqi = models.FloatField(help_text="The reading that triggered the alert.")
+    recipients = models.PositiveIntegerField(
+        default=0,
+        help_text="How many devices the push service accepted the alert for.",
+    )
+    sent_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "sensor_alert"
+        ordering = ("-sent_at",)
+
+    def __str__(self):
+        arrow = "↑" if self.trend == self.TREND_WORSENING else "↓"
+        return f"{self.station_code} {arrow} {self.level} ({self.recipients} devices)"
+
+    @classmethod
+    def record(
+        cls,
+        station_code: str,
+        level: str,
+        aqi: float,
+        recipients: int,
+        trend: str = TREND_WORSENING,
+    ):
+        return cls.objects.create(
+            station_code=station_code,
+            level=level,
+            trend=trend,
+            aqi=aqi,
+            recipients=recipients,
+        )
+
+
+class SensorAlertState(models.Model):
+    """What one station's alerting knows about that station, run to run.
+
+    Split from :class:`SensorAlert` because the audit log is a poor memory for
+    two reasons:
+
+    Recovery. An audit log only ever holds levels that were alerted on, so a
+    station that alerted at ``hazardous``, cleared to ``good`` and worsened
+    again to ``unhealthy`` still shows ``hazardous`` as its last entry — and
+    since nothing outranks ``hazardous``, that station could never alert again.
+    ``last_level`` records every reading's level, safe ones included, which is
+    what makes the recovery visible and reopens alerting.
+
+    Delivery. ``last_alerted_level`` only moves when an alert actually reached
+    somebody, so a push that Expo rejected is retried on the next run instead
+    of being suppressed by an audit row for a warning nobody received.
+
+    One row per station, taken with ``select_for_update`` for the length of a
+    send, which is also what stops two overlapping scheduled runs from both
+    deciding to alert the same station.
+    """
+
+    station_code = models.CharField(
+        max_length=255,
+        unique=True,
+        help_text="The pipeline's stable natural key for the station.",
+    )
+    last_level = models.CharField(
+        max_length=32,
+        blank=True,
+        default="",
+        help_text="AQI level key of the most recent reading, alert-worthy or not.",
+    )
+    last_alerted_level = models.CharField(
+        max_length=32,
+        blank=True,
+        default="",
+        help_text=(
+            "Level of the last alert that reached a device; blank once the "
+            "station drops back below the alert threshold."
+        ),
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "sensor_alert_state"
+        ordering = ("station_code",)
+
+    def __str__(self):
+        return f"{self.station_code}: {self.last_level or '—'}"
+
+    @classmethod
+    def lock(cls, station_code: str) -> "SensorAlertState":
+        """The station's state row, locked until the caller's transaction ends.
+
+        Created first and locked second because there is no row to lock on a
+        station's first run. ``get_or_create`` is safe against a concurrent run
+        creating it too — the unique constraint makes one of them lose and
+        re-read — and the lock is what serialises everything after it.
+        """
+        cls.objects.get_or_create(station_code=station_code)
+        return cls.objects.select_for_update().get(station_code=station_code)
 
 
 class RegionReadings(models.Model):

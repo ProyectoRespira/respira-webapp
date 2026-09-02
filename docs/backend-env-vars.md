@@ -26,6 +26,23 @@ See [`.env.example`](../.env.example) for the docker-compose reference and [`bac
 
 ---
 
+## GlitchTip Error Monitoring (optional)
+
+Leave the DSN blank to disable monitoring. The backend sends only unexpected
+server errors; request bodies, cookies, query strings, credentials, email
+addresses, and usernames are excluded. Authenticated events contain only the
+internal user ID and role.
+
+| Variable | Required | Default | Where used | Notes |
+| --- | --- | --- | --- | --- |
+| `BACKEND_GLITCHTIP_DSN` | No | `""` | `backend/backend/settings.py` | Private DSN for the backend GlitchTip project. Leave blank locally and in tests to disable reporting. |
+| `GLITCHTIP_ENVIRONMENT` | No | `""` | `backend/backend/settings.py` | Controlled deployment label, such as `production` or `demo`. Do not infer it from `BACKEND_DEBUG`. |
+| `GLITCHTIP_RELEASE` | No | `""` | `backend/backend/settings.py` | Immutable release label shared with the frontend, normally the GitHub Release tag. |
+
+See `docs/glitchtip-monitoring.md` for hosted-project setup, alerting, and source-map upload secrets.
+
+---
+
 ## Database — PostgreSQL
 
 All five core vars must be set together to enable PostgreSQL. If any is missing the backend falls back to SQLite (development only).
@@ -72,6 +89,18 @@ All four are optional. Set only the ones your database provider requires.
 | `BACKEND_GUNICORN_MAX_REQUESTS` | No | `1000` | `backend/entrypoint.sh` | Worker is recycled after serving this many requests, preventing memory leaks. |
 | `BACKEND_GUNICORN_MAX_REQUESTS_JITTER` | No | `100` | `backend/entrypoint.sh` | Random jitter added to `MAX_REQUESTS` so all workers don't restart simultaneously. |
 | `BACKEND_APP_GROUP` | No | `appgroup` | `backend/entrypoint.sh` | OS group gunicorn drops privileges to. Only used when container starts as root. |
+
+---
+
+## Device Followers & Sensor Alerts (optional)
+
+The device-follower endpoints are unauthenticated by design (the app has no login), so the throttle and the follow cap are what bound abuse of them rather than product limits — expect to tune them per environment.
+
+| Variable                               | Required | Default    | Where used                       | Notes                                                                                                                                                                                              |
+| -------------------------------------- | -------- | ---------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BACKEND_DEVICE_FOLLOWER_THROTTLE`     | No       | `120/min`  | `backend/backend/settings.py`    | DRF rate for the `device_followers` scope, counted per client IP. Deliberately generous: mobile carriers put many phones behind one CGNAT address, and a tight limit cuts off a whole network.      |
+| `BACKEND_MAX_FOLLOWS_PER_INSTALLATION` | No       | `10`       | `backend/backend/settings.py`    | How many stations one installation may follow. Exceeding it returns 400 with `"code": "max_follows_reached"`.                                                                                       |
+| `BACKEND_SENSOR_ALERTS_ENABLED`        | No       | `false`    | `backend/backend/settings.py`    | Whether `send_sensor_alerts` actually delivers push notifications. Off by default so a freshly deployed environment cannot start notifying real devices; the command still offers `--dry-run`/`--force`. Setting it to `true` is not enough on its own — the command also has to be scheduled, see [Per-sensor push alerts](sensor-alerts.md). |
 
 ---
 
@@ -158,6 +187,10 @@ Enables Django's email password-reset flow when SMTP is configured. In dev
 | `BACKEND_EMAIL_HOST_PASSWORD`| No       | `""`                                        | `backend/backend/settings.py` | SMTP password.                                    |
 | `BACKEND_EMAIL_USE_TLS`      | No       | `true`                                      | `backend/backend/settings.py` | Use STARTTLS.                                     |
 | `BACKEND_DEFAULT_FROM_EMAIL` | No       | `no-reply@proyectorespira.net`              | `backend/backend/settings.py` | Default From address for outgoing admin emails.   |
+| `BACKEND_PASSWORD_RESET_TIMEOUT_HOURS` | No | `24` | `backend/backend/settings.py` | How long a reset link stays valid, for both the admin and institutional flows. Django's own default is 72 hours. |
+| `BACKEND_INSTITUTION_PASSWORD_RESET_URL` | No | `/institucion/restablecer-clave` | `backend/backend/settings.py` | Where the institutional reset email points. A path by default, so scheme and host come from the request and the link resolves per environment; an absolute URL overrides that, for a deployment where the site and the API are on different origins. |
+| `BACKEND_PASSWORD_RESET_THROTTLE` | No | `10/hour` | `backend/backend/settings.py` | DRF rate for `POST /api/institution/password-reset/`, per client IP. This endpoint sends mail to an address the caller chose, so the rate is what stops it being used to flood an inbox. |
+| `BACKEND_PASSWORD_RESET_CONFIRM_THROTTLE` | No | `30/hour` | `backend/backend/settings.py` | DRF rate for `POST /api/institution/password-reset/confirm/`, per client IP. Looser than the request above — a visitor may need several tries to satisfy the password rules — but still bounds token guessing. |
 
 ---
 

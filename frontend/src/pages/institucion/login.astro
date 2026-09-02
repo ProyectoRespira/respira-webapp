@@ -1,0 +1,48 @@
+---
+// Entry point to the private institutional area (RES-328).
+//
+// A visitor who already has a valid session never sees this page: the guard
+// below sends them straight to their dashboard, so the browser's back button
+// after login does not land on an empty form.
+
+import InstitutionAuthLayout from "../../layouts/InstitutionAuthLayout.astro";
+import { LoginForm } from "../../components/react/institution/LoginForm";
+import { institutionCopy as copy } from "../../i18n/institution";
+import { GUIDE_ROUTES } from "../../data/menu";
+import { getFrontendRuntimeConfig } from "../../runtime-env";
+import {
+  INSTITUTION_DASHBOARD_PATH,
+  resolveInstitutionSession,
+} from "../../utils/institution-session";
+
+const session = await resolveInstitutionSession(Astro.request);
+
+// See the note in `dashboard.astro`: a constant used only inside a top-level
+// `return` reads as unused to Astro's type check.
+const redirectTo =
+  session.status === "authenticated" ? INSTITUTION_DASHBOARD_PATH : undefined;
+if (redirectTo) {
+  return Astro.redirect(redirectTo);
+}
+
+// `contactMail` is required runtime config; falling back to an empty string
+// keeps the form usable if it is ever missing instead of failing the render.
+let contactMail = "";
+try {
+  contactMail = getFrontendRuntimeConfig().contactMail;
+} catch (error) {
+  console.error("Could not read the contact mail for the login page", error);
+}
+---
+
+<InstitutionAuthLayout
+  title={copy.loginTitle}
+  tagline={copy.loginTagline}
+  blurb={copy.loginBlurb}
+>
+  <LoginForm
+    contactMail={contactMail}
+    guideHref={GUIDE_ROUTES.institution}
+    client:load
+  />
+</InstitutionAuthLayout>

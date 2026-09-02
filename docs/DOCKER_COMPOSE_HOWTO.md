@@ -105,7 +105,7 @@ For detailed environment variables, see [backend-env-vars.md](../backend-env-var
 
 ## Certificate Renewal (Production)
 
-Use the utility script to run certbot renewal and reload nginx:
+Use the utility script to pull and run Certbot independently, then reload nginx:
 
 ```bash
 ./utils/certbot-maintenance.sh renew
@@ -134,5 +134,6 @@ If certificate files are stored outside the default `./certbot/conf`, run:
 Troubleshooting output is appended to `<project-root>/logs/certbot-maintenance.log` by default. Pass `--log-file /custom/path.log` to use a different path.
 
 The `renew` command is a renewal check: it runs Certbot, but only certificates that are close enough to expiry are actually renewed.
+The script uses `docker run --pull always` so the Certbot image is refreshed before each check. Set `CERTBOT_IMAGE` to a pinned, tested image tag for controlled upgrades. Certbot is intentionally not an application Compose service.
 
 For a complete systemd service/timer setup, see [certbot-renewal.md](./certbot-renewal.md).

@@ -15,6 +15,8 @@ from dotenv import load_dotenv
 from pathlib import Path
 from typing import Any
 
+from .telemetry import initialize_glitchtip
+
 load_dotenv()
 
 
@@ -65,6 +67,12 @@ SECRET_KEY = os.getenv("BACKEND_SECRET_KEY", "respira-backend-dev-secret-key")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("BACKEND_DEBUG", "false").lower() == "true"
 
+initialize_glitchtip(
+    dsn=os.getenv("BACKEND_GLITCHTIP_DSN", "").strip(),
+    environment=os.getenv("GLITCHTIP_ENVIRONMENT", "").strip(),
+    release=os.getenv("GLITCHTIP_RELEASE", "").strip(),
+)
+
 _default_allowed_hosts = [
     "127.0.0.1",
     "localhost",
@@ -99,7 +107,40 @@ INSTALLED_APPS = [
 # Custom user model authenticated by email (see accounts app).
 AUTH_USER_MODEL = "accounts.User"
 
-REST_FRAMEWORK = {"DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema"}
+REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # Scoped, so only the endpoints that opt in are throttled — today that is
+    # the unauthenticated device-follower API (api.views.DeviceFollowerViewSet).
+    # The rate is counted per client IP and mobile carriers put many phones
+    # behind a single CGNAT address, so it is deliberately generous: it bounds
+    # abuse without cutting off a whole network.
+    "DEFAULT_THROTTLE_RATES": {
+        "device_followers": _env_str("BACKEND_DEVICE_FOLLOWER_THROTTLE", "120/min"),
+        # Password recovery (api.views.InstitutionViewSet). Counted per client
+        # IP, and much tighter than the follower API: this endpoint sends mail
+        # to an address the caller chose, so the rate is what stops it being
+        # used to flood somebody's inbox or to walk a list of addresses.
+        "password_reset": _env_str("BACKEND_PASSWORD_RESET_THROTTLE", "10/hour"),
+        # Setting the new password. Looser than the request above because
+        # nothing is sent anywhere and a visitor may legitimately need several
+        # tries to satisfy the password rules, but still bounded so the reset
+        # tokens themselves cannot be brute-forced.
+        "password_reset_confirm": _env_str(
+            "BACKEND_PASSWORD_RESET_CONFIRM_THROTTLE", "30/hour"
+        ),
+    },
+}
+
+# How many stations one installation may follow (api.views.DeviceFollowerView).
+# A bound on abuse of an unauthenticated endpoint rather than a product limit,
+# which is why it is configurable here rather than a database constraint.
+MAX_FOLLOWS_PER_INSTALLATION = _env_int("BACKEND_MAX_FOLLOWS_PER_INSTALLATION", 10)
+
+# Whether the per-sensor push alerts actually go out (api.push).
+# Off by default so a freshly deployed environment cannot start notifying real
+# devices before somebody decides it should; the management command still
+# offers --dry-run and --force.
+SENSOR_ALERTS_ENABLED = _env_bool("BACKEND_SENSOR_ALERTS_ENABLED", False)
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "RespiraAPI",
@@ -115,6 +156,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "backend.middleware.GlitchTipUserContextMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -301,6 +343,30 @@ EMAIL_USE_TLS = _env_bool("BACKEND_EMAIL_USE_TLS", True)
 DEFAULT_FROM_EMAIL = _env_str(
     "BACKEND_DEFAULT_FROM_EMAIL", "no-reply@proyectorespira.net"
 )
+
+# How long a password reset link stays valid, for both the admin flow
+# (backend/backend/urls.py) and the institutional one (api.views). Django's own
+# default is three days; one day is short enough that a link left sitting in an
+# inbox stops working, and long enough for somebody who requests a reset before
+# a weekend. The token is invalidated earlier than this by any password change.
+PASSWORD_RESET_TIMEOUT = _env_int("BACKEND_PASSWORD_RESET_TIMEOUT_HOURS", 24) * 3600
+
+# Where the institutional reset email points. Only the path is configured: the
+# scheme and host come from the request that asked for the reset, so the link
+# resolves to whichever environment the user is on rather than a hardcoded one.
+# An absolute URL here overrides that, for the case where the public site and
+# the API are not served from the same origin.
+INSTITUTION_PASSWORD_RESET_URL = _env_str(
+    "BACKEND_INSTITUTION_PASSWORD_RESET_URL", "/institucion/restablecer-clave"
+)
+
+# Logo shown in the HTML part of that email. Resolved the same way as the reset
+# URL, with one difference that matters: this one is fetched by the recipient's
+# mail client, not by a browser on the site, so it only ever renders when it
+# points at a publicly reachable host. In local development it resolves to
+# localhost and the client falls back to the image's alt text — set an absolute
+# URL here if a local run needs the logo to load.
+INSTITUTION_EMAIL_LOGO_URL = _env_str("BACKEND_EMAIL_LOGO_URL", "/favicon.png")
 
 
 # Login rate limiting (django-axes)

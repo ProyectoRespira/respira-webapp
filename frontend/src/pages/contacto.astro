@@ -53,6 +53,22 @@ const t = useTranslations(getLangFromLocals(Astro.locals));
           data-error-msg={t("contact.errorAlert")}
           data-success-msg={t("contact.successAlert")}
         >
+          <!-- Hidden from assistive tech too, not just visually: a screen
+               reader would otherwise announce an unexplained English "Website"
+               field in the middle of a Spanish form. -->
+          <div
+            aria-hidden="true"
+            style="position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden;"
+          >
+            <label for="website">Website</label>
+            <input
+              id="website"
+              name="website"
+              type="text"
+              tabindex="-1"
+              autocomplete="off"
+            />
+          </div>
           <div class="mb-4 flex flex-col md:flex-row gap-4">
             <div class="w-full">
               <label

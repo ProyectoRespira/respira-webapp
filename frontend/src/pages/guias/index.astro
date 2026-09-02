@@ -1,0 +1,108 @@
+---
+// Hub for the User Guides.
+//
+// Two guides today, written for two different readers, so the job of this page
+// is to make sure nobody opens the wrong one: each card names its audience
+// before it names the guide.
+
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import Footer from "../../components/atoms/Footer.astro";
+import { GUIDE_ROUTES, INSTITUTION_ACCESS } from "../../data/menu";
+
+const GUTTER = "px-[clamp(20px,5vw,64px)]";
+
+const guides = [
+  {
+    audience: "Para instituciones",
+    title: "Cómo entrar y moverte por el panel de tu institución",
+    summary:
+      "La pantalla de ingreso, qué hacer si perdiste la contraseña, y un recorrido por cada sección del panel: calidad del aire, sensor, historial, acciones, alertas y descargas.",
+    href: GUIDE_ROUTES.institution,
+    topics: [
+      "Entrar al panel",
+      "Recuperar la contraseña",
+      "Recorrido del panel",
+      "Preguntas frecuentes",
+    ],
+  },
+  {
+    audience: "Para administradores",
+    title: "Alta de una institución, de cero a panel activo",
+    summary:
+      "El paso a paso en el backoffice: crear la institución, asociarle un usuario y una estación, configurar alertas y verificar que su panel responde.",
+    href: GUIDE_ROUTES.admin,
+    topics: [
+      "Entrar al admin",
+      "Crear y vincular",
+      "Verificar el panel",
+      "Errores comunes",
+    ],
+  },
+];
+---
+
+<BaseLayout>
+  <section
+    class={`mx-auto max-w-[1100px] ${GUTTER} pb-16 pt-[clamp(40px,7vw,80px)]`}
+  >
+    <p
+      class="font-sans text-[12px] font-bold uppercase tracking-[0.09em] text-green_darker"
+    >
+      Guías de uso
+    </p>
+    <h1
+      class="mt-3 max-w-[20ch] text-balance font-serif text-[clamp(30px,5vw,48px)] font-black leading-[1.1] text-near_black"
+    >
+      Cómo usar Proyecto Respira
+    </h1>
+    <p
+      class="mt-4 max-w-[62ch] font-sans text-[17px] leading-relaxed text-gray"
+    >
+      Dos guías, según quién seas: la institución que consulta su panel, o el
+      equipo que da de alta instituciones desde el backoffice.
+    </p>
+
+    <ul class="mt-10 grid grid-cols-1 gap-6 md:grid-cols-2">
+      {
+        guides.map((guide) => (
+          <li class="flex">
+            <a
+              href={guide.href}
+              class="flex w-full flex-col gap-3 rounded-xl border border-bg-gray bg-white p-6 transition-colors hover:border-green_dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green_dark"
+            >
+              <span class="w-fit rounded-full bg-light_green px-3 py-1 font-sans text-[12px] font-bold text-green_darker">
+                {guide.audience}
+              </span>
+              <span class="font-serif text-[20px] font-bold leading-snug text-near_black">
+                {guide.title}
+              </span>
+              <span class="font-sans text-[15px] leading-relaxed text-gray">
+                {guide.summary}
+              </span>
+              <span class="mt-1 flex flex-wrap gap-x-2 gap-y-1 font-sans text-[13px] text-lightgray">
+                {guide.topics.map((topic) => (
+                  <span class="before:mr-2 before:content-['·'] first:before:content-['']">
+                    {topic}
+                  </span>
+                ))}
+              </span>
+              <span class="mt-2 font-sans text-[13px] font-bold uppercase tracking-wide text-green_darker underline underline-offset-4">
+                Leer la guía
+              </span>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+
+    <p class="mt-10 font-sans text-[15px] text-gray">
+      ¿Ya sabés lo que buscás? Entrá directo al{" "}
+      <a
+        class="font-semibold text-green_darker underline underline-offset-4"
+        href={INSTITUTION_ACCESS.route}>panel de tu institución</a
+      >.
+    </p>
+  </section>
+
+  <Footer />
+</BaseLayout>

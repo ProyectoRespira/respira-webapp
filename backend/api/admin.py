@@ -1,6 +1,6 @@
 from django.contrib import admin, messages
 from django.contrib.admin import helpers
-from django.db.models import Count
+from django.db.models import Count, OuterRef, Subquery
 from django.template.response import TemplateResponse
 from django.utils import timezone
 
@@ -8,9 +8,13 @@ from accounts.admin_base import ReadOnlyModelAdmin, RoleBasedModelAdmin
 
 from .forms import StationStatusOverrideForm
 from .models import (
+    ActionLog,
+    DeviceFollower,
+    DeviceInstallation,
     FaqCategory,
     FaqQuestion,
     Institution,
+    InstitutionAlert,
     InstitutionAlertConfig,
     InstitutionContract,
     InstitutionUser,
@@ -443,6 +447,249 @@ class InstitutionContractAdmin(RoleBasedModelAdmin):
         ("Document", {"fields": ("signed_contract_url",)}),
         ("Audit", {"fields": ("created_at", "updated_at")}),
     )
+
+
+class HasPushTokenFilter(admin.SimpleListFilter):
+    """Splits installations by whether the app has registered a push token yet.
+
+    The operational question behind it: an installation with follows but no
+    token is following stations and cannot be notified about any of them, so
+    this is how that gap gets spotted.
+    """
+
+    title = "push token"
+    parameter_name = "has_push_token"
+
+    def lookups(self, request, model_admin):
+        return (("yes", "Registered"), ("no", "Missing"))
+
+    def queryset(self, request, queryset):
+        if self.value() == "yes":
+            return queryset.exclude(push_token="")
+        if self.value() == "no":
+            return queryset.filter(push_token="")
+        return queryset
+
+
+@admin.register(DeviceInstallation)
+class DeviceInstallationAdmin(RoleBasedModelAdmin):
+    """Installations of the mobile app, and the push token each one holds.
+
+    Written exclusively by the device-follower API, so add and change are
+    disabled: this is a device's own state and editing it here would silently
+    redirect somebody's notifications without the app ever knowing. Delete
+    stays available under the normal role matrix, so a data-removal request can
+    be honoured — and it cascades to the installation's follows, which is what
+    such a request means.
+    """
+
+    list_display = (
+        "installation_id",
+        "follow_count",
+        "masked_push_token",
+        "updated_at",
+    )
+    list_filter = (HasPushTokenFilter, "updated_at")
+    search_fields = ("installation_id", "push_token")
+    ordering = ("-updated_at",)
+    readonly_fields = (
+        "installation_id",
+        "push_token",
+        "follow_count",
+        "created_at",
+        "updated_at",
+    )
+    fieldsets = (
+        (None, {"fields": ("installation_id", "follow_count")}),
+        ("Notifications", {"fields": ("push_token",)}),
+        ("Audit", {"fields": ("created_at", "updated_at")}),
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def get_queryset(self, request):
+        # Counted in the query rather than per row: the changelist would
+        # otherwise issue one COUNT per installation.
+        return super().get_queryset(request).annotate(_follow_count=Count("follows"))
+
+    @admin.display(description="Follows", ordering="_follow_count")
+    def follow_count(self, obj):
+        count = getattr(obj, "_follow_count", None)
+        if count is None:
+            count = obj.follows.count()
+        return count
+
+    @admin.display(description="Push token")
+    def masked_push_token(self, obj):
+        """Show only enough of the token to tell two of them apart.
+
+        Full tokens are 150+ characters and would swamp the changelist; the
+        detail page carries the real value for anyone debugging delivery.
+        """
+        if not obj.push_token:
+            return "—"
+        return f"…{obj.push_token[-8:]}"
+
+
+@admin.register(DeviceFollower)
+class DeviceFollowerAdmin(RoleBasedModelAdmin):
+    """Which stations each installation follows — one row per pair.
+
+    Read-only for the same reason as the installation above: this is a device's
+    own state, written only by the API.
+
+    Rows address their station by ``station_code``, not by a foreign key, so
+    the station's name is resolved with a subquery rather than a join — one
+    query for the whole changelist instead of one per row.
+    """
+
+    list_display = (
+        "installation_uuid",
+        "station_code",
+        "station_name",
+        "created_at",
+    )
+    list_filter = ("station_code", "created_at")
+    search_fields = ("installation__installation_id", "station_code")
+    ordering = ("-created_at",)
+    readonly_fields = (
+        "installation",
+        "station_code",
+        "station_name",
+        "created_at",
+        "updated_at",
+    )
+    fieldsets = (
+        (None, {"fields": ("installation",)}),
+        ("Followed station", {"fields": ("station_code", "station_name")}),
+        ("Audit", {"fields": ("created_at", "updated_at")}),
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def get_queryset(self, request):
+        station_names = Stations.objects.filter(
+            station_code=OuterRef("station_code")
+        ).values("name")[:1]
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("installation")
+            .annotate(_station_name=Subquery(station_names))
+        )
+
+    @admin.display(description="Installation", ordering="installation__installation_id")
+    def installation_uuid(self, obj):
+        return obj.installation.installation_id
+
+    @admin.display(description="Station", ordering="_station_name")
+    def station_name(self, obj):
+        # Annotated on the changelist; resolved directly on the detail page,
+        # which loads the object without going through get_queryset's annotation.
+        name = getattr(obj, "_station_name", None)
+        if name is None:
+            station = obj.station
+            name = station.name if station else None
+        # An unknown code means the pipeline dropped the station the device
+        # follows — worth showing as such rather than as an empty cell.
+        return name or "unknown station"
+
+
+@admin.register(InstitutionAlert)
+class InstitutionAlertAdmin(RoleBasedModelAdmin):
+    """Poor-air-quality events recorded for an institution's station.
+
+    Admin-owned for now: no generator writes these yet, so an operator records
+    the event an institution reacted to. ``search_fields`` is also what lets
+    ``ActionLogAdmin`` offer this model as an autocomplete target.
+    """
+
+    list_display = (
+        "institution",
+        "station",
+        "aqi_value",
+        "alert_threshold",
+        "triggered_at",
+        "resolved_at",
+    )
+    list_filter = ("institution", "station", "triggered_at")
+    search_fields = (
+        "institution__legal_name",
+        "institution__display_name",
+        "station__name",
+    )
+    ordering = ("-triggered_at",)
+    list_select_related = ("institution", "station")
+    autocomplete_fields = ("institution", "station")
+    fieldsets = (
+        (None, {"fields": ("institution", "station")}),
+        ("Measurement", {"fields": ("aqi_value", "alert_threshold")}),
+        ("Timeline", {"fields": ("triggered_at", "resolved_at")}),
+    )
+
+
+class AlertLinkFilter(admin.SimpleListFilter):
+    """Splits the history by whether an action responded to a recorded alert.
+
+    A plain ``("alert",)`` filter would list every alert individually, which is
+    not the question an operator asks here — they want the actions that answered
+    *some* alert, versus the ones logged on their own initiative.
+    """
+
+    title = "alert association"
+    parameter_name = "has_alert"
+
+    def lookups(self, request, model_admin):
+        return (("yes", "Linked to an alert"), ("no", "No alert linked"))
+
+    def queryset(self, request, queryset):
+        if self.value() == "yes":
+            return queryset.filter(alert__isnull=False)
+        if self.value() == "no":
+            return queryset.filter(alert__isnull=True)
+        return queryset
+
+
+@admin.register(ActionLog)
+class ActionLogAdmin(ReadOnlyModelAdmin):
+    """The institutional action history, for review from the backoffice.
+
+    ``ReadOnlyModelAdmin`` — for everyone, superadmins included — because this
+    is an audit trail: entries are written by the institutions themselves
+    through the API, and a history that the backoffice can rewrite after the
+    fact is not traceable. That also enforces the ticket's rule that
+    ``timestamp`` cannot be overwritten by hand.
+    """
+
+    list_display = ("timestamp", "institution", "station", "alert", "note_excerpt")
+    list_filter = (AlertLinkFilter, "institution", "station", "timestamp")
+    search_fields = (
+        "institution__legal_name",
+        "institution__display_name",
+        "station__name",
+        "note",
+    )
+    ordering = ("-timestamp", "-id")
+    list_select_related = ("institution", "station", "alert")
+    fieldsets = (
+        (None, {"fields": ("institution", "station", "timestamp")}),
+        ("Alert", {"fields": ("alert",)}),
+        ("Action", {"fields": ("note",)}),
+    )
+
+    @admin.display(description="Note")
+    def note_excerpt(self, obj):
+        """First line of the note, so the changelist stays one row per action."""
+        first_line = obj.note.strip().splitlines()[0] if obj.note.strip() else ""
+        return first_line if len(first_line) <= 80 else f"{first_line[:77]}…"
 
 
 @admin.register(StationOverride)

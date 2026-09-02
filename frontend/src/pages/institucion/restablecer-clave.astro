@@ -1,0 +1,28 @@
+---
+// Step two of password recovery: the page the emailed link opens.
+//
+// `uid` and `token` are read here rather than in the island so the island never
+// has to parse `window.location` — and so the page works identically whether it
+// is the first render or a reload. They are passed through untouched: the
+// backend is the only thing that can say whether a link is still good, and it
+// says so on submit (`/api/institution/password-reset/confirm/`).
+//
+// The path must stay in step with `INSTITUTION_PASSWORD_RESET_URL` in
+// `backend/backend/settings.py`, which is what the email is built from.
+
+import InstitutionAuthLayout from "../../layouts/InstitutionAuthLayout.astro";
+import { ResetPasswordForm } from "../../components/react/institution/ResetPasswordForm";
+import { institutionCopy as copy } from "../../i18n/institution";
+
+const params = Astro.url.searchParams;
+const uid = params.get("uid") ?? "";
+const token = params.get("token") ?? "";
+---
+
+<InstitutionAuthLayout
+  title={copy.resetTitle}
+  tagline={copy.resetTagline}
+  blurb={copy.resetBlurb}
+>
+  <ResetPasswordForm uid={uid} token={token} client:load />
+</InstitutionAuthLayout>

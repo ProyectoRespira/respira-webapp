@@ -16,6 +16,11 @@ eggs/
 .eggs/
 lib/
 lib64/
+# `lib/` above has no leading slash, so it matches a directory of that name
+# *anywhere* — it is meant for Python build artifacts but also swallowed the
+# frontend's own source directory, which is how `src/lib/antispam.ts` ended up
+# committed-looking locally and missing on CI.
+!frontend/src/lib/
 parts/
 sdist/
 var/

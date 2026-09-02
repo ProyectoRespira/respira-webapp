@@ -23,3 +23,10 @@ DATABASES = {
 }
 
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
+
+# Project-specific settings the code reads through `django.conf.settings`.
+# django-stubs resolves those attributes against this module, so anything not
+# shipped by Django itself has to be declared here or mypy reports it missing.
+# The values are irrelevant — only the names are.
+INSTITUTION_PASSWORD_RESET_URL = "/institucion/restablecer-clave"
+INSTITUTION_EMAIL_LOGO_URL = "/favicon.png"

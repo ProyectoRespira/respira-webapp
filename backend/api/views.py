@@ -1,4 +1,5 @@
 import ipaddress
+import uuid
 from collections import defaultdict
 from datetime import timedelta
 from math import asin, cos, radians, sin, sqrt
@@ -10,27 +11,35 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
+from django.contrib.auth.forms import PasswordResetForm
 from django.core.cache import cache
+from django.db import transaction
 from django.db.models import Avg, Prefetch
 from django.db.models.functions import TruncDate, TruncMonth, TruncWeek
 from django.middleware.csrf import get_token
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
-from rest_framework import generics, status
+from rest_framework import generics, mixins, status
 from rest_framework.decorators import action
-from rest_framework.exceptions import NotFound, PermissionDenied
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.views import APIView
+from rest_framework.viewsets import GenericViewSet, ModelViewSet, ReadOnlyModelViewSet
 
 from .aqi import classify_aqi
 from .models import (
+    ActionLog,
+    DeviceFollower,
+    DeviceInstallation,
     FaqCategory,
     FaqQuestion,
     InferenceResults,
     InferenceRuns,
     Institution,
+    InstitutionAlert,
     RegionReadings,
     Regions,
     StationReadingsGold,
@@ -40,15 +49,24 @@ from .models import (
 )
 from .pagination import StandardResultsSetPagination
 from .permissions import IsAdminRole, IsInstitutionUser, IsOwnInstitution
+from .push import catch_up_follower
 from .serializers import (
+    ActionLogSerializer,
     AdminUserCreateSerializer,
     AdminUserSerializer,
     AdminUserUpdateSerializer,
+    DeviceFollowerSerializer,
+    DeviceFollowerWriteSerializer,
+    DeviceInstallationSerializer,
+    DeviceInstallationWriteSerializer,
     FaqCategorySerializer,
     ForecastSerializer,
     HealthSerializer,
+    InstitutionAlertSerializer,
     InstitutionDashboardSerializer,
     InstitutionLoginSerializer,
+    InstitutionPasswordResetConfirmSerializer,
+    InstitutionPasswordResetSerializer,
     InstitutionSerializer,
     MapSerializer,
     RegionSerializer,
@@ -756,6 +774,20 @@ def _build_institution_dashboard(institution):
     }
 
 
+def _absolute_for_email(request, configured: str) -> str:
+    """Resolves a configured path (or URL) against the request being served.
+
+    Settings that end up inside an email hold a *path* by default, and the
+    scheme and host come from the request — so what the recipient receives
+    points at whatever environment they asked from (local, demo, production)
+    rather than a URL baked into the image. An absolute URL in the setting wins,
+    for a deployment where the site and the API do not share an origin.
+    """
+    if configured.startswith(("http://", "https://")):
+        return configured.rstrip("/")
+    return request.build_absolute_uri(configured).rstrip("/")
+
+
 @extend_schema(tags=["Institutional Dashboard"])
 class InstitutionViewSet(ReadOnlyModelViewSet):
     """Self-service, read-only view of an institution's own dashboard data.
@@ -774,6 +806,11 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
 
     serializer_class = InstitutionSerializer
     permission_classes = [IsAuthenticated, IsInstitutionUser, IsOwnInstitution]
+    # Declared so the password-reset actions below can override it through
+    # `@action(throttle_scope=...)`: DRF's `as_view` rejects any initkwarg that
+    # is not already an attribute of the viewset. `None` leaves every other
+    # route unthrottled, which is what `ScopedRateThrottle` does with no scope.
+    throttle_scope = None
     # "get" for list/retrieve/me, "post" for the login/logout actions below —
     # this viewset otherwise offers no write access to Institution itself.
     http_method_names = ["get", "post"]
@@ -817,6 +854,42 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
         return Response(serializer.data)
 
     @extend_schema(
+        summary="List the alerts recorded for the caller's institution",
+        description=(
+            "Air-quality events recorded for the institution's own sensor, "
+            "most recent first. Read-only: alerts are produced by the "
+            "platform, not authored by institutions. This is what makes "
+            "`ActionLog.alert` usable from a client — without it the field is "
+            "writable but a caller has no way to discover a valid id."
+        ),
+        responses=InstitutionAlertSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"], serializer_class=InstitutionAlertSerializer)
+    def alerts(self, request, *args, **kwargs):
+        """Scoped in the queryset, like ``list``.
+
+        Registered as a router action rather than a plain path, which also
+        settles the ordering problem: the router emits dynamic list routes
+        before ``institution/{pk}/``, so "alerts" is never read as a pk.
+        """
+        institution = get_institution_for_user(request.user)
+        queryset = (
+            InstitutionAlert.objects.filter(institution=institution).select_related(
+                "station"
+            )
+            if institution is not None
+            else InstitutionAlert.objects.none()
+        )
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @extend_schema(
         summary="Log in to the institutional dashboard",
         request=InstitutionLoginSerializer,
         responses=InstitutionSerializer,
@@ -856,6 +929,168 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
         auth_logout(request)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @extend_schema(
+        summary="Request a password reset email",
+        description=(
+            "Starts Django's password reset workflow for the given address. "
+            "Always answers 204, whether or not an account exists, so the "
+            "endpoint cannot be used to find out which addresses are "
+            "registered. The email carries a signed, time-limited link "
+            "(`PASSWORD_RESET_TIMEOUT`) pointing at the public reset page."
+        ),
+        request=InstitutionPasswordResetSerializer,
+        responses={204: None},
+    )
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="password-reset",
+        permission_classes=[AllowAny],
+        throttle_classes=[ScopedRateThrottle],
+        throttle_scope="password_reset",
+        serializer_class=InstitutionPasswordResetSerializer,
+    )
+    def password_reset(self, request, *args, **kwargs):
+        """Send a reset link, without revealing whether the address is known.
+
+        Built on ``django.contrib.auth.forms.PasswordResetForm``, so the set of
+        accounts that may be reset is Django's own: active users with a usable
+        password. Nothing about the outcome reaches the caller — the response is
+        identical for a registered address, an unregistered one, and an inactive
+        account.
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        form = PasswordResetForm(data={"email": serializer.validated_data["email"]})
+        # `is_valid` only re-checks the address' shape here, which the serializer
+        # already did; `save` is what looks accounts up and sends the mail.
+        if form.is_valid():
+            form.save(
+                request=request,
+                use_https=request.is_secure(),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                subject_template_name="institution/password_reset_subject.txt",
+                email_template_name="institution/password_reset_email.txt",
+                # Sent as a multipart message: the plain-text body above stays
+                # the fallback (clients with HTML off, and what spam filters
+                # read), with this as the alternative part.
+                html_email_template_name="institution/password_reset_email.html",
+                extra_email_context={
+                    "reset_base_url": _absolute_for_email(
+                        request, settings.INSTITUTION_PASSWORD_RESET_URL
+                    ),
+                    # Remote image: it has to be reachable from the recipient's
+                    # mail client, so it resolves to the public site rather than
+                    # to anything internal.
+                    "logo_url": _absolute_for_email(
+                        request, settings.INSTITUTION_EMAIL_LOGO_URL
+                    ),
+                    "timeout_hours": settings.PASSWORD_RESET_TIMEOUT // 3600,
+                },
+            )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @extend_schema(
+        summary="Set a new password from a reset link",
+        description=(
+            "Completes the password reset. `uid` and `token` are the values "
+            "carried by the emailed link. Returns 400 when the link is "
+            "expired, malformed, already used or belongs to an inactive "
+            "account, and 400 with `new_password` errors when the password "
+            "does not satisfy the platform's password rules."
+        ),
+        request=InstitutionPasswordResetConfirmSerializer,
+        responses={204: None},
+    )
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="password-reset/confirm",
+        permission_classes=[AllowAny],
+        throttle_classes=[ScopedRateThrottle],
+        throttle_scope="password_reset_confirm",
+        serializer_class=InstitutionPasswordResetConfirmSerializer,
+    )
+    def password_reset_confirm(self, request, *args, **kwargs):
+        """Consume a reset link and store the new password.
+
+        The old password stops working the moment this succeeds, and so does
+        the link: Django's token hashes the password and ``last_login``, so a
+        second POST with the same `uid`/`token` fails validation.
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        # Sessions the account had open elsewhere die with the old password:
+        # Django stores a hash of it in the session and `auth.get_user` rejects
+        # any session whose hash no longer matches. Nothing to flush by hand.
+        serializer.save()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List the caller's institutional action history",
+        description=(
+            "Actions recorded by the authenticated user's institution, most "
+            "recent first. The institution is resolved from the session, so "
+            "the history never contains another institution's records."
+        ),
+    ),
+    create=extend_schema(
+        summary="Record an action taken by the caller's institution",
+        description=(
+            "Creates one entry in the institutional action history. "
+            "`institution` and `timestamp` are assigned by the backend and "
+            "ignored if sent. `station` must be the station the institution "
+            "holds a contract for; `alert` is optional and, when given, must "
+            "belong to the same institution and station."
+        ),
+    ),
+)
+@extend_schema(tags=["Institutional Dashboard"])
+class ActionLogViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, GenericViewSet):
+    """Create and list an institution's record of actions taken.
+
+    Deliberately create + list only: the action history is an audit trail, so
+    entries are never edited or removed through the API — which is also why
+    ``timestamp`` is stamped by the model rather than accepted from a client.
+
+    Scoping works the same way as ``InstitutionViewSet``: ``get_queryset``
+    filters the list down to the caller's own institution (DRF does not run
+    object-level permissions per row), and the serializer refuses a station or
+    alert belonging to anyone else on the way in.
+    """
+
+    serializer_class = ActionLogSerializer
+    permission_classes = [IsAuthenticated, IsInstitutionUser]
+    pagination_class = StandardResultsSetPagination
+    http_method_names = ["get", "post"]
+
+    def get_queryset(self):
+        institution = get_institution_for_user(self.request.user)
+        if institution is None:
+            return ActionLog.objects.none()
+        return ActionLog.objects.filter(institution=institution).select_related(
+            "institution", "station", "alert"
+        )
+
+    def get_serializer_context(self):
+        """Hand the caller's institution to the serializer's validation.
+
+        Passed explicitly rather than re-resolved inside each validator, so the
+        institution used for authorization is the same object the created row
+        is assigned to.
+        """
+        context = super().get_serializer_context()
+        context["institution"] = get_institution_for_user(self.request.user)
+        return context
+
+    def perform_create(self, serializer):
+        serializer.save(institution=get_institution_for_user(self.request.user))
+
 
 @extend_schema(
     responses=FaqCategorySerializer(many=True),
@@ -888,3 +1123,321 @@ class FaqListView(generics.ListAPIView):
             )
             .order_by("order", "id")
         )
+
+
+# --- Device followers (respira-mobile, unauthenticated) ---------------------
+
+INSTALLATION_ID_HEADER = "X-Installation-Id"
+
+# How many stations one installation may follow. A bound on abuse of an
+# unauthenticated endpoint rather than a product limit, which is why it lives
+# here and is tunable rather than being a database constraint.
+MAX_FOLLOWS_PER_INSTALLATION = getattr(settings, "MAX_FOLLOWS_PER_INSTALLATION", 10)
+
+INSTALLATION_ID_PARAMETER = OpenApiParameter(
+    name=INSTALLATION_ID_HEADER,
+    type=OpenApiTypes.UUID,
+    location=OpenApiParameter.HEADER,
+    required=False,
+    description=(
+        "UUIDv4 identifying the app installation. Preferred over the "
+        "`installation_id` query parameter, which is also accepted but ends "
+        "up written to proxy access logs."
+    ),
+)
+
+INSTALLATION_ID_QUERY_PARAMETER = OpenApiParameter(
+    name="installation_id",
+    type=OpenApiTypes.UUID,
+    location=OpenApiParameter.QUERY,
+    required=False,
+    description="Fallback for clients that cannot set the header.",
+)
+
+
+def _resolve_installation_id(request) -> uuid.UUID:
+    """Read the caller's installation id from header, query string or body.
+
+    Three sources because the same identifier has to travel on requests that
+    have no body (GET, DELETE) and on ones that do. The header is listed first
+    and documented as preferred: a query string is recorded verbatim in the
+    proxy's access log, and this is the only identifier the feature has.
+
+    Version 4 is required, not merely a well-formed UUID. A v1 UUID encodes a
+    MAC address and a timestamp and a v5 is a hash of some seed — both are the
+    derived, guessable kind of identifier this feature deliberately rejected,
+    so the rule is enforced here rather than left to a mobile code review.
+    """
+    raw = (
+        request.headers.get(INSTALLATION_ID_HEADER)
+        or request.query_params.get("installation_id")
+        or (
+            request.data.get("installation_id")
+            if isinstance(request.data, dict)
+            else None
+        )
+    )
+    if not raw:
+        raise ValidationError(
+            {
+                "installation_id": (
+                    f"Required, in the {INSTALLATION_ID_HEADER} header, the "
+                    "'installation_id' query parameter or the request body."
+                )
+            }
+        )
+    try:
+        installation_id = uuid.UUID(str(raw))
+    except (AttributeError, TypeError, ValueError):
+        raise ValidationError({"installation_id": "Must be a valid UUID."})
+    if installation_id.version != 4:
+        raise ValidationError({"installation_id": "Must be a random (version 4) UUID."})
+    return installation_id
+
+
+@extend_schema(tags=["Device Followers"])
+class DeviceFollowerView(APIView):
+    """The stations a mobile installation follows, with no login involved.
+
+    Deliberately unauthenticated: the app identifies itself with the UUIDv4 it
+    generated on first launch, and that unguessable value is what stands in for
+    a credential. The throttle below is the compensating control — it bounds
+    what an abusive client can do without penalising a whole carrier NAT.
+
+    Not a router-backed ``ViewSet``: the collection has to answer ``DELETE`` as
+    well as ``GET`` and ``POST``, and the default router only maps the first
+    two onto a list URL.
+    """
+
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "device_followers"
+
+    @extend_schema(
+        summary="List the stations this installation follows",
+        description=(
+            "Returns an empty list — not a 404 — for an installation that has "
+            "never followed anything, which is the normal state of a fresh "
+            "install. Each `station` is resolved fresh on every read, so it is "
+            "always the station's current id even after the pipeline renumbers "
+            "them; it is null if that station no longer exists."
+        ),
+        parameters=[INSTALLATION_ID_PARAMETER, INSTALLATION_ID_QUERY_PARAMETER],
+        responses={200: DeviceFollowerSerializer(many=True)},
+    )
+    def get(self, request, *args, **kwargs):
+        installation_id = _resolve_installation_id(request)
+        follows = DeviceFollower.objects.filter(
+            installation__installation_id=installation_id
+        )
+        return Response(DeviceFollowerSerializer(follows, many=True).data)
+
+    @extend_schema(
+        summary="Follow a station",
+        description=(
+            "Adds a station to what this installation follows. Repeating the "
+            "same request is safe: it returns 200 with the existing follow "
+            "instead of creating a second one or failing. Returns 201 the "
+            f"first time. An installation may follow up to "
+            f"{MAX_FOLLOWS_PER_INSTALLATION} stations."
+        ),
+        parameters=[INSTALLATION_ID_PARAMETER],
+        request=DeviceFollowerWriteSerializer,
+        responses={200: DeviceFollowerSerializer, 201: DeviceFollowerSerializer},
+    )
+    def post(self, request, *args, **kwargs):
+        installation_id = _resolve_installation_id(request)
+        serializer = DeviceFollowerWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        station = serializer.validated_data["station"]
+        push_token = serializer.validated_data.get("push_token")
+
+        with transaction.atomic():
+            installation, _ = DeviceInstallation.register(
+                installation_id, push_token=push_token
+            )
+            # The *installation* is what gets locked, not the follow: two
+            # requests adding two different stations would each find no
+            # existing row to lock, both read a count under the cap, and both
+            # insert. Locking the row every follow of this installation hangs
+            # off serialises them, so the count below is the real one.
+            installation = DeviceInstallation.objects.select_for_update().get(
+                pk=installation.pk
+            )
+            existing = installation.follows.filter(
+                station_code=station.station_code
+            ).first()
+            if existing is not None:
+                return Response(DeviceFollowerSerializer(existing).data)
+
+            if installation.follows.count() >= MAX_FOLLOWS_PER_INSTALLATION:
+                # A machine-readable `code`, not just prose: the app has to
+                # tell this apart from the other 400 this endpoint can return
+                # (a station with no `station_code`) to say something true to
+                # the user, and it cannot do that by matching on an English
+                # sentence it would then have to keep in step.
+                return Response(
+                    {
+                        "code": "max_follows_reached",
+                        "max": MAX_FOLLOWS_PER_INSTALLATION,
+                        "detail": (
+                            "This installation already follows the maximum of "
+                            f"{MAX_FOLLOWS_PER_INSTALLATION} stations. Unfollow "
+                            "one before adding another."
+                        ),
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            follow = DeviceFollower.objects.create(
+                installation=installation, station_code=station.station_code
+            )
+
+        # Outside the transaction on purpose. This calls the push service, and
+        # doing that while still holding `select_for_update` on the
+        # installation would block every other follow by the same device for
+        # the length of an HTTP round trip.
+        #
+        # Only on a new follow — the `existing` branch above returns before
+        # here, so re-sending the same request does not re-send the push.
+        catch_up_follower(installation, station)
+
+        return Response(
+            DeviceFollowerSerializer(follow).data, status=status.HTTP_201_CREATED
+        )
+
+    @extend_schema(
+        summary="Stop following one station, or all of them",
+        description=(
+            "Pass `station_code` — or `station`, its current id — to unfollow "
+            "that one; omit both to unfollow everything this installation "
+            "follows. Idempotent: returns 204 whether or not anything was "
+            "there to delete.\n\n"
+            "`station_code` is the one that always works. A station the "
+            "pipeline has dropped no longer has an id to look up, so a follow "
+            "left pointing at it could never be removed by id — and that is "
+            "exactly the follow a user most wants off their list."
+        ),
+        parameters=[
+            INSTALLATION_ID_PARAMETER,
+            INSTALLATION_ID_QUERY_PARAMETER,
+            OpenApiParameter(
+                name="station_code",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description=(
+                    "Stable code of the station to unfollow. Preferred over "
+                    "`station`; takes precedence when both are sent. Sending "
+                    "it blank is a 400 — omit it to unfollow everything."
+                ),
+            ),
+            OpenApiParameter(
+                name="station",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description=(
+                    "Current id of the station to unfollow. Omit both to "
+                    "unfollow all of them."
+                ),
+            ),
+        ],
+        responses={204: None},
+    )
+    def delete(self, request, *args, **kwargs):
+        installation_id = _resolve_installation_id(request)
+        follows = DeviceFollower.objects.filter(
+            installation__installation_id=installation_id
+        )
+
+        station_code = request.query_params.get("station_code")
+        raw_station = request.query_params.get("station")
+
+        if station_code is not None:
+            # Rejected rather than ignored: omitting the parameter is how a
+            # caller asks to unfollow *everything*, so treating `?station_code=`
+            # as absent would turn a malformed single unfollow into wiping the
+            # whole list.
+            if not station_code:
+                raise ValidationError({"station_code": "Must not be blank."})
+            # Matched directly against what the row stores, so this works even
+            # for a station that no longer exists.
+            follows = follows.filter(station_code=station_code)
+        elif raw_station is not None:
+            try:
+                station_id = int(raw_station)
+            except (TypeError, ValueError):
+                raise ValidationError({"station": "Must be an integer station id."})
+
+            station = Stations.objects.filter(id=station_id).first()
+            # A station the pipeline has already dropped cannot be looked up to
+            # get its code, so there is nothing to match on. That is still a
+            # successful unfollow of nothing rather than an error — the caller
+            # asked for that station not to be followed, and it is not.
+            if station is None or not station.station_code:
+                return Response(status=status.HTTP_204_NO_CONTENT)
+
+            follows = follows.filter(station_code=station.station_code)
+
+        follows.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@extend_schema(tags=["Device Followers"])
+class DeviceInstallationView(APIView):
+    """The installation itself, addressed by its own id.
+
+    The push token lives here rather than on each follow: the OS rotates it at
+    any time and independently of which stations are followed, and with several
+    follows a per-row copy would have to be kept in step across all of them —
+    and a notification fan-out would deliver once per follow to the same phone.
+    """
+
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "device_followers"
+
+    @extend_schema(
+        summary="Read this installation's registration",
+        description=(
+            "Returns 404 for an installation the backend has never seen. The "
+            "push token is reported as a boolean, never echoed: these "
+            "endpoints are unauthenticated, so anyone holding an installation "
+            "id could otherwise read the device's token."
+        ),
+        parameters=[INSTALLATION_ID_PARAMETER, INSTALLATION_ID_QUERY_PARAMETER],
+        responses={200: DeviceInstallationSerializer},
+    )
+    def get(self, request, *args, **kwargs):
+        installation_id = _resolve_installation_id(request)
+        installation = DeviceInstallation.objects.filter(
+            installation_id=installation_id
+        ).first()
+        if installation is None:
+            raise NotFound("This installation has not registered.")
+        return Response(DeviceInstallationSerializer(installation).data)
+
+    @extend_schema(
+        summary="Register or refresh the push token",
+        description=(
+            "Creates the installation if the backend has not seen it before, "
+            "so the app can register a token before following anything. "
+            "Registering a token also clears it from any other installation "
+            "holding it, which is what stops a reinstall — new installation id, "
+            "same token from the OS — being notified twice."
+        ),
+        parameters=[INSTALLATION_ID_PARAMETER],
+        request=DeviceInstallationWriteSerializer,
+        responses={200: DeviceInstallationSerializer},
+    )
+    def put(self, request, *args, **kwargs):
+        installation_id = _resolve_installation_id(request)
+        serializer = DeviceInstallationWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        installation, _ = DeviceInstallation.register(
+            installation_id, push_token=serializer.validated_data["push_token"]
+        )
+        return Response(DeviceInstallationSerializer(installation).data)

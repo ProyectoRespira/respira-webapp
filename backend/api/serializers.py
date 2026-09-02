@@ -1,14 +1,21 @@
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.tokens import default_token_generator
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
+from django.utils.http import urlsafe_base64_decode
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 from .models import (
+    ActionLog,
+    DeviceFollower,
+    DeviceInstallation,
     FaqCategory,
     FaqQuestion,
     Institution,
+    InstitutionAlert,
     InstitutionContract,
     Regions,
     SensitiveGroup,
@@ -17,6 +24,8 @@ from .models import (
     UserProfile,
     UserRole,
     faq_localized_map,
+    get_institution_for_user,
+    get_institution_station_ids,
     user_role,
 )
 
@@ -388,6 +397,217 @@ class InstitutionLoginSerializer(serializers.Serializer):
         return attrs
 
 
+class InstitutionPasswordResetSerializer(serializers.Serializer):
+    """Accepts the email a password reset was requested for.
+
+    Deliberately does nothing beyond validating the address' shape. Whether an
+    account exists is decided (and acted on) in the view, which answers the same
+    way either way — see ``InstitutionViewSet.password_reset``. Rejecting an
+    unknown address here would turn this endpoint into an account oracle.
+    """
+
+    email = serializers.EmailField()
+
+
+class InstitutionPasswordResetConfirmSerializer(serializers.Serializer):
+    """Validates a reset link and the new password chosen through it.
+
+    The token machinery is Django's own
+    (``default_token_generator`` + ``urlsafe_base64`` uid), so an expired,
+    tampered-with or already-used link fails here exactly as it would in the
+    admin flow: ``check_token`` hashes the user's current password and
+    ``last_login`` into the token, so consuming a link invalidates it.
+
+    Password rules come from ``AUTH_PASSWORD_VALIDATORS`` via
+    ``validate_password``, the same pipeline the admin and the user API use.
+    """
+
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    new_password = serializers.CharField(
+        write_only=True, style={"input_type": "password"}
+    )
+
+    default_error_messages = {
+        "invalid_link": "This password reset link is invalid or has expired.",
+    }
+
+    def _user_from_uid(self, uid: str):
+        try:
+            pk = urlsafe_base64_decode(uid).decode()
+            return User.objects.get(pk=pk)
+        except (
+            TypeError,
+            ValueError,
+            OverflowError,
+            # `User.pk` is a UUID, so a decodable-but-nonsensical uid fails in
+            # the field's `to_python` rather than as a plain ValueError.
+            DjangoValidationError,
+            User.DoesNotExist,
+        ):
+            return None
+
+    def validate(self, attrs):
+        user = self._user_from_uid(attrs["uid"])
+        # One message for every way a link can be unusable — a decodable uid
+        # that maps to no user would otherwise confirm which ids exist.
+        if (
+            user is None
+            or not user.is_active
+            or not default_token_generator.check_token(user, attrs["token"])
+        ):
+            self.fail("invalid_link")
+
+        # Run the validators against the target user so the ones that compare
+        # the password to account attributes (similarity) have something to
+        # compare with. Errors are re-raised under `new_password` so the form
+        # can put them next to the field the visitor has to fix.
+        try:
+            validate_password(attrs["new_password"], user=user)
+        except DjangoValidationError as error:
+            raise serializers.ValidationError(
+                {
+                    "new_password": error.messages,
+                    # Django's messages are English whatever the client speaks.
+                    # The codes are stable identifiers a client can map onto its
+                    # own copy — which is what the Spanish reset page does.
+                    "new_password_codes": [
+                        item.code for item in error.error_list if item.code
+                    ],
+                }
+            )
+
+        attrs["user"] = user
+        return attrs
+
+    def save(self, **kwargs):
+        user = self.validated_data["user"]
+        user.set_password(self.validated_data["new_password"])
+        user.save(update_fields=["password"])
+        return user
+
+
+class InstitutionAlertSerializer(serializers.ModelSerializer):
+    """Read-only view of an alert recorded for the caller's own institution.
+
+    Read-only on purpose: alerts record that a threshold was crossed, so they
+    are produced by the platform (today from the admin, later by an alert
+    generator) and only ever consulted by an institution — never authored by
+    one. Exposing them is what lets the dashboard offer "which alert does this
+    action respond to?" instead of leaving ``ActionLog.alert`` writable with no
+    way for a client to discover a valid value.
+    """
+
+    station_name = serializers.CharField(source="station.name", read_only=True)
+    is_resolved = serializers.SerializerMethodField()
+
+    class Meta:
+        model = InstitutionAlert
+        fields = [
+            "id",
+            "station",
+            "station_name",
+            "aqi_value",
+            "alert_threshold",
+            "triggered_at",
+            "resolved_at",
+            "is_resolved",
+        ]
+        read_only_fields = fields
+
+    @extend_schema_field(OpenApiTypes.BOOL)
+    def get_is_resolved(self, obj) -> bool:
+        """``resolved_at`` is left empty while the event is still ongoing."""
+        return obj.resolved_at is not None
+
+
+class ActionLogSerializer(serializers.ModelSerializer):
+    """Create and read the actions an institution recorded.
+
+    A single serializer for both directions: the fields a client must not
+    control — ``institution`` and ``timestamp`` — are read-only, so they are
+    ignored if posted and assigned by the backend instead. That is what makes
+    "the client cannot create a record on behalf of another institution" a
+    property of the serializer rather than a check the view has to remember.
+
+    ``station`` and ``alert`` *are* writable, so both are validated against the
+    caller's own institution below; the caller's institution comes from the
+    request (via the view's context), never from the payload.
+    """
+
+    institution_name = serializers.SerializerMethodField()
+    station_name = serializers.CharField(source="station.name", read_only=True)
+    # `alert` stays the writable id; this is the same alert expanded, so a
+    # client rendering a list of actions can show which event each one answered
+    # without fetching every alert separately and joining them itself.
+    alert_detail = InstitutionAlertSerializer(source="alert", read_only=True)
+
+    class Meta:
+        model = ActionLog
+        fields = [
+            "id",
+            "institution",
+            "institution_name",
+            "station",
+            "station_name",
+            "alert",
+            "alert_detail",
+            "timestamp",
+            "note",
+        ]
+        read_only_fields = ["id", "institution", "timestamp"]
+
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_institution_name(self, obj) -> str:
+        return str(obj.institution)
+
+    def _institution(self):
+        """The caller's institution, resolved from the request — never the payload."""
+        institution = self.context.get("institution")
+        if institution is not None:
+            return institution
+        request = self.context.get("request")
+        return get_institution_for_user(getattr(request, "user", None))
+
+    def validate_station(self, value):
+        """Reject a station the caller's institution does not hold a contract for.
+
+        A caller with no institution at all resolves to an empty set of allowed
+        stations and lands here too, though in practice ``IsInstitutionUser``
+        has already answered that case with a 403.
+        """
+        if value.pk not in get_institution_station_ids(self._institution()):
+            raise serializers.ValidationError(
+                "This station is not assigned to your institution."
+            )
+        return value
+
+    def validate_alert(self, value):
+        if value is None:
+            return value
+        institution = self._institution()
+        if institution is None or value.institution_id != institution.pk:
+            raise serializers.ValidationError(
+                "This alert does not belong to your institution."
+            )
+        return value
+
+    def validate(self, attrs):
+        """Cross-field check: an alert must concern the station being acted on.
+
+        Both fields have already been confirmed to belong to the caller's
+        institution individually; this rejects the remaining inconsistent
+        combination, where a valid alert is attached to a different station.
+        """
+        alert = attrs.get("alert")
+        station = attrs.get("station")
+        if alert is not None and station is not None and alert.station_id != station.pk:
+            raise serializers.ValidationError(
+                {"alert": "This alert does not belong to the selected station."}
+            )
+        return attrs
+
+
 class SensitiveGroupSerializer(serializers.ModelSerializer):
     class Meta:
         model = SensitiveGroup
@@ -448,3 +668,144 @@ class InstitutionDashboardSerializer(serializers.Serializer):
     air_quality = DashboardAirQualitySerializer(allow_null=True)
     history = DashboardHistoryPointSerializer(many=True)
     alert_config = InstitutionAlertConfigSerializer()
+
+
+class DeviceFollowerSerializer(serializers.ModelSerializer):
+    """One station a mobile installation follows.
+
+    ``station`` is resolved from the stored ``station_code`` on every read, so
+    the id handed to the app is the one that is current *now* — ids move when
+    dbt renumbers ``stations``. It is null when the code no longer matches any
+    station, which tells the app that sensor is gone rather than silently
+    pointing it at whichever station inherited the id.
+
+    The installation id is not echoed back on each row: the caller supplied it,
+    and repeating it once per follow is noise.
+    """
+
+    station = serializers.SerializerMethodField()
+    station_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DeviceFollower
+        fields = [
+            "station",
+            "station_code",
+            "station_name",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+    @staticmethod
+    def _station(obj):
+        # Cached on the instance so the two method fields below resolve the
+        # station once per response instead of querying twice.
+        if not hasattr(obj, "_resolved_station"):
+            obj._resolved_station = obj.station
+        return obj._resolved_station
+
+    @extend_schema_field(OpenApiTypes.INT)
+    def get_station(self, obj) -> int | None:
+        station = self._station(obj)
+        return station.id if station else None
+
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_station_name(self, obj) -> str | None:
+        station = self._station(obj)
+        return station.name if station else None
+
+
+class DeviceInstallationSerializer(serializers.ModelSerializer):
+    """The installation itself: its token status and how much it follows.
+
+    The push token is reported as a boolean rather than echoed back. These
+    endpoints are unauthenticated, so anyone holding an installation id could
+    otherwise read the device's token.
+    """
+
+    has_push_token = serializers.SerializerMethodField()
+    follow_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DeviceInstallation
+        fields = [
+            "installation_id",
+            "has_push_token",
+            "follow_count",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+    @extend_schema_field(OpenApiTypes.BOOL)
+    def get_has_push_token(self, obj) -> bool:
+        return bool(obj.push_token)
+
+    @extend_schema_field(OpenApiTypes.INT)
+    def get_follow_count(self, obj) -> int:
+        return obj.follows.count()
+
+
+class DeviceFollowerWriteSerializer(serializers.Serializer):
+    """Validates a follow request from a mobile installation.
+
+    Not a ``ModelSerializer``: the request speaks in station ids while the row
+    stores ``station_code``.
+
+    ``installation_id`` is declared here so it appears in the OpenAPI request
+    body, but the view resolves it (header first, then query string, then body)
+    before this serializer runs — a request may legitimately carry it in the
+    header instead.
+    """
+
+    installation_id = serializers.UUIDField(
+        required=False,
+        help_text=(
+            "UUIDv4 identifying the app installation. May be sent in the "
+            "X-Installation-Id header instead, which is preferred."
+        ),
+    )
+    station = serializers.PrimaryKeyRelatedField(
+        queryset=Stations.objects.all(),
+        help_text="Id of the station to follow.",
+    )
+    push_token = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text=(
+            "Current FCM/APNs token, if the app has one to register alongside "
+            "the follow. Send an empty string to clear it."
+        ),
+    )
+
+    def validate_station(self, value):
+        if not value.station_code:
+            # A follower row addresses its station by code, so a station the
+            # pipeline has not assigned one to cannot be followed at all —
+            # same limitation the admin's activate/deactivate action hits.
+            raise serializers.ValidationError(
+                "This station has no station code yet and cannot be followed."
+            )
+        return value
+
+
+class DeviceInstallationWriteSerializer(serializers.Serializer):
+    """Registers or refreshes the installation's push token.
+
+    Separate from following, because the OS rotates the token at any time and
+    independently of which stations the device follows — and because with
+    several follows the token belongs to the installation, not to any one of
+    them.
+    """
+
+    installation_id = serializers.UUIDField(
+        required=False,
+        help_text=(
+            "UUIDv4 identifying the app installation. May be sent in the "
+            "X-Installation-Id header instead, which is preferred."
+        ),
+    )
+    push_token = serializers.CharField(
+        allow_blank=True,
+        help_text="Current FCM/APNs token. Send an empty string to clear it.",
+    )

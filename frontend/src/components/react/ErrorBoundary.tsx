@@ -1,4 +1,5 @@
 import * as React from "react";
+import { captureGlitchTipException } from "../../telemetry/glitchtip";
 
 type Props = {
   children: React.ReactNode;
@@ -28,6 +29,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error) {
+    captureGlitchTipException(error, this.props.label);
     console.error(
       `[respira] ${this.props.label ?? "component"} failed to render`,
       error,

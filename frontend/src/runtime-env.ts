@@ -3,6 +3,9 @@ export type FrontendRuntimeConfig = {
   regionDefaultId: string;
   siteUrl: string;
   gtag: string;
+  glitchtipDsn: string;
+  glitchtipEnvironment: string;
+  glitchtipRelease: string;
   contactMail: string;
   twitterHandle: string;
   twitterUrl: string;
@@ -24,7 +27,13 @@ export type FrontendRuntimeConfig = {
 
 export type PublicFrontendRuntimeConfig = Pick<
   FrontendRuntimeConfig,
-  "backendUrl" | "regionDefaultId" | "siteUrl" | "gtag"
+  | "backendUrl"
+  | "regionDefaultId"
+  | "siteUrl"
+  | "gtag"
+  | "glitchtipDsn"
+  | "glitchtipEnvironment"
+  | "glitchtipRelease"
 >;
 
 export const normalizeSiteUrl = (value: string): string =>
@@ -63,11 +72,17 @@ export const getOptionalGtag = (): string => {
   return gtag;
 };
 
+export const getOptionalRuntimeEnv = (key: string): string =>
+  (process.env[key] || "").trim();
+
 export const getFrontendRuntimeConfig = (): FrontendRuntimeConfig => {
   const backendUrl = getRequiredRuntimeEnv("BACKEND_URL");
   const regionDefaultId = getRequiredRuntimeEnv("PUBLIC_REGION_DEFAULT_ID");
   const siteUrl = normalizeSiteUrl(getRequiredRuntimeEnv("SITE_URL"));
   const gtag = getOptionalGtag();
+  const glitchtipDsn = getOptionalRuntimeEnv("PUBLIC_GLITCHTIP_DSN");
+  const glitchtipEnvironment = getOptionalRuntimeEnv("GLITCHTIP_ENVIRONMENT");
+  const glitchtipRelease = getOptionalRuntimeEnv("GLITCHTIP_RELEASE");
   const contactMail = getRequiredRuntimeEnv("CONTACT_MAIL");
 
   const twitterHandle = normalizePath(getRequiredRuntimeEnv("TWITTER_HANDLE"));
@@ -107,6 +122,9 @@ export const getFrontendRuntimeConfig = (): FrontendRuntimeConfig => {
     regionDefaultId,
     siteUrl,
     gtag,
+    glitchtipDsn,
+    glitchtipEnvironment,
+    glitchtipRelease,
     contactMail,
     twitterHandle,
     twitterUrl,
@@ -129,7 +147,22 @@ export const getFrontendRuntimeConfig = (): FrontendRuntimeConfig => {
 
 export const getPublicFrontendRuntimeConfig =
   (): PublicFrontendRuntimeConfig => {
-    const { backendUrl, regionDefaultId, siteUrl, gtag } =
-      getFrontendRuntimeConfig();
-    return { backendUrl, regionDefaultId, siteUrl, gtag };
+    const {
+      backendUrl,
+      regionDefaultId,
+      siteUrl,
+      gtag,
+      glitchtipDsn,
+      glitchtipEnvironment,
+      glitchtipRelease,
+    } = getFrontendRuntimeConfig();
+    return {
+      backendUrl,
+      regionDefaultId,
+      siteUrl,
+      gtag,
+      glitchtipDsn,
+      glitchtipEnvironment,
+      glitchtipRelease,
+    };
   };
