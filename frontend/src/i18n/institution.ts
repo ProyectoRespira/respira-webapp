@@ -27,6 +27,10 @@ export const institutionCopy = {
   loginSubmit: "Ingresar",
   loginSubmitting: "Ingresando…",
   loginHelp: "¿Problemas para entrar? Escribinos a",
+  // Sits above `loginHelp`: the guide answers most of what would otherwise
+  // become an email to the team, so it is offered before the contact address.
+  loginGuide: "¿Primera vez acá? Leé la",
+  loginGuideLink: "guía del panel",
 
   loginErrorCredentials:
     "Correo o contraseña incorrectos. Verificá los datos e intentá de nuevo.",

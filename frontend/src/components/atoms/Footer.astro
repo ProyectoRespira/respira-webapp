@@ -118,14 +118,23 @@ const footerLabel = (id: string, fallback: string): string =>
           return;
         }
         if (typeof item.route !== "string") {
+          const heading = (
+            <Typography
+              variant="h4"
+              customClass="text-white opacity-70 text-xl"
+            >
+              {footerLabel(item.id, item.title)}
+            </Typography>
+          );
           return (
             <div>
-              <Typography
-                variant="h4"
-                customClass="text-white opacity-70 text-xl"
-              >
-                {footerLabel(item.id, item.title)}
-              </Typography>
+              {item.indexRoute ? (
+                <a class="hover:underline" href={getRoute(item.indexRoute)}>
+                  {heading}
+                </a>
+              ) : (
+                heading
+              )}
               {item.route.map((i) => (
                 <a href={getRoute(i.route, i.id)}>
                   <p class="text-white font-sans text-lg pt-6">

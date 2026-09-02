@@ -8,6 +8,7 @@
 import InstitutionAuthLayout from "../../layouts/InstitutionAuthLayout.astro";
 import { LoginForm } from "../../components/react/institution/LoginForm";
 import { institutionCopy as copy } from "../../i18n/institution";
+import { GUIDE_ROUTES } from "../../data/menu";
 import { getFrontendRuntimeConfig } from "../../runtime-env";
 import {
   INSTITUTION_DASHBOARD_PATH,
@@ -39,5 +40,9 @@ try {
   tagline={copy.loginTagline}
   blurb={copy.loginBlurb}
 >
-  <LoginForm contactMail={contactMail} client:load />
+  <LoginForm
+    contactMail={contactMail}
+    guideHref={GUIDE_ROUTES.institution}
+    client:load
+  />
 </InstitutionAuthLayout>

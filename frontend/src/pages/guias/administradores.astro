@@ -62,11 +62,10 @@ const shotWidths = [640, 960, 1280];
 <GuideLayout
   eyebrow="Guía de uso · Administradores"
   title="Alta de una institución, de cero a panel activo"
-  dek="Cómo crear una institución en el backoffice de Respira, asociarle un usuario y una estación, y confirmar que su panel funciona. Son cinco formularios y una comprobación final; no hace falta tocar nada del pipeline de datos."
+  dek="Cómo crear una institución en el backoffice de Respira, asociarle un usuario y una estación, y confirmar que su panel funciona."
   meta={[
     "Para el equipo interno de Respira",
     "Requiere una cuenta con permisos en el backoffice",
-    "Última revisión: setiembre 2026",
   ]}
   sections={sections}
 >
@@ -312,9 +311,9 @@ const shotWidths = [640, 960, 1280];
 
     <ol class="steps">
       <li>
-        Abrí <a href={INSTITUTION_ACCESS.route}>Acceso institucional</a> desde el
-        menú del sitio, o directamente
-        <span class="path">/institucion/login</span>.
+        Abrí <a href={INSTITUTION_ACCESS.route}>{INSTITUTION_ACCESS.title}</a> desde
+        el menú del sitio, o directamente
+        <span class="path">{INSTITUTION_ACCESS.route}</span>.
       </li>
       <li>
         Ingresá con el <strong
