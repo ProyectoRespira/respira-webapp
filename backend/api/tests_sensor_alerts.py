@@ -14,7 +14,7 @@ from unittest.mock import patch
 import requests
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
-from django.test import TestCase, TransactionTestCase
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 
 from .models import (
@@ -26,7 +26,13 @@ from .models import (
     StationReadingsGold,
     Stations,
 )
-from .push import send_sensor_alerts, should_alert
+from .push import (
+    catch_up_follower,
+    notification_for,
+    send_sensor_alerts,
+    should_alert,
+    should_notify_recovery,
+)
 
 INSTALLATION_ID = "8f14e45f-ceea-467e-bd97-1a2b3c4d5e6f"
 OTHER_INSTALLATION_ID = "2c1f9b4a-77d3-4e21-9a5c-6b0e8d3f1a2b"
@@ -61,6 +67,39 @@ class ShouldAlertTests(TestCase):
         # makes a new episode start from scratch instead of having to beat the
         # worst level of the previous one.
         self.assertTrue(should_alert("unhealthySensitive", ""))
+
+
+class ShouldNotifyRecoveryTests(TestCase):
+    def test_an_open_episode_getting_better_notifies(self):
+        self.assertTrue(should_notify_recovery("good", "unhealthy"))
+
+    def test_every_drop_notifies_not_only_a_return_to_safety(self):
+        # Hazardous down to unhealthy is still news to somebody deciding
+        # whether to go outside, and waiting for `good` could leave them acting
+        # on the worst reading of the episode for hours.
+        self.assertTrue(should_notify_recovery("unhealthy", "hazardous"))
+
+    def test_a_station_nobody_was_warned_about_sends_no_all_clear(self):
+        # Otherwise every station sitting quietly at `good` would notify on
+        # every run.
+        self.assertFalse(should_notify_recovery("good", ""))
+        self.assertFalse(should_notify_recovery("good", None))
+
+    def test_standing_still_notifies_nothing(self):
+        self.assertFalse(should_notify_recovery("unhealthy", "unhealthy"))
+
+    def test_worsening_is_not_a_recovery(self):
+        self.assertFalse(should_notify_recovery("hazardous", "unhealthy"))
+
+
+class NotificationForTests(TestCase):
+    """The one place that decides, so sender and dry run cannot disagree."""
+
+    def test_it_picks_the_direction(self):
+        self.assertEqual(notification_for("hazardous", ""), "worsening")
+        self.assertEqual(notification_for("good", "hazardous"), "improving")
+        self.assertIsNone(notification_for("good", ""))
+        self.assertIsNone(notification_for("unhealthy", "unhealthy"))
 
 
 class SendSensorAlertsTests(TestCase):
@@ -173,8 +212,15 @@ class SendSensorAlertsTests(TestCase):
             self._reading(self.station, 165)  # unhealthy
             send_sensor_alerts()
 
+        # The middle message is the all-clear for the first episode; the third
+        # is the new episode alerting from scratch.
         self.assertEqual(
-            [m["data"]["level"] for m in capture.messages], ["hazardous", "unhealthy"]
+            [(m["data"]["level"], m["data"]["trend"]) for m in capture.messages],
+            [
+                ("hazardous", "worsening"),
+                ("good", "improving"),
+                ("unhealthy", "worsening"),
+            ],
         )
 
     def test_a_reading_below_the_threshold_is_remembered_even_though_it_is_silent(self):
@@ -401,6 +447,148 @@ class SendSensorAlertsTests(TestCase):
         self.assertEqual(alert.level, "unhealthy")
         self.assertEqual(alert.recipients, 1)
 
+    def test_the_all_clear_reaches_the_same_followers(self):
+        self._follower("RSP-001", "token-a")
+        self._reading(self.station, 165)
+
+        capture = Capture()
+        with patch("api.push._post_batch", side_effect=capture):
+            send_sensor_alerts()
+            self._reading(self.station, 20)
+            result = send_sensor_alerts()
+
+        self.assertEqual(capture.recipients(), ["token-a", "token-a"])
+        self.assertEqual(result.recovered_stations, 1)
+        self.assertEqual(result.alerted_stations, 0)
+
+    def test_the_all_clear_still_routes_in_the_shipped_app(self):
+        # The app switches on `type` and treats anything it does not know as
+        # unknown, so an all-clear announcing a new type would open nothing
+        # when tapped until every user had updated.
+        self._follower("RSP-001", "token-a")
+        self._reading(self.station, 165)
+
+        capture = Capture()
+        with patch("api.push._post_batch", side_effect=capture):
+            send_sensor_alerts()
+            self._reading(self.station, 20)
+            send_sensor_alerts()
+
+        all_clear = capture.messages[-1]
+        self.assertEqual(all_clear["data"]["type"], "sensor_alert")
+        self.assertEqual(all_clear["data"]["station_code"], "RSP-001")
+        self.assertEqual(all_clear["data"]["trend"], "improving")
+        self.assertEqual(all_clear["data"]["level"], "good")
+        self.assertIn(self.station.name, all_clear["body"])
+
+    def test_each_step_down_notifies(self):
+        self._follower("RSP-001", "token-a")
+        self._reading(self.station, 320)  # hazardous
+
+        capture = Capture()
+        with patch("api.push._post_batch", side_effect=capture):
+            send_sensor_alerts()
+            self._reading(self.station, 165)  # unhealthy
+            send_sensor_alerts()
+            self._reading(self.station, 20)  # good
+            send_sensor_alerts()
+
+        self.assertEqual(
+            [(m["data"]["level"], m["data"]["trend"]) for m in capture.messages],
+            [
+                ("hazardous", "worsening"),
+                ("unhealthy", "improving"),
+                ("good", "improving"),
+            ],
+        )
+
+    def test_staying_safe_after_the_all_clear_says_nothing_more(self):
+        # The episode is closed; further good readings are not news.
+        self._follower("RSP-001", "token-a")
+        self._reading(self.station, 165)
+
+        capture = Capture()
+        with patch("api.push._post_batch", side_effect=capture):
+            send_sensor_alerts()
+            self._reading(self.station, 20)
+            send_sensor_alerts()
+            sent = len(capture.messages)
+            self._reading(self.station, 30)
+            send_sensor_alerts()
+
+        self.assertEqual(len(capture.messages), sent)
+
+    def test_a_station_that_was_never_bad_sends_no_all_clear(self):
+        self._follower("RSP-001", "token-a")
+        self._reading(self.station, 20)
+
+        capture = Capture()
+        with patch("api.push._post_batch", side_effect=capture):
+            result = send_sensor_alerts()
+
+        self.assertEqual(capture.messages, [])
+        self.assertEqual(result.recovered_stations, 0)
+
+    def test_an_undelivered_all_clear_is_retried(self):
+        # Same policy as a warning: the followers were not told, so the episode
+        # stays open and the next run tries again.
+        self._follower("RSP-001", "token-a")
+        self._reading(self.station, 165)
+
+        with patch("api.push._post_batch", side_effect=Capture()):
+            send_sensor_alerts()
+
+        self._reading(self.station, 20)
+
+        def throttled(messages):
+            return [
+                {"status": "error", "details": {"error": "MessageRateExceeded"}}
+                for _ in messages
+            ]
+
+        with patch("api.push._post_batch", side_effect=throttled):
+            result = send_sensor_alerts()
+
+        self.assertEqual(result.recovered_stations, 0)
+        self.assertEqual(len(result.errors), 1)
+
+        capture = Capture()
+        with patch("api.push._post_batch", side_effect=capture):
+            send_sensor_alerts()
+
+        self.assertEqual(capture.recipients(), ["token-a"])
+        self.assertEqual(capture.messages[0]["data"]["trend"], "improving")
+
+    def test_the_all_clear_is_recorded_as_such_for_audit(self):
+        self._follower("RSP-001", "token-a")
+        self._reading(self.station, 165)
+
+        with patch("api.push._post_batch", side_effect=Capture()):
+            send_sensor_alerts()
+            self._reading(self.station, 20)
+            send_sensor_alerts()
+
+        warning, all_clear = SensorAlert.objects.order_by("sent_at")
+        self.assertEqual((warning.level, warning.trend), ("unhealthy", "worsening"))
+        self.assertEqual((all_clear.level, all_clear.trend), ("good", "improving"))
+
+    def test_a_dry_run_reports_the_all_clear_it_would_send(self):
+        self._follower("RSP-001", "token-a")
+        self._reading(self.station, 165)
+
+        with patch("api.push._post_batch", side_effect=Capture()):
+            send_sensor_alerts()
+
+        self._reading(self.station, 20)
+
+        capture = Capture()
+        with patch("api.push._post_batch", side_effect=capture):
+            result = send_sensor_alerts(dry_run=True)
+
+        self.assertEqual(result.recovered_stations, 1)
+        self.assertEqual(result.alerted_stations, 0)
+        self.assertEqual(capture.messages, [])
+
     def test_a_dry_run_sends_nothing_and_records_nothing(self):
         self._follower("RSP-001", "token-a")
         self._reading(self.station, 165)
@@ -412,6 +600,167 @@ class SendSensorAlertsTests(TestCase):
         self.assertEqual(result.alerted_stations, 1)
         self.assertEqual(capture.messages, [])
         self.assertEqual(SensorAlert.objects.count(), 0)
+
+
+@override_settings(SENSOR_ALERTS_ENABLED=True)
+class CatchUpFollowerTests(TestCase):
+    """Following a sensor that is already bad has to say so.
+
+    `SensorAlertState` is per station, so somebody joining an episode that is
+    already open matches no change and the scheduled sender has nothing to say
+    about them. Without this they would hear nothing until the air worsened
+    further or recovered — silence in exactly the case the feature exists for.
+    """
+
+    def setUp(self):
+        self.region = Regions.objects.create(name="Gran Asunción", region_code="GA")
+        self.station = Stations.objects.create(
+            name="Respira: Villa Morra",
+            region=self.region,
+            station_code="RSP-001",
+            is_station_on=True,
+        )
+
+    def _reading(self, aqi):
+        return StationReadingsGold.objects.create(
+            station=self.station, date_utc=timezone.now(), aqi_pm2_5=aqi
+        )
+
+    def _installation(self, token="token-a", installation_id=INSTALLATION_ID):
+        installation, _ = DeviceInstallation.register(installation_id, push_token=token)
+        return installation
+
+    def test_joining_an_open_episode_is_told_how_the_air_is(self):
+        self._reading(165)
+        installation = self._installation()
+
+        capture = Capture()
+        with patch("api.push._post_batch", side_effect=capture):
+            sent = catch_up_follower(installation, self.station)
+
+        self.assertTrue(sent)
+        self.assertEqual(capture.recipients(), ["token-a"])
+        [message] = capture.messages
+        self.assertEqual(message["data"]["type"], "sensor_alert")
+        self.assertEqual(message["data"]["station_code"], "RSP-001")
+        self.assertEqual(message["data"]["level"], "unhealthy")
+        self.assertEqual(message["data"]["trend"], "catch_up")
+
+    def test_it_does_not_advance_the_stations_state(self):
+        # The state is what every *other* follower's next notification is
+        # judged against. Moving it here would suppress a real warning for all
+        # of them just because one device joined.
+        self._reading(165)
+        installation = self._installation()
+
+        with patch("api.push._post_batch", side_effect=Capture()):
+            catch_up_follower(installation, self.station)
+
+        self.assertFalse(
+            SensorAlertState.objects.filter(station_code="RSP-001").exists()
+        )
+
+    def test_a_healthy_sensor_says_nothing(self):
+        self._reading(20)
+        installation = self._installation()
+
+        capture = Capture()
+        with patch("api.push._post_batch", side_effect=capture):
+            sent = catch_up_follower(installation, self.station)
+
+        self.assertFalse(sent)
+        self.assertEqual(capture.messages, [])
+
+    def test_an_installation_without_a_token_says_nothing(self):
+        self._reading(165)
+        installation, _ = DeviceInstallation.register(INSTALLATION_ID)
+
+        capture = Capture()
+        with patch("api.push._post_batch", side_effect=capture):
+            self.assertFalse(catch_up_follower(installation, self.station))
+
+        self.assertEqual(capture.messages, [])
+
+    def test_a_station_switched_off_says_nothing(self):
+        self._reading(165)
+        self.station.is_station_on = False
+        self.station.save(update_fields=["is_station_on"])
+
+        capture = Capture()
+        with patch("api.push._post_batch", side_effect=capture):
+            self.assertFalse(catch_up_follower(self._installation(), self.station))
+
+        self.assertEqual(capture.messages, [])
+
+    def test_a_station_with_no_reading_says_nothing(self):
+        capture = Capture()
+        with patch("api.push._post_batch", side_effect=capture):
+            self.assertFalse(catch_up_follower(self._installation(), self.station))
+
+        self.assertEqual(capture.messages, [])
+
+    @override_settings(SENSOR_ALERTS_ENABLED=False)
+    def test_it_respects_the_environment_switch(self):
+        self._reading(165)
+
+        capture = Capture()
+        with patch("api.push._post_batch", side_effect=capture):
+            self.assertFalse(catch_up_follower(self._installation(), self.station))
+
+        self.assertEqual(capture.messages, [])
+
+    def test_a_push_failure_is_swallowed(self):
+        # The follow already succeeded and is what the user asked for; losing
+        # the catch-up is a missed courtesy, not a failed action.
+        self._reading(165)
+
+        with patch(
+            "api.push._post_batch", side_effect=requests.ConnectionError("down")
+        ):
+            self.assertFalse(catch_up_follower(self._installation(), self.station))
+
+    def test_a_dead_token_is_cleared(self):
+        self._reading(165)
+        installation = self._installation()
+
+        def dead(messages):
+            return [{"status": "error", "details": {"error": "DeviceNotRegistered"}}]
+
+        with patch("api.push._post_batch", side_effect=dead):
+            self.assertFalse(catch_up_follower(installation, self.station))
+
+        installation.refresh_from_db()
+        self.assertEqual(installation.push_token, "")
+
+    def test_it_is_recorded_as_a_catch_up_for_audit(self):
+        self._reading(165)
+
+        with patch("api.push._post_batch", side_effect=Capture()):
+            catch_up_follower(self._installation(), self.station)
+
+        alert = SensorAlert.objects.get()
+        self.assertEqual(alert.trend, "catch_up")
+        self.assertEqual(alert.level, "unhealthy")
+        self.assertEqual(alert.recipients, 1)
+
+    def test_the_next_scheduled_run_still_warns_the_original_followers(self):
+        # The whole point of not touching the state: a device that joined must
+        # not silence the warning everyone else is waiting on.
+        self._reading(165)
+        first = self._installation("token-a")
+        DeviceFollower.objects.create(installation=first, station_code="RSP-001")
+
+        joiner = self._installation("token-b", OTHER_INSTALLATION_ID)
+
+        capture = Capture()
+        with patch("api.push._post_batch", side_effect=capture):
+            catch_up_follower(joiner, self.station)
+            DeviceFollower.objects.create(installation=joiner, station_code="RSP-001")
+            send_sensor_alerts()
+
+        # The catch-up to the joiner, then the station's own first warning to
+        # both of them.
+        self.assertEqual(capture.recipients(), ["token-b", "token-a", "token-b"])
 
 
 class SensorAlertStateMigrationTests(TransactionTestCase):

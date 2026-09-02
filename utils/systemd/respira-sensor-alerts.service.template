@@ -1,0 +1,17 @@
+[Unit]
+Description=Send Respira per-sensor push alerts to the devices following each sensor
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/respira-sensor-alerts
+# Runs inside the already-deployed backend container rather than a Python of
+# its own: the command needs the project's settings, database credentials and
+# migrations, and the container is where all three are known to be correct.
+#
+# `exec`, not `run`: the backend service is always up, so reusing it avoids
+# starting a second container per firing. If the backend is down the exec
+# fails, the unit fails, and the timer surfaces it — which is the wanted
+# behaviour, since a run against a stopped backend would notify nobody.
+ExecStart=/bin/sh -lc 'set -eu; COMPOSE_PATH="${RESPIRA_COMPOSE_PATH:-__COMPOSE_PATH__}"; cd "$COMPOSE_PATH"; docker compose exec -T backend python manage.py send_sensor_alerts ${RESPIRA_SENSOR_ALERTS_ARGS:-}'

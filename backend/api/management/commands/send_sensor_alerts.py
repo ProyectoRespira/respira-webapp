@@ -12,7 +12,7 @@ from api.push import is_configured, send_sensor_alerts
 
 
 class Command(BaseCommand):
-    help = "Notify each sensor's followers when its air quality has worsened."
+    help = "Notify each sensor's followers when its air quality changes level."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -45,7 +45,8 @@ class Command(BaseCommand):
         prefix = "[dry run] " if dry_run else ""
         self.stdout.write(
             f"{prefix}{result.considered} followed station(s) read, "
-            f"{result.alerted_stations} alerted, "
+            f"{result.alerted_stations} worsened, "
+            f"{result.recovered_stations} improved, "
             f"{result.messages_sent} message(s) accepted, "
             f"{result.tokens_cleared} dead token(s) cleared."
         )

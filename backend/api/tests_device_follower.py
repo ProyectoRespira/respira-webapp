@@ -11,17 +11,26 @@ around that rather than around one row per device.
 """
 
 import uuid
+from unittest.mock import patch
 
+import requests
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.db import IntegrityError, connection, transaction
 from django.db.migrations.executor import MigrationExecutor
-from django.test import TestCase, TransactionTestCase
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .models import DeviceFollower, DeviceInstallation, Regions, Stations
+from .models import (
+    DeviceFollower,
+    DeviceInstallation,
+    Regions,
+    StationReadingsGold,
+    Stations,
+)
 from .views import INSTALLATION_ID_HEADER, MAX_FOLLOWS_PER_INSTALLATION
 
 User = get_user_model()
@@ -247,6 +256,85 @@ class DeviceFollowerAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         installation = DeviceInstallation.objects.get(installation_id=INSTALLATION_ID)
         self.assertEqual(installation.push_token, "tok-1")
+
+    @override_settings(SENSOR_ALERTS_ENABLED=True)
+    def test_following_a_sensor_that_is_already_bad_notifies_that_device(self):
+        # The gap this closes: alerting state is per station, so joining an
+        # episode somebody else was already warned about matches no change and
+        # the scheduled sender would say nothing to this device.
+        self.station.is_station_on = True
+        self.station.save(update_fields=["is_station_on"])
+        StationReadingsGold.objects.create(
+            station=self.station, date_utc=timezone.now(), aqi_pm2_5=165
+        )
+
+        sent = []
+
+        def capture(messages):
+            sent.extend(messages)
+            return [{"status": "ok", "id": "tk-1"} for _ in messages]
+
+        with patch("api.push._post_batch", side_effect=capture):
+            response = self.client.post(
+                self.url,
+                {"station": self.station.id, "push_token": "tok-1"},
+                format="json",
+                headers=self._header(),
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual([m["to"] for m in sent], ["tok-1"])
+        self.assertEqual(sent[0]["data"]["trend"], "catch_up")
+
+    @override_settings(SENSOR_ALERTS_ENABLED=True)
+    def test_a_repeated_follow_does_not_notify_again(self):
+        # The app retries on a flaky network. A retry that re-sent the push
+        # would notify the same device twice for one follow.
+        self.station.is_station_on = True
+        self.station.save(update_fields=["is_station_on"])
+        StationReadingsGold.objects.create(
+            station=self.station, date_utc=timezone.now(), aqi_pm2_5=165
+        )
+
+        sent = []
+
+        def capture(messages):
+            sent.extend(messages)
+            return [{"status": "ok", "id": "tk-1"} for _ in messages]
+
+        with patch("api.push._post_batch", side_effect=capture):
+            self.client.post(
+                self.url,
+                {"station": self.station.id, "push_token": "tok-1"},
+                format="json",
+                headers=self._header(),
+            )
+            repeat = self._follow(self.station)
+
+        self.assertEqual(repeat.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(sent), 1)
+
+    def test_a_failing_catch_up_push_never_fails_the_follow(self):
+        # The follow is the user's action and must succeed on its own.
+        self.station.is_station_on = True
+        self.station.save(update_fields=["is_station_on"])
+        StationReadingsGold.objects.create(
+            station=self.station, date_utc=timezone.now(), aqi_pm2_5=165
+        )
+
+        with override_settings(SENSOR_ALERTS_ENABLED=True):
+            with patch(
+                "api.push._post_batch", side_effect=requests.ConnectionError("down")
+            ):
+                response = self.client.post(
+                    self.url,
+                    {"station": self.station.id, "push_token": "tok-1"},
+                    format="json",
+                    headers=self._header(),
+                )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(DeviceFollower.objects.count(), 1)
 
     def test_the_push_token_is_never_echoed_back(self):
         self.client.post(

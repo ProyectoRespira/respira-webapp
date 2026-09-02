@@ -1,0 +1,18 @@
+[Unit]
+Description=Check followed Respira sensors for air quality changes every 15 minutes
+
+[Timer]
+# Every 15 minutes, shortly after the pipeline usually publishes. The sender is
+# idempotent — `SensorAlertState` is what stops a station being announced twice
+# for the same change — so firing more often than readings arrive costs a query
+# per followed station and sends nothing.
+OnCalendar=*:0/15
+# Spread across the interval so every host running this does not hit Expo at
+# the same second.
+RandomizedDelaySec=2m
+# A firing missed while the host was down runs on the next boot. Air quality
+# that changed during an outage is still worth announcing late.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

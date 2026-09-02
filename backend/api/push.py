@@ -81,6 +81,47 @@ LEVEL_COPY = {
     ),
 }
 
+# The other direction: what followers are told once the air at a station they
+# were warned about gets better. Keyed by the level being *arrived at*, which is
+# why there is no `hazardous` entry — nothing outranks it, so it can never be
+# the destination of an improvement.
+#
+# Every drop is announced, including one that lands on another alert-worthy
+# level: going from hazardous to unhealthy still changes what somebody deciding
+# whether to go outside should do, and staying silent until `good` would leave
+# them acting on the worst reading of the episode for hours.
+RECOVERY_COPY = {
+    "good": (
+        "El aire mejoró",
+        "{station} volvió a niveles buenos de calidad del aire. Podés retomar "
+        "tus actividades al aire libre.",
+    ),
+    "moderate": (
+        "El aire mejoró",
+        "{station} bajó a calidad del aire moderada. Ya no hay riesgo para la "
+        "mayoría de las personas.",
+    ),
+    "unhealthySensitive": (
+        "El aire mejoró",
+        "{station} bajó a un nivel que solo afecta a grupos sensibles. Si sos "
+        "sensible, seguí con precaución.",
+    ),
+    "unhealthy": (
+        "El aire mejoró",
+        "{station} bajó a aire insalubre. Sigue conviniendo limitar la "
+        "exposición prolongada al aire libre.",
+    ),
+    "veryUnhealthy": (
+        "El aire mejoró",
+        "{station} bajó a aire muy insalubre. Seguí evitando las actividades "
+        "al aire libre.",
+    ),
+}
+
+WORSENING = SensorAlert.TREND_WORSENING
+IMPROVING = SensorAlert.TREND_IMPROVING
+CATCH_UP = SensorAlert.TREND_CATCH_UP
+
 
 @dataclass
 class SendResult:
@@ -88,9 +129,16 @@ class SendResult:
 
     considered: int = 0
     alerted_stations: int = 0
+    # Counted apart from `alerted_stations` so a run that only stood people
+    # down is not reported as a run that warned them.
+    recovered_stations: int = 0
     messages_sent: int = 0
     tokens_cleared: int = 0
     errors: list[str] = field(default_factory=list)
+
+    @property
+    def notified_stations(self) -> int:
+        return self.alerted_stations + self.recovered_stations
 
 
 @dataclass
@@ -139,17 +187,80 @@ def should_alert(level: str, last_alerted_level: str | None) -> bool:
     return LEVEL_RANK[level] > LEVEL_RANK[last_alerted_level]
 
 
-def _remember(state: SensorAlertState, level: str, *, alerted: bool) -> None:
-    """Writes back what this run saw, and whether it alerted on it."""
+def should_notify_recovery(level: str, last_alerted_level: str | None) -> bool:
+    """Whether followers should be told the air at this station has improved.
+
+    Only while an episode is open. Blank ``last_alerted_level`` means these
+    followers were never warned about anything, and an all-clear for a warning
+    nobody received is pure noise — it would fire on every station sitting
+    quietly at ``good``.
+
+    Any drop counts, not only a return to safety: see :data:`RECOVERY_COPY`.
+    """
+    if not last_alerted_level or level not in LEVEL_RANK:
+        return False
+    return LEVEL_RANK[level] < LEVEL_RANK[last_alerted_level]
+
+
+def notification_for(level: str, last_alerted_level: str | None) -> str | None:
+    """Which notification this reading warrants, or ``None`` for silence.
+
+    One place to ask, so the sender and the dry run cannot answer differently.
+    """
+    if should_alert(level, last_alerted_level):
+        return WORSENING
+    if should_notify_recovery(level, last_alerted_level):
+        return IMPROVING
+    return None
+
+
+def _remember(state: SensorAlertState, level: str, *, notified: bool) -> None:
+    """Writes back what this run saw, and what its followers were last told.
+
+    ``last_alerted_level`` is the level the followers currently believe, so it
+    moves in both directions: up when they are warned, down when they are told
+    the air improved, and back to blank once the station is safe again. That
+    blank is what ends the episode — without it a station that alerted at
+    ``hazardous`` could never alert again, since no later level outranks it.
+
+    Left untouched when the notification did not reach anybody, so the next run
+    makes the same announcement again rather than treating it as delivered.
+    """
     state.last_level = level
-    if alerted:
-        state.last_alerted_level = level
-    elif level not in ALERT_LEVELS:
-        # Recovered. Clearing this is what ends the episode: without it a
-        # station that alerted at `hazardous` could never alert again, since no
-        # later level outranks it.
-        state.last_alerted_level = ""
+    if notified:
+        state.last_alerted_level = "" if level not in ALERT_LEVELS else level
     state.save(update_fields=["last_level", "last_alerted_level", "updated_at"])
+
+
+def _latest_level(station: Stations) -> tuple[str, float] | None:
+    """The station's most recent reading, as ``(level, aqi)``.
+
+    ``None`` when there is nothing to judge: no reading, or one without an AQI.
+
+    Rows without a timestamp are excluded rather than sorted around: ``date_utc``
+    is nullable and PostgreSQL puts nulls first on a descending sort, so one
+    undated row would shadow the genuinely latest reading and have the sender
+    act on air of unknown age.
+    """
+    reading = (
+        StationReadingsGold.objects.filter(
+            station_id=station.id, date_utc__isnull=False
+        )
+        .order_by("-date_utc")
+        .first()
+    )
+    if reading is None or reading.aqi_pm2_5 is None:
+        return None
+
+    classified = classify_aqi(reading.aqi_pm2_5)
+    if classified is None:
+        return None
+
+    level = {
+        "unhealthy_sensitive": "unhealthySensitive",
+        "very_unhealthy": "veryUnhealthy",
+    }.get(classified["key"], classified["key"])
+    return level, reading.aqi_pm2_5
 
 
 def _tokens_following(station_code: str) -> list[str]:
@@ -175,14 +286,22 @@ def _tokens_following(station_code: str) -> list[str]:
     return list(tokens)
 
 
-def _message(token: str, station: Stations, level: str, aqi: float) -> dict:
-    title, body = LEVEL_COPY[level]
+def _message(token: str, station: Stations, level: str, aqi: float, trend: str) -> dict:
+    # `LEVEL_COPY` covers a catch-up as well as a warning: its wording is
+    # present tense ("{station} registra aire insalubre"), which is true either
+    # way. Only the all-clear needs to talk about a change.
+    copy = RECOVERY_COPY if trend == IMPROVING else LEVEL_COPY
+    title, body = copy[level]
     return {
         "to": token,
         "title": title,
         "body": body.format(station=station.name),
         "sound": "default",
         "data": {
+            # Still `sensor_alert` for an all-clear. The shipped app routes on
+            # this exact value and treats anything else as unknown, so a new
+            # type would produce a notification that does nothing when tapped
+            # until every user updates. The direction rides alongside instead.
             "type": "sensor_alert",
             # The stable code, never the id: dbt regenerates station ids on
             # every run, so an id in a payload can already mean a different
@@ -191,6 +310,7 @@ def _message(token: str, station: Stations, level: str, aqi: float) -> dict:
             "station_code": station.station_code,
             "aqi": round(aqi),
             "level": level,
+            "trend": trend,
         },
     }
 
@@ -235,8 +355,10 @@ def _post_batch(messages: list[dict]) -> list[dict]:
     return data if isinstance(data, list) else []
 
 
-def notify_followers(station: Stations, level: str, aqi: float) -> Delivery:
-    """Sends one alert about ``station`` to everyone following it."""
+def notify_followers(
+    station: Stations, level: str, aqi: float, trend: str = WORSENING
+) -> Delivery:
+    """Sends one notification about ``station`` to everyone following it."""
     delivery = Delivery()
 
     tokens = _tokens_following(station.station_code)
@@ -246,7 +368,7 @@ def notify_followers(station: Stations, level: str, aqi: float) -> Delivery:
 
     for start in range(0, len(tokens), EXPO_BATCH_SIZE):
         batch = tokens[start : start + EXPO_BATCH_SIZE]
-        messages = [_message(token, station, level, aqi) for token in batch]
+        messages = [_message(token, station, level, aqi, trend) for token in batch]
         tickets = _post_batch(messages)
         delivery.accepted += sum(1 for t in tickets if t.get("status") == "ok")
         delivery.cleared += _clear_dead_tokens(batch, tickets)
@@ -263,16 +385,77 @@ def notify_followers(station: Stations, level: str, aqi: float) -> Delivery:
     return delivery
 
 
+def catch_up_follower(installation: DeviceInstallation, station: Stations) -> bool:
+    """Tells one installation how the air is at a station it has just followed.
+
+    Why this exists: :class:`SensorAlertState` is per station, not per follower.
+    Somebody who follows a sensor that is *already* over the threshold — and
+    that some other device was warned about hours ago — matches no change, so
+    the scheduled sender has nothing to say about it. They would hear nothing
+    until the air got worse still, or recovered. That silence is worst in
+    exactly the case the feature exists for: air that is bad right now.
+
+    Deliberately one device and one message. It does not touch the station's
+    state, because that state is what every *other* follower's next
+    notification is judged against — advancing it here would suppress a real
+    warning for all of them.
+
+    Returns whether a message was accepted, and raises nothing the caller has
+    to handle: a follow must succeed even when the push service does not.
+    """
+    if not is_configured():
+        return False
+    if not installation.push_token:
+        return False
+    if not station.is_station_on:
+        return False
+
+    latest = _latest_level(station)
+    if latest is None:
+        return False
+    level, aqi = latest
+    # Only air worth interrupting somebody for. Following a healthy sensor is
+    # not news, and a "the air is fine" push on every follow would be noise.
+    if level not in ALERT_LEVELS:
+        return False
+
+    try:
+        tickets = _post_batch(
+            [_message(installation.push_token, station, level, aqi, CATCH_UP)]
+        )
+    except requests.RequestException as error:
+        # The follow itself already succeeded and is what the user asked for.
+        # Losing the catch-up is a missed courtesy, not a failed action, and
+        # the next real change at this station will reach them normally.
+        logger.warning(
+            "Catch-up push failed for %s on %s: %s",
+            installation.installation_id,
+            station.station_code,
+            error,
+        )
+        return False
+
+    accepted = sum(1 for ticket in tickets if ticket.get("status") == "ok")
+    _clear_dead_tokens([installation.push_token], tickets)
+    if accepted:
+        SensorAlert.record(station.station_code, level, aqi, accepted, trend=CATCH_UP)
+    return bool(accepted)
+
+
 def send_sensor_alerts(dry_run: bool = False) -> SendResult:
-    """Checks every followed station and alerts the ones that have worsened.
+    """Checks every followed station and notifies the ones whose air moved.
+
+    Both directions: a station that worsened warns its followers, and one that
+    improved while an episode was open tells them so. Which of the two, if
+    either, is :func:`notification_for`.
 
     Only stations somebody actually follows are read: with no followers there
     is no one to notify, and the reading would be wasted work.
 
     Every station that is read has its level written to
-    :class:`SensorAlertState`, alert or not — that record of the safe readings
-    is what lets the sender tell a station that has recovered from one still
-    sitting at the level it last warned about.
+    :class:`SensorAlertState`, notified or not — that record of the safe
+    readings is what lets the sender tell a station that has recovered from one
+    still sitting at the level it last warned about.
     """
     result = SendResult()
 
@@ -291,54 +474,47 @@ def send_sensor_alerts(dry_run: bool = False) -> SendResult:
         if not station.is_station_on:
             continue
 
-        reading = (
-            # Rows without a timestamp are excluded rather than sorted around:
-            # `date_utc` is nullable and PostgreSQL puts nulls first on a
-            # descending sort, so one undated row would shadow the genuinely
-            # latest reading and alert on air of unknown age.
-            StationReadingsGold.objects.filter(
-                station_id=station.id, date_utc__isnull=False
-            )
-            .order_by("-date_utc")
-            .first()
-        )
-        if reading is None or reading.aqi_pm2_5 is None:
+        latest = _latest_level(station)
+        if latest is None:
             continue
+        level, aqi = latest
 
         result.considered += 1
-        classified = classify_aqi(reading.aqi_pm2_5)
-        if classified is None:
-            continue
-        level = {
-            "unhealthy_sensitive": "unhealthySensitive",
-            "very_unhealthy": "veryUnhealthy",
-        }.get(classified["key"], classified["key"])
 
         if dry_run:
             state = SensorAlertState.objects.filter(station_code=station_code).first()
-            if should_alert(level, state.last_alerted_level if state else ""):
+            trend = notification_for(level, state.last_alerted_level if state else "")
+            if trend == WORSENING:
                 result.alerted_stations += 1
+            elif trend == IMPROVING:
+                result.recovered_stations += 1
             continue
 
         try:
             with transaction.atomic():
                 # Held for the whole send. Two overlapping scheduled runs would
-                # otherwise both read the same state, both decide to alert and
+                # otherwise both read the same state, both decide to notify and
                 # both call Expo before either wrote anything back — the same
-                # warning twice on one phone.
+                # message twice on one phone.
                 state = SensorAlertState.lock(station_code)
-                if not should_alert(level, state.last_alerted_level):
-                    # Still recorded: a reading below the alert threshold is
-                    # what ends an episode and lets the station alert again.
-                    _remember(state, level, alerted=False)
+                trend = notification_for(level, state.last_alerted_level)
+                if trend is None:
+                    # Still recorded: `last_level` is the record of the safe
+                    # readings, which is what tells a station that recovered
+                    # from one still sitting where it was last warned about.
+                    _remember(state, level, notified=False)
                     continue
 
-                delivery = notify_followers(station, level, reading.aqi_pm2_5)
+                delivery = notify_followers(station, level, aqi, trend)
                 if delivery.accepted:
                     SensorAlert.record(
-                        station_code, level, reading.aqi_pm2_5, delivery.accepted
+                        station_code,
+                        level,
+                        aqi,
+                        delivery.accepted,
+                        trend=trend,
                     )
-                _remember(state, level, alerted=delivery.delivered)
+                _remember(state, level, notified=delivery.delivered)
         except requests.RequestException as error:
             # One station's delivery failing must not stop the others, and the
             # state is deliberately left untouched so the next run retries it.
@@ -354,14 +530,17 @@ def send_sensor_alerts(dry_run: bool = False) -> SendResult:
             # it was is what makes the next run try this level again instead of
             # treating followers as warned.
             message = (
-                f"{station_code}: {delivery.retriable_failures} message(s) rejected, "
-                "none accepted; will retry"
+                f"{station_code} ({trend}): {delivery.retriable_failures} "
+                "message(s) rejected, none accepted; will retry"
             )
             logger.warning("Push delivery not accepted for %s", message)
             result.errors.append(message)
             continue
 
-        result.alerted_stations += 1
+        if trend == WORSENING:
+            result.alerted_stations += 1
+        else:
+            result.recovered_stations += 1
         result.messages_sent += delivery.accepted
 
     return result
