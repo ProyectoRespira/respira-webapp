@@ -13,7 +13,7 @@ Description=Check followed Respira sensors for air quality changes, after each p
 # `SensorAlertState` is what stops a station being announced twice for the same
 # change — so an extra run that finds nothing costs one query per followed
 # station and sends nothing.
-OnCalendar=*:25,*:40,*:55
+OnCalendar=*:25,40,55
 # Jitter, so every host running this does not hit Expo on the same second.
 RandomizedDelaySec=2m
 # A firing missed while the host was down runs on the next boot. Air quality

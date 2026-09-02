@@ -122,7 +122,7 @@ Create timer unit `/etc/systemd/system/respira-sensor-alerts.timer`:
 Description=Check followed Respira sensors for air quality changes, after each pipeline run
 
 [Timer]
-OnCalendar=*:25,*:40,*:55
+OnCalendar=*:25,40,55
 RandomizedDelaySec=2m
 Persistent=true
 
