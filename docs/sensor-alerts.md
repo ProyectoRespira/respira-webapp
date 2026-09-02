@@ -119,10 +119,10 @@ Create timer unit `/etc/systemd/system/respira-sensor-alerts.timer`:
 
 ```ini
 [Unit]
-Description=Check followed Respira sensors for air quality changes every 15 minutes
+Description=Check followed Respira sensors for air quality changes, after each pipeline run
 
 [Timer]
-OnCalendar=*:0/15
+OnCalendar=*:25,*:40,*:55
 RandomizedDelaySec=2m
 Persistent=true
 
@@ -137,8 +137,20 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now respira-sensor-alerts.timer
 ```
 
-Firing more often than readings arrive is harmless: the sender is idempotent,
-and a run with nothing to say costs one query per followed station.
+**Why those times.** Readings land once an hour, not continuously: in
+`respira-data`, `canonical_incremental` is scheduled at `:05` and
+`project_pipeline_respira_gold` — the one that writes `station_readings_gold` —
+at `:20`. Running every 15 minutes would spend most of its runs finding nothing
+new. `:25` is the normal case; the other two cover a dbt run that came in late.
+
+If those cron schedules change, this timer should follow them. An extra run that
+finds nothing is harmless — the sender is idempotent, and `SensorAlertState` is
+what stops a station being announced twice for the same change — but a timer
+that fires *before* the data lands delays every notification by up to an hour.
+
+The better shape long-term is for the pipeline to call this when it finishes
+publishing, instead of the host polling for it. That removes the waiting window
+entirely, but it is work across both repositories.
 
 ### Optional environment-file pattern
 
