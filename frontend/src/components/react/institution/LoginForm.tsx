@@ -24,7 +24,19 @@ const messageForError = (error: unknown): string => {
   return copy.loginErrorUnexpected;
 };
 
-export function LoginForm({ contactMail }: { contactMail: string }) {
+/**
+ * `guideHref` arrives as a prop rather than being imported from `data/menu`:
+ * this component ships to the browser, and that module pulls in the whole `ui`
+ * dictionary for `INSTITUTION_ACCESS.title`. The page hands the route down the
+ * same way it hands down `contactMail`.
+ */
+export function LoginForm({
+  contactMail,
+  guideHref,
+}: {
+  contactMail: string;
+  guideHref: string;
+}) {
   const emailId = useId();
   const passwordId = useId();
 
@@ -116,6 +128,17 @@ export function LoginForm({ contactMail }: { contactMail: string }) {
       >
         {copy.forgotLink}
       </a>
+
+      <p className="text-xs text-lightgray">
+        {copy.loginGuide}{" "}
+        <a
+          className="font-semibold text-green_dark hover:underline"
+          href={guideHref}
+        >
+          {copy.loginGuideLink}
+        </a>
+        .
+      </p>
 
       {contactMail && (
         <p className="text-xs text-lightgray">

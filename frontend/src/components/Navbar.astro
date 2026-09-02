@@ -87,8 +87,15 @@ const baseUrl = await getSiteUrl();
     </MenuItems>
     <div class="hidden lg:flex min-w-30 content-center items-center gap-4">
       <LanguageSelector />
+      <a href={baseUrl}>
+        <Button text={t("nav.map")} variant="void" />
+      </a>
       {
         /*
+          Last in the cluster on purpose: the institutional door is the odd one
+          out among the public links, so it sits at the end of the row rather
+          than between the language selector and the map.
+
           A site-relative path, not `baseUrl` + path: it resolves against the
           origin serving the page, so the link follows the environment instead
           of depending on the runtime config being right.
@@ -101,9 +108,6 @@ const baseUrl = await getSiteUrl();
         data-track-route={INSTITUTION_ACCESS.route}
       >
         <Button text={t("nav.institution")} variant="void" />
-      </a>
-      <a href={baseUrl}>
-        <Button text={t("nav.map")} variant="void" />
       </a>
     </div>
   </Astronav>

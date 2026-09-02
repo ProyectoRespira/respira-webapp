@@ -1,0 +1,24 @@
+[Unit]
+Description=Check followed Respira sensors for air quality changes, after each pipeline run
+
+[Timer]
+# Aligned with the pipeline rather than spread evenly: readings land once an
+# hour, so a fixed interval would spend most of its runs finding nothing new.
+# In respira-data, `canonical_incremental` is scheduled at :05 and
+# `project_pipeline_respira_gold` at :20, which is what writes
+# `station_readings_gold`.
+#
+# Three attempts because a dbt run's duration varies: :25 is the normal case,
+# the other two cover a run that came in late. The sender is idempotent —
+# `SensorAlertState` is what stops a station being announced twice for the same
+# change — so an extra run that finds nothing costs one query per followed
+# station and sends nothing.
+OnCalendar=*:25,*:40,*:55
+# Jitter, so every host running this does not hit Expo on the same second.
+RandomizedDelaySec=2m
+# A firing missed while the host was down runs on the next boot. Air quality
+# that changed during an outage is still worth announcing late.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

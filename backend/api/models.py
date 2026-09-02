@@ -660,6 +660,23 @@ class SensorAlert(models.Model):
     :class:`DeviceFollower` — dbt regenerates ``stations.id`` on every run.
     """
 
+    # Which way the air moved. Without it a row reading "level: good" is
+    # indistinguishable from a warning about good air, which is not a thing —
+    # the audit has to say whether followers were warned or stood down.
+    #
+    # `catch_up` is neither: it goes to one installation that has just followed
+    # a station already sitting in an alert level, telling it how the air is
+    # right now. Distinct from the other two because it is not about a change,
+    # and because its audience is one device rather than every follower.
+    TREND_WORSENING = "worsening"
+    TREND_IMPROVING = "improving"
+    TREND_CATCH_UP = "catch_up"
+    TREND_CHOICES = (
+        (TREND_WORSENING, "Worsening"),
+        (TREND_IMPROVING, "Improving"),
+        (TREND_CATCH_UP, "Catch-up on follow"),
+    )
+
     station_code = models.CharField(
         max_length=255,
         db_index=True,
@@ -668,6 +685,17 @@ class SensorAlert(models.Model):
     level = models.CharField(
         max_length=32,
         help_text="AQI level key at the time of the alert, e.g. 'unhealthy'.",
+    )
+    trend = models.CharField(
+        max_length=16,
+        choices=TREND_CHOICES,
+        default=TREND_WORSENING,
+        help_text=(
+            "Why followers were notified: the air got worse, it improved, or "
+            "one installation was caught up on a station it just followed. "
+            "Defaults to worsening: every row predating this field was a "
+            "warning."
+        ),
     )
     aqi = models.FloatField(help_text="The reading that triggered the alert.")
     recipients = models.PositiveIntegerField(
@@ -681,13 +709,22 @@ class SensorAlert(models.Model):
         ordering = ("-sent_at",)
 
     def __str__(self):
-        return f"{self.station_code} → {self.level} ({self.recipients} devices)"
+        arrow = "↑" if self.trend == self.TREND_WORSENING else "↓"
+        return f"{self.station_code} {arrow} {self.level} ({self.recipients} devices)"
 
     @classmethod
-    def record(cls, station_code: str, level: str, aqi: float, recipients: int):
+    def record(
+        cls,
+        station_code: str,
+        level: str,
+        aqi: float,
+        recipients: int,
+        trend: str = TREND_WORSENING,
+    ):
         return cls.objects.create(
             station_code=station_code,
             level=level,
+            trend=trend,
             aqi=aqi,
             recipients=recipients,
         )

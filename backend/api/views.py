@@ -49,6 +49,7 @@ from .models import (
 )
 from .pagination import StandardResultsSetPagination
 from .permissions import IsAdminRole, IsInstitutionUser, IsOwnInstitution
+from .push import catch_up_follower
 from .serializers import (
     ActionLogSerializer,
     AdminUserCreateSerializer,
@@ -1292,6 +1293,15 @@ class DeviceFollowerView(APIView):
             follow = DeviceFollower.objects.create(
                 installation=installation, station_code=station.station_code
             )
+
+        # Outside the transaction on purpose. This calls the push service, and
+        # doing that while still holding `select_for_update` on the
+        # installation would block every other follow by the same device for
+        # the length of an HTTP round trip.
+        #
+        # Only on a new follow — the `existing` branch above returns before
+        # here, so re-sending the same request does not re-send the push.
+        catch_up_follower(installation, station)
 
         return Response(
             DeviceFollowerSerializer(follow).data, status=status.HTTP_201_CREATED

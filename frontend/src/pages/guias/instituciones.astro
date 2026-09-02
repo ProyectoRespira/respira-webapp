@@ -34,6 +34,7 @@ import Callout from "../../components/guides/Callout.astro";
 import PanelScreenshot from "../../assets/guias/panel-institucional.png";
 import { GUIDE_ROUTES, INSTITUTION_ACCESS } from "../../data/menu";
 import { INSTITUTION_FORGOT_PASSWORD_PATH } from "../../utils/institution-session";
+import { institutionCopy } from "../../i18n/institution";
 
 const sections = [
   { id: "entrar", label: "Entrar al panel" },
@@ -49,17 +50,14 @@ const sections = [
   eyebrow="Guía de uso · Instituciones"
   title="Cómo entrar y moverte por el panel de tu institución"
   dek="Esta guía explica, en términos simples, qué ves cuando entrás al panel de tu institución en Respira: la pantalla de ingreso, qué hacer si algo falla, y un recorrido por cada sección del panel una vez adentro. No hace falta ningún conocimiento técnico para seguirla."
-  meta={[
-    "Para instituciones con sensor Respira",
-    "Última revisión: setiembre 2026",
-  ]}
+  meta={["Para instituciones con sensor Respira"]}
   sections={sections}
 >
   <section id="entrar">
     <h2>La pantalla de ingreso</h2>
     <p class="lede">
       El panel se abre desde <a href={INSTITUTION_ACCESS.route}
-        >Acceso institucional</a
+        >{INSTITUTION_ACCESS.title}</a
       >, el enlace que está en el menú del sitio. Es una pantalla dividida en
       dos: a la izquierda la presentación de Respira, a la derecha el formulario
       para entrar.
@@ -75,7 +73,7 @@ const sections = [
         <span class="block h-2 w-2 rounded-full bg-bg-gray"></span>
         <span class="block h-2 w-2 rounded-full bg-bg-gray"></span>
         <span class="ml-2 truncate font-sans text-[12px] text-lightgray"
-          >proyectorespira.net/institucion/login</span
+          >proyectorespira.net{INSTITUTION_ACCESS.route}</span
         >
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2">
@@ -197,7 +195,8 @@ const sections = [
     <ol class="steps">
       <li>
         En la pantalla de ingreso, tocá <a
-          href={INSTITUTION_FORGOT_PASSWORD_PATH}>¿Olvidaste tu contraseña?</a
+          href={INSTITUTION_FORGOT_PASSWORD_PATH}
+          >{institutionCopy.forgotLink}</a
         >.
       </li>
       <li>
@@ -355,7 +354,7 @@ const sections = [
     <h3>¿Cómo recupero mi contraseña si la olvido?</h3>
     <p>
       Desde <a href={INSTITUTION_FORGOT_PASSWORD_PATH}
-        >¿Olvidaste tu contraseña?</a
+        >{institutionCopy.forgotLink}</a
       >, en la pantalla de ingreso. El paso a paso está en <a href="#clave"
         >Si olvidaste tu contraseña</a
       >. No hace falta que escribas al equipo.
