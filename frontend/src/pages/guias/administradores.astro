@@ -95,10 +95,11 @@ const shotWidths = [640, 960, 1280];
   <section id="admin">
     <h2>{c.adminAdminTitle}</h2>
     <p class="lede">
-      {c.adminAdminLede1} <strong>{c.adminAdminLedeAdmin}</strong>{" "}
-      {c.adminAdminLede2} <strong>{c.adminAdminLedePanel}</strong>{
-        c.adminAdminLede3
-      } <a href={GUIDE_ROUTES.institution}>{c.adminAdminLedeLink}</a>{
+      {c.adminAdminLede1}
+      <strong>{c.adminAdminLedeAdmin}</strong>{" "}
+      {c.adminAdminLede2}
+      <strong>{c.adminAdminLedePanel}</strong>{c.adminAdminLede3}
+      <a href={GUIDE_ROUTES.institution}>{c.adminAdminLedeLink}</a>{
         c.adminAdminLede4
       }
     </p>
@@ -109,13 +110,14 @@ const shotWidths = [640, 960, 1280];
         <a class="admin-link" href={adminUrl}>{adminUrl}</a>
       </li>
       <li>
-        {c.adminAdminStep2a} <strong>{c.adminAdminStep2Email}</strong>{" "}
-        {c.adminAdminStep2And} <strong>{c.adminAdminStep2Password}</strong>{
-          c.adminAdminStep2b
-        }
+        {c.adminAdminStep2a}
+        <strong>{c.adminAdminStep2Email}</strong>{" "}
+        {c.adminAdminStep2And}
+        <strong>{c.adminAdminStep2Password}</strong>{c.adminAdminStep2b}
       </li>
       <li>
-        {c.adminAdminStep3a} <span class="path">Accounts</span>{" "}
+        {c.adminAdminStep3a}
+        <span class="path">Accounts</span>{" "}
         {c.adminAdminStep3b}
         <span class="path">Api</span>{c.adminAdminStep3c}
       </li>
@@ -131,32 +133,43 @@ const shotWidths = [640, 960, 1280];
         class={shotClass}
       />
       <figcaption>
-        {c.adminHomeCaption1} <span class="path">Api</span>{c.adminHomeCaption2}
+        {c.adminHomeCaption1}
+        <span class="path">Api</span>{c.adminHomeCaption2}
       </figcaption>
     </figure>
 
     <p>{c.adminNoAccount}</p>
     <ul>
       <li>
-        {c.adminSuperuser1} <strong>{c.adminSuperuserWord}</strong>{" "}
+        {c.adminSuperuser1}
+        <strong>{c.adminSuperuserWord}</strong>{" "}
         {c.adminSuperuser2}
         <code>python manage.py createsuperuser</code>{c.adminSuperuser3}
-        <code>python manage.py bootstrap_superuser</code> {c.adminSuperuser4}{" "}
+        <code>python manage.py bootstrap_superuser</code>
+        {c.adminSuperuser4}{" "}
         <code>BACKEND_SUPERUSER_EMAIL</code> /
         <code>BACKEND_SUPERUSER_PASSWORD</code>{c.adminSuperuser5}
       </li>
       <li>
-        {c.adminRole1} <code>admin</code> {c.adminRoleOr} <code>editor</code>{" "}
+        {c.adminRole1}
+        <code>admin</code>
+        {c.adminRoleOr}
+        <code>editor</code>{" "}
         {c.adminRole2}
-        <code>python manage.py sync_roles</code> {c.adminRole3}
+        <code>python manage.py sync_roles</code>
+        {c.adminRole3}
       </li>
     </ul>
 
     <Callout label={c.adminAdminCalloutLabel} tone="warn">
       <p>
-        {c.adminAdminCallout1} <code>role</code> {c.adminAdminCallout2}
-        <span class="path">Accounts → Users</span> {c.adminAdminCallout3}
-        <code>sync_roles</code> {c.adminAdminCallout4}
+        {c.adminAdminCallout1}
+        <code>role</code>
+        {c.adminAdminCallout2}
+        <span class="path">Accounts → Users</span>
+        {c.adminAdminCallout3}
+        <code>sync_roles</code>
+        {c.adminAdminCallout4}
       </p>
     </Callout>
   </section>
@@ -185,7 +198,8 @@ const shotWidths = [640, 960, 1280];
     <dl class="fields">
       <dt>legal_name</dt>
       <dd>
-        <span class="req">{c.adminRequired}</span> {c.adminFieldLegalName}
+        <span class="req">{c.adminRequired}</span>
+        {c.adminFieldLegalName}
       </dd>
       <dt>display_name</dt>
       <dd>{c.adminFieldDisplayName}</dd>
@@ -200,7 +214,9 @@ const shotWidths = [640, 960, 1280];
     </dl>
 
     <p>
-      {c.adminInstAfter1} <code>legal_name</code> {c.adminInstAfter2}
+      {c.adminInstAfter1}
+      <code>legal_name</code>
+      {c.adminInstAfter2}
       <strong>{c.adminInstAfterSame}</strong>.
     </p>
   </section>
@@ -215,17 +231,21 @@ const shotWidths = [640, 960, 1280];
         <strong>"Dashboard users"</strong>.
       </li>
       <li>
-        {c.adminUserStep2a} <code>User</code> {c.adminUserStep2b}
-        <span class="path">Admin → Accounts → Users</span> {c.adminUserStep2c}
+        {c.adminUserStep2a}
+        <code>User</code>
+        {c.adminUserStep2b}
+        <span class="path">Admin → Accounts → Users</span>
+        {c.adminUserStep2c}
       </li>
       <li>{c.adminUserStep3}</li>
     </ul>
 
     <Callout label={c.adminUserCalloutLabel}>
       <p>
-        {c.adminUserCallout1} <strong>{c.adminUserCalloutBold}</strong>{
-          c.adminUserCallout2
-        } <strong>{c.adminUserCalloutSave}</strong> {c.adminUserCallout3}
+        {c.adminUserCallout1}
+        <strong>{c.adminUserCalloutBold}</strong>{c.adminUserCallout2}
+        <strong>{c.adminUserCalloutSave}</strong>
+        {c.adminUserCallout3}
       </p>
     </Callout>
   </section>
@@ -234,9 +254,8 @@ const shotWidths = [640, 960, 1280];
     <h2>{c.adminAlertsTitle}</h2>
     <p class="lede">{c.adminAlertsLede}</p>
     <p>
-      {c.adminAlertsBody1} <strong>"Institution alert config"</strong>{
-        c.adminAlertsBody2
-      }
+      {c.adminAlertsBody1}
+      <strong>"Institution alert config"</strong>{c.adminAlertsBody2}
     </p>
   </section>
 
@@ -264,11 +283,13 @@ const shotWidths = [640, 960, 1280];
     <dl class="fields">
       <dt>institution</dt>
       <dd>
-        <span class="req">{c.adminRequired}</span> {c.adminFieldInstitution}
+        <span class="req">{c.adminRequired}</span>
+        {c.adminFieldInstitution}
       </dd>
       <dt>station</dt>
       <dd>
-        <span class="req">{c.adminRequired}</span> {c.adminFieldStation}
+        <span class="req">{c.adminRequired}</span>
+        {c.adminFieldStation}
         <code>station_code</code>.
       </dd>
       <dt>contract_status</dt>
@@ -281,14 +302,15 @@ const shotWidths = [640, 960, 1280];
 
     <Callout label={c.adminStationCalloutLabel} tone="warn">
       <p>
-        {c.adminStationCallout1} <strong>{c.adminStationCalloutBold}</strong>{
-          c.adminStationCallout2
-        }
+        {c.adminStationCallout1}
+        <strong>{c.adminStationCalloutBold}</strong>{c.adminStationCallout2}
       </p>
     </Callout>
 
     <p>
-      {c.adminStationCode1} <code>station_code</code> {c.adminStationCode2}
+      {c.adminStationCode1}
+      <code>station_code</code>
+      {c.adminStationCode2}
     </p>
   </section>
 
@@ -298,22 +320,24 @@ const shotWidths = [640, 960, 1280];
 
     <ol class="steps">
       <li>
-        {c.adminVerifyStep1a} <a href={INSTITUTION_ACCESS.route}
-          >{INSTITUTION_ACCESS.title}</a
-        > {c.adminVerifyStep1b}
+        {c.adminVerifyStep1a}
+        <a href={INSTITUTION_ACCESS.route}>{INSTITUTION_ACCESS.title}</a>
+        {c.adminVerifyStep1b}
         <span class="path">{INSTITUTION_ACCESS.route}</span>.
       </li>
       <li>
-        {c.adminVerifyStep2a} <strong>{c.adminVerifyStep2Bold}</strong>{" "}
+        {c.adminVerifyStep2a}
+        <strong>{c.adminVerifyStep2Bold}</strong>{" "}
         {c.adminVerifyStep2b}
       </li>
       <li>{c.adminVerifyStep3}</li>
     </ol>
 
     <p>
-      {c.adminVerifyAfter1} <a href={GUIDE_ROUTES.institution}
-        >{c.adminAdminLedeLink}</a
-      >{c.adminVerifyAfter2}
+      {c.adminVerifyAfter1}
+      <a href={GUIDE_ROUTES.institution}>{c.adminAdminLedeLink}</a>{
+        c.adminVerifyAfter2
+      }
     </p>
   </section>
 
@@ -322,32 +346,34 @@ const shotWidths = [640, 960, 1280];
     <p class="lede">{c.adminClaveLede}</p>
     <ol class="steps">
       <li>
-        {c.adminClaveStep1a} <a class="path" href={adminLoginUrl}
-          >/admin/login/</a
-        >{c.adminClaveStep1b} <strong>{c.adminClaveStep1Bold}</strong>{c.adminClaveStep1c}
+        {c.adminClaveStep1a}
+        <a class="path" href={adminLoginUrl}>/admin/login/</a>{
+          c.adminClaveStep1b
+        }
+        <strong>{c.adminClaveStep1Bold}</strong>{c.adminClaveStep1c}
       </li>
       <li>{c.adminClaveStep2}</li>
       <li>{c.adminClaveStep3}</li>
       <li>
-        {c.adminClaveStep4a} <a class="path" href={adminLoginUrl}
-          >/admin/login/</a
-        > {c.adminClaveStep4b}
+        {c.adminClaveStep4a}
+        <a class="path" href={adminLoginUrl}>/admin/login/</a>
+        {c.adminClaveStep4b}
       </li>
     </ol>
 
     <Callout label={c.adminClaveCalloutLabel} tone="warn">
       <p>{c.adminClaveCallout1}</p>
       <p>
-        {c.adminClaveCallout2a} <span class="path">/admin/</span>{
-          c.adminClaveCallout2b
-        }
+        {c.adminClaveCallout2a}
+        <span class="path">/admin/</span>{c.adminClaveCallout2b}
       </p>
     </Callout>
 
     <p>
-      {c.adminClaveAfter1} <a href={GUIDE_ROUTES.institution}
-        >{c.adminAdminLedeLink}</a
-      >{c.adminClaveAfter2}
+      {c.adminClaveAfter1}
+      <a href={GUIDE_ROUTES.institution}>{c.adminAdminLedeLink}</a>{
+        c.adminClaveAfter2
+      }
     </p>
   </section>
 
@@ -356,15 +382,18 @@ const shotWidths = [640, 960, 1280];
 
     <Callout label={c.adminError1Label} tone="danger">
       <p>
-        {c.adminError1a} <a href="#usuario">{c.adminError1Link}</a>{" "}
+        {c.adminError1a}
+        <a href="#usuario">{c.adminError1Link}</a>{" "}
         {c.adminError1b}
-        <span class="path">/admin/</span> {c.adminError1c}
+        <span class="path">/admin/</span>
+        {c.adminError1c}
       </p>
     </Callout>
 
     <Callout label={c.adminError2Label} tone="danger">
       <p>
-        {c.adminError2a} <a href="#estacion">{c.adminError2Link}</a>.
+        {c.adminError2a}
+        <a href="#estacion">{c.adminError2Link}</a>.
       </p>
     </Callout>
 

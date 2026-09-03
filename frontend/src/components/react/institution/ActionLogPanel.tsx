@@ -60,7 +60,8 @@ export function ActionLogPanel({
   stationName: string;
   lang: Lang;
 }) {
-  const copy = useInstitutionCopy(lang);
+  // No `copy` here: this component renders no text of its own, it just passes
+  // `lang` down to the list and the form, which each resolve their own.
   const [list, setList] = useState<ListState>({ status: "loading" });
   const [loadingMore, setLoadingMore] = useState(false);
   // Alerts are optional context for the form, so a failure to load them is not

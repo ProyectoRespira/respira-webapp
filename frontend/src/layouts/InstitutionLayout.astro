@@ -74,15 +74,13 @@ const copy = useInstitutionCopy(lang);
           <span class="truncate text-sm font-semibold text-white sm:hidden">
             {institutionName}
           </span>
-          {
-            /*
+          {/*
               No language selector here on purpose: the panel inherits whatever
               language the visitor was already reading the public site in. That
               choice lives in the `respira-lang` cookie, which is site-wide, so
               arriving from an English site lands on an English panel with
               nothing to pick.
-            */
-          }
+            */}
           <div class="ml-auto shrink-0">
             <LogoutButton lang={lang} client:load />
           </div>

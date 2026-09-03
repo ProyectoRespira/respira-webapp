@@ -101,7 +101,8 @@ const es = {
   instClaveLede:
     "Podés recuperarla vos misma o vos mismo, sin escribirle a nadie. El recorrido completo son cinco pasos:",
   instClaveStep1a: "En la pantalla de ingreso, tocá",
-  instClaveStep2a: "Escribí el correo de tu cuenta — el mismo con el que entrás al panel — y tocá",
+  instClaveStep2a:
+    "Escribí el correo de tu cuenta — el mismo con el que entrás al panel — y tocá",
   instClaveStep2b: "Enviar enlace",
   instClaveStep3:
     'Vas a ver el mensaje "Revisá tu correo". Si esa dirección tiene una cuenta en Respira, en unos minutos te llega un correo con el enlace. Si no aparece, mirá la carpeta de spam.',
@@ -205,7 +206,8 @@ const es = {
   adminAdminLedePanel: "panel institucional",
   adminAdminLede3: ", que es lo que ve el cliente final y se explica en la",
   adminAdminLedeLink: "guía para instituciones",
-  adminAdminLede4: ". Pensá el admin como la trastienda, y el panel como la vitrina.",
+  adminAdminLede4:
+    ". Pensá el admin como la trastienda, y el panel como la vitrina.",
   adminAdminStep1: "Abrí el admin en tu navegador:",
   adminAdminStep2a: "Vas a ver una pantalla con dos campos:",
   adminAdminStep2Email: "email",
@@ -219,7 +221,8 @@ const es = {
   adminAdminStep3c: ". Esa es tu base de operaciones para todo lo que sigue.",
   adminHomeAlt:
     "Pantalla principal del admin de Respira. A la izquierda, la lista de secciones agrupadas en Accounts (Roles, Users) y Api (Action logs, Institution alerts, Institution contracts, Institutions, Sensitive groups, Stations, entre otras), cada una con un enlace «Add». Arriba a la derecha, los enlaces para ver el sitio, cambiar la contraseña y cerrar sesión.",
-  adminHomeCaption1: "La pantalla principal del admin. Las secciones que vas a usar en esta guía están todas bajo",
+  adminHomeCaption1:
+    "La pantalla principal del admin. Las secciones que vas a usar en esta guía están todas bajo",
   adminHomeCaption2: ".",
   adminNoAccount: "¿No tenés cuenta todavía? Hay dos caminos:",
   adminSuperuser1: "Un",
@@ -265,7 +268,8 @@ const es = {
   adminUserTitle: "Asociar un usuario — esto es lo que da acceso al panel",
   adminUserLede:
     "Sin este paso la institución existe pero nadie puede entrar a su panel.",
-  adminUserStep1a: "En la misma página de la institución, bajá hasta la sección",
+  adminUserStep1a:
+    "En la misma página de la institución, bajá hasta la sección",
   adminUserStep2a: "Usá el buscador para elegir un",
   adminUserStep2b: "que ya exista. Si todavía no existe, crealo antes en",
   adminUserStep2c: "y volvé.",
@@ -433,7 +437,7 @@ const en: Translation = {
   instEntrarBody3: "and the team's contact address.",
   instEntrarCalloutLabel: "A useful detail",
   instEntrarCalloutBody:
-    'If you already have a session open and come back to this address, the system sends you straight to your panel — you won\'t see the form again. That\'s on purpose, so the browser\'s "back" button doesn\'t return you to an empty sign-in screen.',
+    "If you already have a session open and come back to this address, the system sends you straight to your panel — you won't see the form again. That's on purpose, so the browser's \"back\" button doesn't return you to an empty sign-in screen.",
 
   instErroresTitle: "The messages you might see when signing in",
   instErroresLede:
@@ -443,13 +447,13 @@ const en: Translation = {
     '"Incorrect email or password. Check your details and try again." — it never says which of the two fields was wrong, for security.',
   instErroresNoInstTitle: "The account exists, but isn't an institution's",
   instErroresNoInstBody:
-    '"This account doesn\'t have access to an institutional panel." — this happens if you try an address that wasn\'t registered as an institution.',
+    "\"This account doesn't have access to an institutional panel.\" — this happens if you try an address that wasn't registered as an institution.",
   instErroresThrottledTitle: "Too many attempts in a row",
   instErroresThrottledBody:
     '"Too many attempts. Wait a few minutes before trying again." — this is automatic protection against repeated attempts; it clears on its own after a while.',
   instErroresServerTitle: "Something failed on the server side",
   instErroresServerBody:
-    '"We couldn\'t complete the sign-in. Try again in a few seconds." — worth retrying before assuming it\'s a credentials problem.',
+    "\"We couldn't complete the sign-in. Try again in a few seconds.\" — worth retrying before assuming it's a credentials problem.",
 
   instClaveTitle: "If you forgot your password",
   instClaveLede:
@@ -459,7 +463,7 @@ const en: Translation = {
     "Enter your account's email — the same one you sign in with — and tap",
   instClaveStep2b: "Send link",
   instClaveStep3:
-    'You will see the message "Check your email". If that address has a Respira account, you\'ll get an email with the link within a few minutes. If it doesn\'t show up, check your spam folder.',
+    "You will see the message \"Check your email\". If that address has a Respira account, you'll get an email with the link within a few minutes. If it doesn't show up, check your spam folder.",
   instClaveStep4:
     "Open the link in the email. A screen opens for you to type the new password twice.",
   instClaveStep5:
@@ -475,7 +479,7 @@ const en: Translation = {
 
   instRecorridoTitle: "A walkthrough of the panel, section by section",
   instRecorridoLede:
-    'Once you sign in successfully you land on your panel, under the heading "Your sensor\'s status". At the very top there\'s a dark bar with your institution\'s name and the log-out button; everything else follows below.',
+    "Once you sign in successfully you land on your panel, under the heading \"Your sensor's status\". At the very top there's a dark bar with your institution's name and the log-out button; everything else follows below.",
   instScreenshotAlt:
     "Respira's institutional panel: top bar with the institution's name and the log-out button; air quality card with AQI 55 «Moderate» and the day's recommendations; card for the online sensor with location, last reading and contract; three-month history chart with the alert threshold line; list of logged actions beside the form for adding a new one; alerts card with the threshold and sensitive groups; download buttons; and the contact block.",
   instScreenshotCaption:
@@ -501,7 +505,7 @@ const en: Translation = {
     'Two buttons: "Monthly report (PDF)" and "Raw history (Excel)".',
   instDownloadsCalloutLabel: "Current status",
   instDownloadsCalloutBody:
-    'These two downloads aren\'t available on the server side yet. Today, pressing them shows "This download isn\'t available yet."',
+    "These two downloads aren't available on the server side yet. Today, pressing them shows \"This download isn't available yet.\"",
   instContactTitle: "Your contact at Respira",
   instContactBody:
     'At the end of the panel, a block with the contact address and a reminder: "Write to us if the sensor shows as offline for more than 24 hours."',
@@ -554,27 +558,33 @@ const en: Translation = {
   adminAdminLede2:
     "is Respira's internal working interface: a set of web forms where the team creates and edits the system's data — institutions, users, stations. It is different from the",
   adminAdminLedePanel: "institutional panel",
-  adminAdminLede3: ", which is what the end client sees and is explained in the",
+  adminAdminLede3:
+    ", which is what the end client sees and is explained in the",
   adminAdminLedeLink: "guide for institutions",
-  adminAdminLede4: ". Think of the admin as the back room, and the panel as the shop window.",
+  adminAdminLede4:
+    ". Think of the admin as the back room, and the panel as the shop window.",
   adminAdminStep1: "Open the admin in your browser:",
   adminAdminStep2a: "You'll see a screen with two fields:",
   adminAdminStep2Email: "email",
   adminAdminStep2And: "and",
   adminAdminStep2Password: "password",
-  adminAdminStep2b: ". Enter your account's credentials and press the login button.",
+  adminAdminStep2b:
+    ". Enter your account's credentials and press the login button.",
   adminAdminStep3a:
     "If everything went well, you land on the main screen: a list of sections grouped under",
   adminAdminStep3b: "and",
-  adminAdminStep3c: ". That's your base of operations for everything that follows.",
+  adminAdminStep3c:
+    ". That's your base of operations for everything that follows.",
   adminHomeAlt:
     "Respira's admin main screen. On the left, the list of sections grouped under Accounts (Roles, Users) and Api (Action logs, Institution alerts, Institution contracts, Institutions, Sensitive groups, Stations, among others), each with an «Add» link. Top right, the links to view the site, change the password and log out.",
-  adminHomeCaption1: "The admin's main screen. The sections you'll use in this guide are all under",
+  adminHomeCaption1:
+    "The admin's main screen. The sections you'll use in this guide are all under",
   adminHomeCaption2: ".",
   adminNoAccount: "Don't have an account yet? There are two routes:",
   adminSuperuser1: "A",
   adminSuperuserWord: "superuser",
-  adminSuperuser2: "can always sign in and sees everything. Create one by running",
+  adminSuperuser2:
+    "can always sign in and sees everything. Create one by running",
   adminSuperuser3: ", or reproducibly with",
   adminSuperuser4: "(it uses the environment variables",
   adminSuperuser5: ").",
@@ -589,7 +599,7 @@ const en: Translation = {
   adminAdminCallout3:
     "does not grant permissions on its own — it's only a label. The real permissions live in groups that",
   adminAdminCallout4:
-    'synchronises. If you got into the admin but don\'t see the "Add" button on Institutions, that\'s the first suspect.',
+    "synchronises. If you got into the admin but don't see the \"Add\" button on Institutions, that's the first suspect.",
 
   adminInstTitle: "Creating the institution",
   adminInstLede:
@@ -615,7 +625,8 @@ const en: Translation = {
     "Without this step the institution exists but nobody can sign in to its panel.",
   adminUserStep1a: "On the same institution page, scroll down to the",
   adminUserStep2a: "Use the search box to pick a",
-  adminUserStep2b: "that already exists. If it doesn't exist yet, create it first in",
+  adminUserStep2b:
+    "that already exists. If it doesn't exist yet, create it first in",
   adminUserStep2c: "and come back.",
   adminUserStep3:
     "Save the Institution form — the link is created along with the rest of the data.",
@@ -893,20 +904,24 @@ const pt: Translation = {
   adminAdminLedePanel: "painel institucional",
   adminAdminLede3: ", que é o que o cliente final vê e está explicado no",
   adminAdminLedeLink: "guia para instituições",
-  adminAdminLede4: ". Pense no admin como os bastidores, e no painel como a vitrine.",
+  adminAdminLede4:
+    ". Pense no admin como os bastidores, e no painel como a vitrine.",
   adminAdminStep1: "Abra o admin no seu navegador:",
   adminAdminStep2a: "Você vai ver uma tela com dois campos:",
   adminAdminStep2Email: "e-mail",
   adminAdminStep2And: "e",
   adminAdminStep2Password: "senha",
-  adminAdminStep2b: ". Escreva as credenciais da sua conta e pressione o botão de login.",
+  adminAdminStep2b:
+    ". Escreva as credenciais da sua conta e pressione o botão de login.",
   adminAdminStep3a:
     "Se tudo deu certo, você entra na tela principal: uma lista de seções agrupadas em",
   adminAdminStep3b: "e",
-  adminAdminStep3c: ". Essa é sua base de operações para tudo o que vem a seguir.",
+  adminAdminStep3c:
+    ". Essa é sua base de operações para tudo o que vem a seguir.",
   adminHomeAlt:
     "Tela principal do admin da Respira. À esquerda, a lista de seções agrupadas em Accounts (Roles, Users) e Api (Action logs, Institution alerts, Institution contracts, Institutions, Sensitive groups, Stations, entre outras), cada uma com um link «Add». No alto à direita, os links para ver o site, mudar a senha e sair.",
-  adminHomeCaption1: "A tela principal do admin. As seções que você vai usar neste guia estão todas em",
+  adminHomeCaption1:
+    "A tela principal do admin. As seções que você vai usar neste guia estão todas em",
   adminHomeCaption2: ".",
   adminNoAccount: "Ainda não tem conta? Há dois caminhos:",
   adminSuperuser1: "Um",

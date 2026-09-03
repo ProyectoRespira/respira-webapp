@@ -300,8 +300,7 @@ const en: Translation = {
   resetInvalidBody:
     "It may have expired or already been used. Request a new one and try again.",
   resetRequestAnother: "Request a new link",
-  resetErrorThrottled:
-    "Too many attempts. Wait a while before trying again.",
+  resetErrorThrottled: "Too many attempts. Wait a while before trying again.",
   resetErrorUnexpected:
     "We couldn't save the password. Try again in a few seconds.",
 
@@ -378,7 +377,8 @@ const en: Translation = {
   actionFormNoteLabel: "What did you do?",
   actionFormNotePlaceholder:
     "E.g.: Outdoor recess was cancelled and families were notified.",
-  actionFormNoteHelp: "The date and time are saved automatically when you log it.",
+  actionFormNoteHelp:
+    "The date and time are saved automatically when you log it.",
   actionFormSubmit: "Save action",
   actionFormSubmitting: "Saving…",
   actionFormSaved: "Action saved.",
@@ -451,8 +451,7 @@ const pt: Translation = {
   // --- Password recovery ---------------------------------------------------
   forgotLink: "Esqueceu sua senha?",
   forgotTagline: "Recupere o acesso ao seu painel.",
-  forgotBlurb:
-    "Enviamos um link por e-mail para você escolher uma senha nova.",
+  forgotBlurb: "Enviamos um link por e-mail para você escolher uma senha nova.",
   forgotTitle: "Recuperar senha",
   forgotSubtitle:
     "Escreva o e-mail da sua conta e enviamos um link para redefini-la.",
@@ -576,7 +575,8 @@ const pt: Translation = {
   actionFormSubmit: "Salvar ação",
   actionFormSubmitting: "Salvando…",
   actionFormSaved: "Ação salva.",
-  actionFormNoteRequired: "Conte brevemente o que vocês fizeram antes de salvar.",
+  actionFormNoteRequired:
+    "Conte brevemente o que vocês fizeram antes de salvar.",
   actionFormNoteTooLong: "A nota está longa demais. Resuma um pouco.",
   actionFormError: "Não conseguimos salvar a ação. Tente de novo.",
   actionFormNoStation:

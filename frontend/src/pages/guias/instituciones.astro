@@ -138,10 +138,12 @@ const sections = [
     </figure>
 
     <p>
-      {c.instEntrarBody1} <strong>{c.instEntrarBodyEmail}</strong>{" "}
-      {c.instEntrarBodyAnd} <strong>{c.instEntrarBodyPassword}</strong>{
-        c.instEntrarBody2
-      } <strong>{institutionCopy.forgotLink}</strong> {c.instEntrarBody3}
+      {c.instEntrarBody1}
+      <strong>{c.instEntrarBodyEmail}</strong>{" "}
+      {c.instEntrarBodyAnd}
+      <strong>{c.instEntrarBodyPassword}</strong>{c.instEntrarBody2}
+      <strong>{institutionCopy.forgotLink}</strong>
+      {c.instEntrarBody3}
     </p>
 
     <Callout label={c.instEntrarCalloutLabel}>
@@ -177,7 +179,8 @@ const sections = [
         >.
       </li>
       <li>
-        {c.instClaveStep2a} <strong>{c.instClaveStep2b}</strong>.
+        {c.instClaveStep2a}
+        <strong>{c.instClaveStep2b}</strong>.
       </li>
       <li>{c.instClaveStep3}</li>
       <li>{c.instClaveStep4}</li>
@@ -255,9 +258,10 @@ const sections = [
 
     <h3>{c.instFaqQ1}</h3>
     <p>
-      {c.instFaqA1a} <a href={INSTITUTION_FORGOT_PASSWORD_PATH}
-        >{institutionCopy.forgotLink}</a
-      >{c.instFaqA1b} <a href="#clave">{c.instFaqA1Link}</a>{c.instFaqA1c}
+      {c.instFaqA1a}
+      <a href={INSTITUTION_FORGOT_PASSWORD_PATH}>{institutionCopy.forgotLink}</a
+      >{c.instFaqA1b}
+      <a href="#clave">{c.instFaqA1Link}</a>{c.instFaqA1c}
     </p>
 
     <h3>{c.instFaqQ2}</h3>
@@ -271,9 +275,8 @@ const sections = [
 
     <h3>{c.instFaqQ5}</h3>
     <p>
-      {c.instFaqA5a} <a href={GUIDE_ROUTES.admin}>{c.instFaqA5Link}</a>{
-        c.instFaqA5b
-      }
+      {c.instFaqA5a}
+      <a href={GUIDE_ROUTES.admin}>{c.instFaqA5Link}</a>{c.instFaqA5b}
     </p>
   </section>
 </GuideLayout>
