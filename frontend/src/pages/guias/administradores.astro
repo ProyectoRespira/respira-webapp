@@ -25,7 +25,11 @@
 // sample data; see the note in `instituciones.astro` for how to refresh them,
 // and pin `prefers-color-scheme: light` so the admin does not come out dark.
 //
-// Spanish only, like the guide it sits next to.
+// Trilingual, like the guide it sits next to: the prose lives in
+// `i18n/guides.ts`. Admin field names, menu paths and management commands stay
+// untranslated on purpose — they are what the reader sees on screen and types
+// into a terminal, and translating them would send people looking for controls
+// that do not exist.
 
 import { Image } from "astro:assets";
 
@@ -35,6 +39,28 @@ import AdminHome from "../../assets/guias/admin-inicio.png";
 import AdminInstitution from "../../assets/guias/admin-institucion.png";
 import AdminContract from "../../assets/guias/admin-contrato.png";
 import { GUIDE_ROUTES, INSTITUTION_ACCESS } from "../../data/menu";
+import { useGuideCopy } from "../../i18n/guides";
+import { getLangFromLocals } from "../../i18n/utils";
+import { getSiteUrl } from "../../store/runtime-config";
+
+const lang = getLangFromLocals(Astro.locals);
+const c = useGuideCopy(lang);
+
+// The real admin address for whatever environment is serving this page, rather
+// than a `https://<host>/admin/` placeholder the reader has to fill in
+// themselves. `getSiteUrl` is what the navbar already uses, so the guide and
+// the site agree on the origin; the fallback keeps the link relative if the
+// runtime config is ever unreadable, which still resolves correctly in a
+// browser.
+let adminUrl = "/admin/";
+let adminLoginUrl = "/admin/login/";
+try {
+  const siteUrl = await getSiteUrl();
+  adminUrl = new URL("/admin/", siteUrl).href;
+  adminLoginUrl = new URL("/admin/login/", siteUrl).href;
+} catch (error) {
+  console.error("Could not resolve the site URL for the admin links", error);
+}
 
 // Unnumbered, like the institutions guide. Numbering only fit six of these
 // eight: "Recuperar tu contraseña" and "Si algo no sale bien" are not steps in
@@ -42,14 +68,14 @@ import { GUIDE_ROUTES, INSTITUTION_ACCESS } from "../../data/menu";
 // procedure is carried by the document order and by the prose, which
 // cross-references sections by name rather than by number.
 const sections = [
-  { id: "admin", label: "Entrar al admin" },
-  { id: "institucion", label: "Crear la institución" },
-  { id: "usuario", label: "Asociar un usuario" },
-  { id: "alertas", label: "Configurar alertas" },
-  { id: "estacion", label: "Asociar una estación" },
-  { id: "verificar", label: "Verificar el panel" },
-  { id: "clave", label: "Recuperar tu contraseña" },
-  { id: "errores", label: "Si algo no sale bien" },
+  { id: "admin", label: c.adminNavAdmin },
+  { id: "institucion", label: c.adminNavInstitucion },
+  { id: "usuario", label: c.adminNavUsuario },
+  { id: "alertas", label: c.adminNavAlertas },
+  { id: "estacion", label: c.adminNavEstacion },
+  { id: "verificar", label: c.adminNavVerificar },
+  { id: "clave", label: c.adminNavClave },
+  { id: "errores", label: c.adminNavErrores },
 ];
 
 // Shared by the three admin captures: the same shell at the same width, so they
@@ -60,97 +86,84 @@ const shotWidths = [640, 960, 1280];
 ---
 
 <GuideLayout
-  eyebrow="Guía de uso · Administradores"
-  title="Alta de una institución, de cero a panel activo"
-  dek="Cómo crear una institución en el backoffice de Respira, asociarle un usuario y una estación, y confirmar que su panel funciona."
-  meta={[
-    "Para el equipo interno de Respira",
-    "Requiere una cuenta con permisos en el backoffice",
-  ]}
+  eyebrow={c.adminEyebrow}
+  title={c.adminTitle}
+  dek={c.adminDek}
+  meta={[c.adminMeta1, c.adminMeta2]}
   sections={sections}
 >
   <section id="admin">
-    <h2>Entrar al admin</h2>
+    <h2>{c.adminAdminTitle}</h2>
     <p class="lede">
-      El <strong>admin</strong> es la interfaz de trabajo interna de Respira: una
-      serie de formularios web donde el equipo crea y edita los datos del sistema
-      — instituciones, usuarios, estaciones. Es distinto del <strong
-        >panel institucional</strong
-      >, que es lo que ve el cliente final y se explica en la <a
-        href={GUIDE_ROUTES.institution}>guía para instituciones</a
-      >. Pensá el admin como la trastienda, y el panel como la vitrina.
+      {c.adminAdminLede1} <strong>{c.adminAdminLedeAdmin}</strong>{" "}
+      {c.adminAdminLede2} <strong>{c.adminAdminLedePanel}</strong>{
+        c.adminAdminLede3
+      } <a href={GUIDE_ROUTES.institution}>{c.adminAdminLedeLink}</a>{
+        c.adminAdminLede4
+      }
     </p>
 
     <ol class="steps">
       <li>
-        Abrí el navegador y entrá a esta dirección:
-        <span class="menu-path"
-          >https://&lt;host&gt;<span class="sep">/</span>admin<span class="sep"
-            >/</span
-          ></span
-        >
+        {c.adminAdminStep1}
+        <a class="admin-link" href={adminUrl}>{adminUrl}</a>
       </li>
       <li>
-        Vas a ver una pantalla con dos campos: <strong>email</strong> y
-        <strong>contraseña</strong>. Escribí las credenciales de tu cuenta y
-        presioná el botón de login.
+        {c.adminAdminStep2a} <strong>{c.adminAdminStep2Email}</strong>{" "}
+        {c.adminAdminStep2And} <strong>{c.adminAdminStep2Password}</strong>{
+          c.adminAdminStep2b
+        }
       </li>
       <li>
-        Si todo salió bien, entrás a la pantalla principal: una lista de
-        secciones agrupadas en <span class="path">Accounts</span> y
-        <span class="path">Api</span>. Esa es tu base de operaciones para todo
-        lo que sigue.
+        {c.adminAdminStep3a} <span class="path">Accounts</span>{" "}
+        {c.adminAdminStep3b}
+        <span class="path">Api</span>{c.adminAdminStep3c}
       </li>
     </ol>
 
     <figure class="my-6">
       <Image
         src={AdminHome}
-        alt="Pantalla principal del admin de Respira. A la izquierda, la lista de secciones agrupadas en Accounts (Roles, Users) y Api (Action logs, Institution alerts, Institution contracts, Institutions, Sensitive groups, Stations, entre otras), cada una con un enlace «Add». Arriba a la derecha, los enlaces para ver el sitio, cambiar la contraseña y cerrar sesión."
+        alt={c.adminHomeAlt}
         widths={shotWidths}
         sizes={shotSizes}
         loading="lazy"
         class={shotClass}
       />
       <figcaption>
-        La pantalla principal del admin. Las secciones que vas a usar en esta
-        guía están todas bajo <span class="path">Api</span>.
+        {c.adminHomeCaption1} <span class="path">Api</span>{c.adminHomeCaption2}
       </figcaption>
     </figure>
 
-    <p>¿No tenés cuenta todavía? Hay dos caminos:</p>
+    <p>{c.adminNoAccount}</p>
     <ul>
       <li>
-        Un <strong>superusuario</strong> siempre puede entrar y ve todo. Se crea corriendo
-        <code>python manage.py createsuperuser</code>, o de forma reproducible
-        con <code>python manage.py bootstrap_superuser</code> (usa las variables de
-        entorno <code>BACKEND_SUPERUSER_EMAIL</code> /
-        <code>BACKEND_SUPERUSER_PASSWORD</code>).
+        {c.adminSuperuser1} <strong>{c.adminSuperuserWord}</strong>{" "}
+        {c.adminSuperuser2}
+        <code>python manage.py createsuperuser</code>{c.adminSuperuser3}
+        <code>python manage.py bootstrap_superuser</code> {c.adminSuperuser4}{" "}
+        <code>BACKEND_SUPERUSER_EMAIL</code> /
+        <code>BACKEND_SUPERUSER_PASSWORD</code>{c.adminSuperuser5}
       </li>
       <li>
-        Una cuenta con rol <code>admin</code> o <code>editor</code> alcanza para lo
-        de esta guía — pero solo funciona si alguien ya corrió
-        <code>python manage.py sync_roles</code> después de asignarle ese rol.
+        {c.adminRole1} <code>admin</code> {c.adminRoleOr} <code>editor</code>{" "}
+        {c.adminRole2}
+        <code>python manage.py sync_roles</code> {c.adminRole3}
       </li>
     </ul>
 
-    <Callout label="Lo que más se traba" tone="warn">
+    <Callout label={c.adminAdminCalloutLabel} tone="warn">
       <p>
-        Cambiar el campo <code>role</code> de un usuario en
-        <span class="path">Accounts → Users</span> no le da permisos por sí solo —
-        es solo una etiqueta. Los permisos reales viven en grupos que
-        <code>sync_roles</code> sincroniza. Si entraste al admin pero no ves el botón
-        "Add" en Institutions, ese es el primer sospechoso.
+        {c.adminAdminCallout1} <code>role</code> {c.adminAdminCallout2}
+        <span class="path">Accounts → Users</span> {c.adminAdminCallout3}
+        <code>sync_roles</code> {c.adminAdminCallout4}
       </p>
     </Callout>
   </section>
 
   <section id="institucion">
-    <h2>Crear la institución</h2>
-    <p class="lede">
-      Es el registro raíz: todo lo demás — el usuario que entra al panel, la
-      estación, las alertas — cuelga de esta institución.
-    </p>
+    <h2>{c.adminInstTitle}</h2>
+    <p class="lede">{c.adminInstLede}</p>
 
     <span class="menu-path"
       >Admin<span class="sep">→</span>Api<span class="sep">→</span
@@ -160,96 +173,76 @@ const shotWidths = [640, 960, 1280];
     <figure class="my-6">
       <Image
         src={AdminInstitution}
-        alt="Formulario «Add institution» del admin, completo. Arriba, los campos Legal name, Display name e Institution type; después los bloques Contact (nombre, correo y teléfono), Location (dirección y ciudad) y Notes. Más abajo, la sección «Dashboard users» con un selector de usuario y el enlace «Add another Dashboard user», y la sección «Institution alert config» con la casilla «Is enabled», el campo «Alert threshold» y el selector de doble lista de grupos sensibles. Al pie, los botones Save."
+        alt={c.adminInstAlt}
         widths={shotWidths}
         sizes={shotSizes}
         loading="lazy"
         class={shotClass}
       />
-      <figcaption>
-        Un solo formulario cubre tres cosas: los datos de la institución, el
-        usuario que va a entrar al panel y la configuración de alertas.
-      </figcaption>
+      <figcaption>{c.adminInstCaption}</figcaption>
     </figure>
 
     <dl class="fields">
       <dt>legal_name</dt>
       <dd>
-        <span class="req">Requerido.</span> Razón social de la institución.
+        <span class="req">{c.adminRequired}</span> {c.adminFieldLegalName}
       </dd>
       <dt>display_name</dt>
-      <dd>Nombre corto para mostrar. Opcional.</dd>
+      <dd>{c.adminFieldDisplayName}</dd>
       <dt>institution_type</dt>
-      <dd>Tipo de institución. Opcional.</dd>
+      <dd>{c.adminFieldType}</dd>
       <dt>contact_name / contact_email / contact_phone</dt>
-      <dd>Datos del contacto. Opcionales.</dd>
+      <dd>{c.adminFieldContact}</dd>
       <dt>address / city</dt>
-      <dd>Ubicación. Opcionales.</dd>
+      <dd>{c.adminFieldLocation}</dd>
       <dt>notes</dt>
-      <dd>Notas internas. Opcional.</dd>
+      <dd>{c.adminFieldNotes}</dd>
     </dl>
 
     <p>
-      Guardá el formulario con solo <code>legal_name</code> y ya existe la institución
-      — el resto se puede completar después. No hace falta salir de esta pantalla
-      para los dos pasos siguientes: son secciones de este
-      <strong>mismo formulario</strong>.
+      {c.adminInstAfter1} <code>legal_name</code> {c.adminInstAfter2}
+      <strong>{c.adminInstAfterSame}</strong>.
     </p>
   </section>
 
   <section id="usuario">
-    <h2>Asociar un usuario — esto es lo que da acceso al panel</h2>
-    <p class="lede">
-      Sin este paso la institución existe pero nadie puede entrar a su panel.
-    </p>
+    <h2>{c.adminUserTitle}</h2>
+    <p class="lede">{c.adminUserLede}</p>
 
     <ul>
       <li>
-        En la misma página de la institución, bajá hasta la sección
+        {c.adminUserStep1a}
         <strong>"Dashboard users"</strong>.
       </li>
       <li>
-        Usá el buscador para elegir un <code>User</code> que ya exista. Si todavía
-        no existe, crealo antes en
-        <span class="path">Admin → Accounts → Users</span> y volvé.
+        {c.adminUserStep2a} <code>User</code> {c.adminUserStep2b}
+        <span class="path">Admin → Accounts → Users</span> {c.adminUserStep2c}
       </li>
-      <li>
-        Guardá el formulario de Institution — el vínculo se crea junto con el
-        resto de los datos.
-      </li>
+      <li>{c.adminUserStep3}</li>
     </ul>
 
-    <Callout label="Cómo funciona el acceso">
+    <Callout label={c.adminUserCalloutLabel}>
       <p>
-        Ese usuario <strong>no necesita ser staff ni tener rol de admin</strong
-        >. El único requisito para entrar al panel institucional es tener este
-        vínculo. Es una relación uno a uno: un usuario pertenece como máximo a
-        una institución a la vez. <strong>Guardá su correo</strong> — lo vas a usar
-        para la comprobación final.
+        {c.adminUserCallout1} <strong>{c.adminUserCalloutBold}</strong>{
+          c.adminUserCallout2
+        } <strong>{c.adminUserCalloutSave}</strong> {c.adminUserCallout3}
       </p>
     </Callout>
   </section>
 
   <section id="alertas">
-    <h2>Configurar alertas — opcional</h2>
-    <p class="lede">
-      Solo si la institución va a usar el sistema de alertas por grupos
-      sensibles.
-    </p>
+    <h2>{c.adminAlertsTitle}</h2>
+    <p class="lede">{c.adminAlertsLede}</p>
     <p>
-      Misma página, sección <strong>"Institution alert config"</strong>. Activá
-      la casilla, poné el umbral de AQI a partir del cual se dispara una alerta,
-      y elegí los grupos sensibles en el selector de doble lista. Se puede
-      omitir por completo sin bloquear los pasos siguientes.
+      {c.adminAlertsBody1} <strong>"Institution alert config"</strong>{
+        c.adminAlertsBody2
+      }
     </p>
   </section>
 
   <section id="estacion">
-    <h2>Asociar una estación</h2>
-    <p class="lede">
-      Esta es la parte que conecta con el pipeline de datos — pero desde el
-      admin es un formulario más.
-    </p>
+    <h2>{c.adminStationTitle}</h2>
+    <p class="lede">{c.adminStationLede}</p>
 
     <span class="menu-path"
       >Admin<span class="sep">→</span>Api<span class="sep">→</span>Institution
@@ -259,170 +252,128 @@ const shotWidths = [640, 960, 1280];
     <figure class="my-6">
       <Image
         src={AdminContract}
-        alt="Formulario «Add institution contract» del admin, con los campos Institution y Station como buscadores, el desplegable Contract status con las opciones draft, active, expired y cancelled, las fechas Start date y End date, el campo Monthly fee y el campo Signed contract url."
+        alt={c.adminContractAlt}
         widths={shotWidths}
         sizes={shotSizes}
         loading="lazy"
         class={shotClass}
       />
-      <figcaption>
-        El contrato es lo que liga la institución con su sensor: sin él, el
-        panel abre pero no tiene datos que mostrar.
-      </figcaption>
+      <figcaption>{c.adminContractCaption}</figcaption>
     </figure>
 
     <dl class="fields">
       <dt>institution</dt>
-      <dd><span class="req">Requerido.</span> Se elige con el buscador.</dd>
+      <dd>
+        <span class="req">{c.adminRequired}</span> {c.adminFieldInstitution}
+      </dd>
       <dt>station</dt>
       <dd>
-        <span class="req">Requerido.</span> Se busca por nombre o por
+        <span class="req">{c.adminRequired}</span> {c.adminFieldStation}
         <code>station_code</code>.
       </dd>
       <dt>contract_status</dt>
-      <dd>draft / active / expired / cancelled.</dd>
+      <dd>{c.adminFieldContractStatus}</dd>
       <dt>start_date</dt>
-      <dd><span class="req">Requerido.</span></dd>
+      <dd><span class="req">{c.adminRequired}</span></dd>
       <dt>end_date / monthly_fee / signed_contract_url</dt>
-      <dd>Opcionales.</dd>
+      <dd>{c.adminFieldOptional}</dd>
     </dl>
 
-    <Callout label="Una restricción que conviene saber de antemano" tone="warn">
+    <Callout label={c.adminStationCalloutLabel} tone="warn">
       <p>
-        Institución y estación son <strong>uno a uno en ambos sentidos</strong>:
-        una institución solo puede tener un contrato, y una estación solo puede
-        estar ligada a una institución. Si necesitás reasignar una estación,
-        primero hay que borrar o expirar el contrato anterior.
+        {c.adminStationCallout1} <strong>{c.adminStationCalloutBold}</strong>{
+          c.adminStationCallout2
+        }
       </p>
     </Callout>
 
     <p>
-      El campo <code>station_code</code> de la estación es de solo lectura acá — lo
-      genera el pipeline de datos, no se edita desde este formulario.
+      {c.adminStationCode1} <code>station_code</code> {c.adminStationCode2}
     </p>
   </section>
 
   <section id="verificar">
-    <h2>Verificar que el panel funciona</h2>
-    <p class="lede">
-      Ya tenés la institución, su usuario y su estación. La comprobación es
-      entrar como si fueras esa institución y ver que carga sus propios datos.
-    </p>
+    <h2>{c.adminVerifyTitle}</h2>
+    <p class="lede">{c.adminVerifyLede}</p>
 
     <ol class="steps">
       <li>
-        Abrí <a href={INSTITUTION_ACCESS.route}>{INSTITUTION_ACCESS.title}</a> desde
-        el menú del sitio, o directamente
+        {c.adminVerifyStep1a} <a href={INSTITUTION_ACCESS.route}
+          >{INSTITUTION_ACCESS.title}</a
+        > {c.adminVerifyStep1b}
         <span class="path">{INSTITUTION_ACCESS.route}</span>.
       </li>
       <li>
-        Ingresá con el <strong
-          >correo y la contraseña del usuario que asociaste</strong
-        > — no con tu cuenta de admin. Una cuenta de backoffice sin ese vínculo no
-        entra acá, aunque sus credenciales sean correctas.
+        {c.adminVerifyStep2a} <strong>{c.adminVerifyStep2Bold}</strong>{" "}
+        {c.adminVerifyStep2b}
       </li>
-      <li>
-        Deberías caer en el panel y ver el nombre de la institución en la barra
-        superior, con el sensor, el AQI del día y el historial cargados. Eso
-        confirma que los cinco pasos anteriores quedaron bien.
-      </li>
+      <li>{c.adminVerifyStep3}</li>
     </ol>
 
     <p>
-      Si querés saber qué va a ver exactamente la institución cuando entre, el
-      recorrido completo del panel está en la <a href={GUIDE_ROUTES.institution}
-        >guía para instituciones</a
-      >.
+      {c.adminVerifyAfter1} <a href={GUIDE_ROUTES.institution}
+        >{c.adminAdminLedeLink}</a
+      >{c.adminVerifyAfter2}
     </p>
   </section>
 
   <section id="clave">
-    <h2>Recuperar tu contraseña de administrador</h2>
-    <p class="lede">
-      Si perdiste el acceso al admin, no hace falta que otra persona te lo
-      restablezca.
-    </p>
+    <h2>{c.adminClaveTitle}</h2>
+    <p class="lede">{c.adminClaveLede}</p>
     <ol class="steps">
       <li>
-        En <span class="path">/admin/login/</span>, tocá <strong
-          >"Forgotten your password or username?"</strong
-        >, debajo del formulario.
+        {c.adminClaveStep1a} <a class="path" href={adminLoginUrl}
+          >/admin/login/</a
+        >{c.adminClaveStep1b} <strong>{c.adminClaveStep1Bold}</strong>{c.adminClaveStep1c}
       </li>
-      <li>Escribí el correo de tu cuenta y enviá.</li>
+      <li>{c.adminClaveStep2}</li>
+      <li>{c.adminClaveStep3}</li>
       <li>
-        Vas a recibir un correo con un enlace. Abrilo y elegí la contraseña
-        nueva, dos veces.
-      </li>
-      <li>
-        Volvé a <span class="path">/admin/login/</span> y entrá con la nueva.
+        {c.adminClaveStep4a} <a class="path" href={adminLoginUrl}
+          >/admin/login/</a
+        > {c.adminClaveStep4b}
       </li>
     </ol>
 
-    <Callout label="Lo que conviene saber" tone="warn">
+    <Callout label={c.adminClaveCalloutLabel} tone="warn">
+      <p>{c.adminClaveCallout1}</p>
       <p>
-        El enlace vence a las 24 horas y se puede usar una sola vez; volver a
-        entrar con la contraseña vieja también lo invalida. El formulario no
-        dice si el correo existe o no — es para que nadie pueda usarlo para
-        averiguar qué cuentas hay.
-      </p>
-      <p>
-        Las pantallas de recuperación viven bajo <span class="path"
-          >/admin/</span
-        >, así que están detrás de la misma lista de IPs permitidas que el resto
-        del backoffice: si el admin no te abre desde donde estás, el enlace del
-        correo tampoco va a abrir.
+        {c.adminClaveCallout2a} <span class="path">/admin/</span>{
+          c.adminClaveCallout2b
+        }
       </p>
     </Callout>
 
     <p>
-      Las instituciones tienen su propio flujo, desde la pantalla de ingreso del
-      panel — está explicado en la <a href={GUIDE_ROUTES.institution}
-        >guía para instituciones</a
-      >.
+      {c.adminClaveAfter1} <a href={GUIDE_ROUTES.institution}
+        >{c.adminAdminLedeLink}</a
+      >{c.adminClaveAfter2}
     </p>
   </section>
 
   <section id="errores">
-    <h2>Si algo no sale bien</h2>
+    <h2>{c.adminErroresTitle}</h2>
 
-    <Callout
-      label="El usuario no entra, aunque la contraseña sea correcta"
-      tone="danger"
-    >
+    <Callout label={c.adminError1Label} tone="danger">
       <p>
-        Le falta el vínculo con la institución, o quedó asociado a otra. Volvé
-        al paso <a href="#usuario">Asociar un usuario</a> y revisá la sección "Dashboard
-        users". Ojo también con usar por error una cuenta de backoffice: tener permisos
-        en <span class="path">/admin/</span> no da acceso al panel institucional.
+        {c.adminError1a} <a href="#usuario">{c.adminError1Link}</a>{" "}
+        {c.adminError1b}
+        <span class="path">/admin/</span> {c.adminError1c}
       </p>
     </Callout>
 
-    <Callout
-      label="El panel abre pero dice que no hay sensor asignado"
-      tone="danger"
-    >
+    <Callout label={c.adminError2Label} tone="danger">
       <p>
-        La institución no tiene contrato. Volvé al paso <a href="#estacion"
-          >Asociar una estación</a
-        >.
+        {c.adminError2a} <a href="#estacion">{c.adminError2Link}</a>.
       </p>
     </Callout>
 
-    <Callout label="La cuenta quedó bloqueada tras varios intentos" tone="warn">
-      <p>
-        El ingreso al panel comparte la protección del admin: 5 intentos
-        fallidos bloquean la cuenta por 1 hora. Si vas a probar credenciales
-        inválidas a propósito, no repitas más de 4 veces seguidas con el mismo
-        usuario.
-      </p>
+    <Callout label={c.adminError3Label} tone="warn">
+      <p>{c.adminError3}</p>
     </Callout>
 
-    <Callout label="El panel abre pero el historial está vacío">
-      <p>
-        La estación existe y el contrato también, pero el sensor todavía no
-        reportó mediciones — o reportó menos de dos días. El gráfico aparece
-        solo cuando hay al menos dos días de datos.
-      </p>
+    <Callout label={c.adminError4Label}>
+      <p>{c.adminError4}</p>
     </Callout>
   </section>
 </GuideLayout>

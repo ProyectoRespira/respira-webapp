@@ -4,7 +4,8 @@ import type {
   InstitutionContract,
   InstitutionDashboard,
 } from "../../../data/institution";
-import { institutionCopy as copy } from "../../../i18n/institution";
+import type { Lang } from "../../../i18n/config";
+import { useInstitutionCopy } from "../../../i18n/institution";
 import {
   InstitutionApiError,
   fetchDashboard,
@@ -38,11 +39,14 @@ export function DashboardSections({
   initial,
   contract,
   contactMail,
+  lang,
 }: {
   initial: InitialDashboardState;
   contract: InstitutionContract | null;
   contactMail: string;
+  lang: Lang;
 }) {
+  const copy = useInstitutionCopy(lang);
   const [state, setState] = useState<
     InitialDashboardState | { status: "loading" } | { status: "expired" }
   >(initial);
@@ -127,29 +131,36 @@ export function DashboardSections({
           is actually reporting. The two have to be read together. */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
         <div className="lg:col-span-8">
-          <AirQualityPanel airQuality={dashboard.air_quality} />
+          <AirQualityPanel airQuality={dashboard.air_quality} lang={lang} />
         </div>
         <div className="lg:col-span-4">
-          <SensorStatusCard sensor={dashboard.sensor} contract={contract} />
+          <SensorStatusCard
+            sensor={dashboard.sensor}
+            contract={contract}
+            lang={lang}
+          />
         </div>
       </div>
 
       <HistoryChart
         history={dashboard.history}
         threshold={dashboard.alert_config.alert_threshold}
+        lang={lang}
       />
 
       <ActionLogPanel
         stationId={dashboard.sensor.id}
         stationName={dashboard.sensor.name}
+        lang={lang}
       />
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <AlertConfigCard
           alertConfig={dashboard.alert_config}
           contactMail={contactMail}
+          lang={lang}
         />
-        <DownloadCard />
+        <DownloadCard lang={lang} />
       </div>
     </div>
   );

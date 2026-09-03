@@ -8,7 +8,11 @@
 
 import InstitutionAuthLayout from "../../layouts/InstitutionAuthLayout.astro";
 import { ForgotPasswordForm } from "../../components/react/institution/ForgotPasswordForm";
-import { institutionCopy as copy } from "../../i18n/institution";
+import { useInstitutionCopy } from "../../i18n/institution";
+import { getLangFromLocals } from "../../i18n/utils";
+
+const lang = getLangFromLocals(Astro.locals);
+const copy = useInstitutionCopy(lang);
 ---
 
 <InstitutionAuthLayout
@@ -16,5 +20,5 @@ import { institutionCopy as copy } from "../../i18n/institution";
   tagline={copy.forgotTagline}
   blurb={copy.forgotBlurb}
 >
-  <ForgotPasswordForm client:load />
+  <ForgotPasswordForm lang={lang} client:load />
 </InstitutionAuthLayout>

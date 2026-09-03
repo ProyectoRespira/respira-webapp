@@ -17,7 +17,10 @@ const es = {
   // Entry point to the private institutional area. Kept in the public
   // dictionary because the link itself lives in the public chrome — the panel
   // behind it is Spanish-only (see `i18n/institution.ts`).
-  "nav.institution": "Login",
+  //
+  // Each language names it in its own words: "Login" is English and belongs in
+  // the English dictionary only.
+  "nav.institution": "Acceso",
 
   "nav.language": "Idioma",
 
@@ -380,7 +383,7 @@ const en: Dictionary = {
   "nav.data": "Data",
   "nav.join": "Join the network",
   "nav.map": "Map",
-  "nav.institution": "Institutional access",
+  "nav.institution": "Login",
 
   "nav.language": "Language",
 
@@ -715,7 +718,7 @@ const pt: Dictionary = {
   "nav.data": "Dados",
   "nav.join": "Junte-se à rede",
   "nav.map": "Mapa",
-  "nav.institution": "Acesso institucional",
+  "nav.institution": "Acesso",
 
   "nav.language": "Idioma",
 

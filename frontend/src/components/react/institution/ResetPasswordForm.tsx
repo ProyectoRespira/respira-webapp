@@ -7,7 +7,11 @@
 
 import { useId, useState, type FormEvent } from "react";
 
-import { institutionCopy as copy } from "../../../i18n/institution";
+import type { Lang } from "../../../i18n/config";
+import {
+  useInstitutionCopy,
+  type InstitutionCopyKey,
+} from "../../../i18n/institution";
 import {
   confirmPasswordReset,
   InstitutionApiError,
@@ -19,18 +23,19 @@ import {
 import { Button, FieldLabel, fieldClassName } from "./ui";
 
 /**
- * Spanish copy for the password rules the backend enforces.
+ * Copy keys for the password rules the backend enforces.
  *
  * The backend returns `new_password_codes` next to Django's own messages
  * precisely so this mapping can exist: those messages are always English, and
- * the codes are stable across Django versions.
+ * the codes are stable across Django versions. Keys rather than strings, so the
+ * message is resolved in whatever language the visitor is reading.
  */
-const RULE_MESSAGES: Record<string, string> = {
-  password_too_short: copy.resetRuleTooShort,
-  password_too_common: copy.resetRuleTooCommon,
-  password_entirely_numeric: copy.resetRuleAllNumbers,
-  password_too_similar: copy.resetRuleTooSimilar,
-  password_not_complex: copy.resetRuleNotComplex,
+const RULE_KEYS: Record<string, InstitutionCopyKey> = {
+  password_too_short: "resetRuleTooShort",
+  password_too_common: "resetRuleTooCommon",
+  password_entirely_numeric: "resetRuleAllNumbers",
+  password_too_similar: "resetRuleTooSimilar",
+  password_not_complex: "resetRuleNotComplex",
 };
 
 type Outcome =
@@ -42,10 +47,13 @@ type Outcome =
 export function ResetPasswordForm({
   uid,
   token,
+  lang,
 }: {
   uid: string;
   token: string;
+  lang: Lang;
 }) {
+  const copy = useInstitutionCopy(lang);
   const passwordId = useId();
   const confirmId = useId();
   const rulesId = useId();
@@ -82,8 +90,9 @@ export function ResetPasswordForm({
     const passwordErrors = caught.fieldErrors.new_password ?? [];
     if (codes.length || passwordErrors.length) {
       const mapped = codes
-        .map((code) => RULE_MESSAGES[code])
-        .filter((message): message is string => Boolean(message));
+        .map((code) => RULE_KEYS[code])
+        .filter((key): key is InstitutionCopyKey => Boolean(key))
+        .map((key) => copy[key]);
       setErrors(mapped.length ? mapped : [copy.resetRuleGeneric]);
       return;
     }

@@ -1,5 +1,6 @@
 import type { InstitutionAlertConfig } from "../../../data/institution";
-import { institutionCopy as copy } from "../../../i18n/institution";
+import type { Lang } from "../../../i18n/config";
+import { useInstitutionCopy } from "../../../i18n/institution";
 import { Card, CardHead, CardTitle, Pill } from "./ui";
 
 /**
@@ -17,10 +18,13 @@ import { Card, CardHead, CardTitle, Pill } from "./ui";
 export function AlertConfigCard({
   alertConfig,
   contactMail,
+  lang,
 }: {
   alertConfig: InstitutionAlertConfig;
   contactMail: string;
+  lang: Lang;
 }) {
+  const copy = useInstitutionCopy(lang);
   const { is_enabled: enabled, alert_threshold: threshold } = alertConfig;
   const groups = alertConfig.sensitive_groups;
 
@@ -86,7 +90,7 @@ export function AlertConfigCard({
         <a
           className="text-xs font-bold text-green_dark hover:underline"
           href={`mailto:${contactMail}?subject=${encodeURIComponent(
-            "Cambios en la configuración de alertas",
+            copy.alertsRequestSubject,
           )}`}
         >
           {copy.alertsRequestChanges}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 
-import { institutionCopy as copy } from "../../../i18n/institution";
+import type { Lang } from "../../../i18n/config";
+import { useInstitutionCopy } from "../../../i18n/institution";
 import { logout } from "../../../store/institution";
 import { INSTITUTION_LOGIN_PATH } from "../../../utils/institution-session";
 
@@ -13,7 +14,8 @@ import { INSTITUTION_LOGIN_PATH } from "../../../utils/institution-session";
  * logout would silently bounce them where they started with nothing to explain
  * it. Saying so is the honest outcome.
  */
-export function LogoutButton() {
+export function LogoutButton({ lang }: { lang: Lang }) {
+  const copy = useInstitutionCopy(lang);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 

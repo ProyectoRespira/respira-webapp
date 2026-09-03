@@ -4,7 +4,8 @@ import type {
   DashboardSensor,
   InstitutionContract,
 } from "../../../data/institution";
-import { institutionCopy as copy } from "../../../i18n/institution";
+import type { Lang } from "../../../i18n/config";
+import { useInstitutionCopy } from "../../../i18n/institution";
 import {
   formatCoordinates,
   formatDate,
@@ -21,8 +22,11 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+// Takes the resolved copy rather than reading a module-level dictionary: the
+// wording depends on the language the visitor is reading.
 const contractLine = (
   contract: InstitutionContract | null,
+  copy: ReturnType<typeof useInstitutionCopy>,
 ): string | undefined => {
   if (!contract || contract.contract_status !== "active") return undefined;
   return contract.end_date
@@ -40,16 +44,19 @@ const contractLine = (
 export function SensorStatusCard({
   sensor,
   contract,
+  lang,
 }: {
   sensor: DashboardSensor;
   contract: InstitutionContract | null;
+  lang: Lang;
 }) {
+  const copy = useInstitutionCopy(lang);
   const online = sensor.status === "online";
   const coordinates = formatCoordinates(
     sensor.location.latitude,
     sensor.location.longitude,
   );
-  const contractText = contractLine(contract);
+  const contractText = contractLine(contract, copy);
 
   return (
     <Card>

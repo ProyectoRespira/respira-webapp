@@ -18,6 +18,8 @@ import BaseLayout from "./BaseLayout.astro";
 import Footer from "../components/atoms/Footer.astro";
 import BackTop from "../components/atoms/BackTop.astro";
 import { GUIDE_ROUTES } from "../data/menu";
+import { useGuideCopy } from "../i18n/guides";
+import { getLangFromLocals } from "../i18n/utils";
 
 export interface GuideSection {
   id: string;
@@ -35,6 +37,8 @@ interface Props {
 }
 
 const { eyebrow, title, dek, meta = [], sections } = Astro.props;
+
+const c = useGuideCopy(getLangFromLocals(Astro.locals));
 
 // Straight from the site's other long-form page (`recursos.astro`), so the
 // guides line up with it at every breakpoint.
@@ -57,7 +61,7 @@ const GUTTER = "px-[clamp(20px,5vw,64px)]";
         class="font-sans text-[13px] font-semibold text-gray hover:text-near_black hover:underline"
         href={GUIDE_ROUTES.index}
       >
-        ← Guías de uso
+        ← {c.layoutBack}
       </a>
       <p
         class="mt-4 font-sans text-[12px] font-bold uppercase tracking-[0.09em] text-green_darker"
@@ -98,7 +102,7 @@ const GUTTER = "px-[clamp(20px,5vw,64px)]";
         <p
           class="mb-3 font-sans text-[11px] font-bold uppercase tracking-[0.08em] text-lightgray"
         >
-          En esta guía
+          {c.layoutToc}
         </p>
         <ol class="border-l border-bg-gray">
           {
@@ -121,7 +125,7 @@ const GUTTER = "px-[clamp(20px,5vw,64px)]";
         <summary
           class="cursor-pointer px-4 py-3 font-sans text-[12px] font-bold uppercase tracking-[0.08em] text-gray"
         >
-          En esta guía
+          {c.layoutToc}
         </summary>
         <ol class="px-4 pb-4">
           {
@@ -283,6 +287,23 @@ const GUTTER = "px-[clamp(20px,5vw,64px)]";
 
   .guide-prose .menu-path .sep {
     color: #a1a1a1;
+  }
+
+  /*
+    A real, clickable address — the admin's own URL for this environment. Shaped
+    like `.menu-path` so it reads as the same kind of thing, but underlined and
+    in the link colour, because unlike a menu trail this one can be followed.
+  */
+  .guide-prose a.admin-link {
+    display: inline-block;
+    background: #fff;
+    border: 1px solid #dbd3d0;
+    border-radius: 6px;
+    padding: 0.4rem 0.7rem;
+    margin: 0.25rem 0 1rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
   }
 
   /* Field reference: name on the left, meaning on the right. */

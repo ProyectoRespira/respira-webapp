@@ -5,7 +5,8 @@ import {
   type ActionLog,
   type InstitutionAlert,
 } from "../../../data/institution";
-import { institutionCopy as copy } from "../../../i18n/institution";
+import type { Lang } from "../../../i18n/config";
+import { useInstitutionCopy } from "../../../i18n/institution";
 import {
   InstitutionApiError,
   createActionLog,
@@ -52,11 +53,14 @@ const stateForError = (error: unknown): ListState => {
 export function ActionLogPanel({
   stationId,
   stationName,
+  lang,
 }: {
   /** The institution's own station; the form has nothing to choose between. */
   stationId: number | null;
   stationName: string;
+  lang: Lang;
 }) {
+  const copy = useInstitutionCopy(lang);
   const [list, setList] = useState<ListState>({ status: "loading" });
   const [loadingMore, setLoadingMore] = useState(false);
   // Alerts are optional context for the form, so a failure to load them is not
@@ -127,6 +131,7 @@ export function ActionLogPanel({
           onRetry={load}
           onLoadMore={loadMore}
           loadingMore={loadingMore}
+          lang={lang}
         />
       </div>
       <div className="lg:col-span-5">
@@ -136,6 +141,7 @@ export function ActionLogPanel({
           alerts={alerts}
           disabled={list.status === "unavailable"}
           onCreated={prepend}
+          lang={lang}
         />
       </div>
     </div>
@@ -149,12 +155,15 @@ function ActionLogList({
   onRetry,
   onLoadMore,
   loadingMore,
+  lang,
 }: {
   state: ListState;
   onRetry: () => void;
   onLoadMore: () => void;
   loadingMore: boolean;
+  lang: Lang;
 }) {
+  const copy = useInstitutionCopy(lang);
   return (
     <Card>
       <CardHead>
@@ -273,13 +282,16 @@ function ActionLogForm({
   alerts,
   disabled,
   onCreated,
+  lang,
 }: {
   stationId: number | null;
   stationName: string;
   alerts: InstitutionAlert[];
   disabled: boolean;
   onCreated: (created: ActionLog) => void;
+  lang: Lang;
 }) {
+  const copy = useInstitutionCopy(lang);
   const noteId = useId();
   const alertId = useId();
   const [note, setNote] = useState("");

@@ -2,7 +2,8 @@ import { useMemo, useState, type PointerEvent } from "react";
 
 import { AQI_COLORS, AQI_RANGES } from "../../../data/constants";
 import type { DashboardHistoryPoint } from "../../../data/institution";
-import { institutionCopy as copy } from "../../../i18n/institution";
+import type { Lang } from "../../../i18n/config";
+import { format, useInstitutionCopy } from "../../../i18n/institution";
 import {
   formatAqi,
   formatDate,
@@ -73,10 +74,13 @@ const monthTicks = (points: Point[]): Point[] => {
 export function HistoryChart({
   history,
   threshold,
+  lang,
 }: {
   history: DashboardHistoryPoint[];
   threshold: number | null;
+  lang: Lang;
 }) {
+  const copy = useInstitutionCopy(lang);
   const [hovered, setHovered] = useState<Point | undefined>();
 
   const points = useMemo<Point[]>(
@@ -143,9 +147,11 @@ export function HistoryChart({
           viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
           className="block h-auto w-full touch-none"
           role="img"
-          aria-label={`${copy.historyTitle}. ${points.length} días con mediciones, entre ${formatAqi(
-            Math.min(...points.map((point) => point.aqi)),
-          )} y ${formatAqi(Math.max(...points.map((point) => point.aqi)))} AQI.`}
+          aria-label={`${copy.historyTitle}. ${format(copy.historyChartLabel, {
+            days: points.length,
+            min: formatAqi(Math.min(...points.map((point) => point.aqi))),
+            max: formatAqi(Math.max(...points.map((point) => point.aqi))),
+          })}`}
           onPointerMove={handlePointerMove}
           onPointerLeave={() => setHovered(undefined)}
         >

@@ -1,6 +1,7 @@
 import type { DashboardAirQuality } from "../../../data/institution";
 import { emojiForCategory } from "../../../data/institution";
-import { institutionCopy as copy } from "../../../i18n/institution";
+import type { Lang } from "../../../i18n/config";
+import { useInstitutionCopy } from "../../../i18n/institution";
 import { formatAqi } from "../../../utils/institution-format";
 import { getColorRange, isValidAqi } from "../../../utils";
 import { Card, CardHead, CardTitle, Pill, StateBlock } from "./ui";
@@ -15,9 +16,12 @@ import { Card, CardHead, CardTitle, Pill, StateBlock } from "./ui";
  */
 export function AirQualityPanel({
   airQuality,
+  lang,
 }: {
   airQuality: DashboardAirQuality | null;
+  lang: Lang;
 }) {
+  const copy = useInstitutionCopy(lang);
   if (!airQuality) {
     return (
       <Card>

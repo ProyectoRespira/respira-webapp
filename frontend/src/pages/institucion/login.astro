@@ -7,13 +7,17 @@
 
 import InstitutionAuthLayout from "../../layouts/InstitutionAuthLayout.astro";
 import { LoginForm } from "../../components/react/institution/LoginForm";
-import { institutionCopy as copy } from "../../i18n/institution";
+import { useInstitutionCopy } from "../../i18n/institution";
+import { getLangFromLocals } from "../../i18n/utils";
 import { GUIDE_ROUTES } from "../../data/menu";
 import { getFrontendRuntimeConfig } from "../../runtime-env";
 import {
   INSTITUTION_DASHBOARD_PATH,
   resolveInstitutionSession,
 } from "../../utils/institution-session";
+
+const lang = getLangFromLocals(Astro.locals);
+const copy = useInstitutionCopy(lang);
 
 const session = await resolveInstitutionSession(Astro.request);
 
@@ -43,6 +47,7 @@ try {
   <LoginForm
     contactMail={contactMail}
     guideHref={GUIDE_ROUTES.institution}
+    lang={lang}
     client:load
   />
 </InstitutionAuthLayout>
