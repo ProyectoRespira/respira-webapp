@@ -9,9 +9,6 @@ on:
 permissions:
   contents: write
   packages: write
-  attestations: write
-  artifact-metadata: write
-  id-token: write
 
 jobs:
   create-release:
@@ -205,164 +202,25 @@ jobs:
           echo "  Deleted: ${{ steps.extract_tag.outputs.branch_type }}-${{ steps.extract_tag.outputs.tag }}"
           echo "  From: respira-backend, respira-frontend, respira-proxy"
 
-  publish-release-images:
-    name: Publish Release Images to GHCR
-    needs: create-release
-    if: needs.create-release.outputs.skip != 'true'
-    runs-on: ubuntu-latest
-    environment: Production
-    env:
-      REGISTRY: ghcr.io
-      IMAGE_OWNER: ${{ github.repository_owner }}
-      RELEASE_TAG: ${{ needs.create-release.outputs.release_tag }}
-
-    steps:
-      - name: Validate release tag format
+      # Image publishing needs the Production environment, whose branch policy
+      # rejects this job's ephemeral refs/pull/<n>/merge ref; hand off release
+      # metadata to release-publish.yml (workflow_run), which resolves to main.
+      - name: Save release metadata for downstream publish workflow
+        if: always()
         shell: bash
         run: |
           set -eu
+          mkdir -p release-metadata
+          {
+            echo "SKIP=${{ steps.extract_tag.outputs.skip }}"
+            echo "RELEASE_TAG=${{ steps.extract_tag.outputs.tag }}"
+            echo "BRANCH_TYPE=${{ steps.extract_tag.outputs.branch_type }}"
+          } > release-metadata/metadata.env
 
-          if ! printf '%s' "$RELEASE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "Release tag must match strict semver format: vX.Y.Z"
-            exit 1
-          fi
-
-      - name: Normalize image owner
-        id: normalize_owner
-        shell: bash
-        run: |
-          echo "image_owner_lc=${IMAGE_OWNER,,}" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout release tag
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Upload release metadata
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          ref: ${{ needs.create-release.outputs.release_tag }}
-          fetch-depth: 0
-
-      - name: Validate release tag is on main
-        shell: bash
-        run: |
-          set -eu
-
-          git fetch origin main --depth=1
-
-          if ! git merge-base --is-ancestor HEAD origin/main; then
-            echo "Release tag $RELEASE_TAG does not point to a commit contained in origin/main"
-            exit 1
-          fi
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
-
-      - name: Log in to GHCR
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Docker metadata backend
-        id: meta_backend
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-backend
-          tags: |
-            type=raw,value=${{ env.RELEASE_TAG }}
-            type=sha,prefix=sha-
-            type=raw,value=latest
-
-      - name: Docker metadata frontend
-        id: meta_frontend
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-frontend
-          tags: |
-            type=raw,value=${{ env.RELEASE_TAG }}
-            type=sha,prefix=sha-
-            type=raw,value=latest
-
-      - name: Docker metadata proxy
-        id: meta_proxy
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-proxy
-          tags: |
-            type=raw,value=${{ env.RELEASE_TAG }}
-            type=sha,prefix=sha-
-            type=raw,value=latest
-
-      - name: Build and push backend image
-        id: push_backend
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile
-          push: true
-          tags: ${{ steps.meta_backend.outputs.tags }}
-          labels: ${{ steps.meta_backend.outputs.labels }}
-          cache-from: type=gha,scope=release-on-merge-backend
-          cache-to: type=gha,scope=release-on-merge-backend,mode=max,ignore-error=true
-          provenance: true
-          sbom: true
-
-      - name: Build and push frontend image
-        id: push_frontend
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
-          push: true
-          tags: ${{ steps.meta_frontend.outputs.tags }}
-          labels: ${{ steps.meta_frontend.outputs.labels }}
-          cache-from: type=gha,scope=release-on-merge-frontend
-          cache-to: type=gha,scope=release-on-merge-frontend,mode=max,ignore-error=true
-          provenance: true
-          sbom: true
-
-      - name: Upload frontend source maps
-        if: vars.GLITCHTIP_UPLOAD_SOURCEMAPS == 'true'
-        uses: ./.github/actions/upload-glitchtip-sourcemaps
-        env:
-          GLITCHTIP_UPLOAD_SOURCEMAPS: ${{ vars.GLITCHTIP_UPLOAD_SOURCEMAPS }}
-          GLITCHTIP_AUTH_TOKEN: ${{ secrets.GLITCHTIP_AUTH_TOKEN }}
-          GLITCHTIP_CLI_VERSION: ${{ vars.GLITCHTIP_CLI_VERSION }}
-          GLITCHTIP_CLI_SHA256: ${{ vars.GLITCHTIP_CLI_SHA256 }}
-          GLITCHTIP_URL: ${{ vars.GLITCHTIP_URL }}
-          GLITCHTIP_ORG: ${{ vars.GLITCHTIP_ORG }}
-          GLITCHTIP_PROJECT: ${{ vars.GLITCHTIP_FRONTEND_PROJECT }}
-          GLITCHTIP_RELEASE: ${{ env.RELEASE_TAG }}
-
-      - name: Build and push proxy image
-        id: push_proxy
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: ./proxy
-          file: ./proxy/Dockerfile
-          push: true
-          tags: ${{ steps.meta_proxy.outputs.tags }}
-          labels: ${{ steps.meta_proxy.outputs.labels }}
-          cache-from: type=gha,scope=release-on-merge-proxy
-          cache-to: type=gha,scope=release-on-merge-proxy,mode=max,ignore-error=true
-          provenance: true
-          sbom: true
-
-      - name: Generate backend image attestation
-        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
-        with:
-          subject-name: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-backend
-          subject-digest: ${{ steps.push_backend.outputs.digest }}
-          push-to-registry: true
-
-      - name: Generate frontend image attestation
-        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
-        with:
-          subject-name: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-frontend
-          subject-digest: ${{ steps.push_frontend.outputs.digest }}
-          push-to-registry: true
-
-      - name: Generate proxy image attestation
-        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
-        with:
-          subject-name: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-proxy
-          subject-digest: ${{ steps.push_proxy.outputs.digest }}
-          push-to-registry: true
+          name: release-metadata
+          path: release-metadata/metadata.env
+          retention-days: 1
