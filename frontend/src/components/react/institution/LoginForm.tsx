@@ -1,6 +1,10 @@
 import { useId, useState, type FormEvent } from "react";
 
-import { institutionCopy as copy } from "../../../i18n/institution";
+import type { Lang } from "../../../i18n/config";
+import {
+  useInstitutionCopy,
+  type InstitutionCopyKey,
+} from "../../../i18n/institution";
 import { InstitutionApiError, login } from "../../../store/institution";
 import {
   INSTITUTION_DASHBOARD_PATH,
@@ -9,19 +13,22 @@ import {
 import { Button, FieldLabel, fieldClassName } from "./ui";
 
 /**
- * Maps a failed login onto one message.
+ * Maps a failed login onto one copy key.
  *
  * The three cases the backend distinguishes are worth distinguishing here too:
  * bad credentials (400) is the user's to fix, a valid account with no
  * institution (403) is not, and a lockout (429, from django-axes) means waiting
  * rather than retrying. Beyond that we never say *which* field was wrong.
+ *
+ * Returns the key rather than the string: this runs outside the component, so
+ * it has no access to the active language's dictionary.
  */
-const messageForError = (error: unknown): string => {
-  if (!(error instanceof InstitutionApiError)) return copy.loginErrorUnexpected;
-  if (error.status === 400) return copy.loginErrorCredentials;
-  if (error.status === 403) return copy.loginErrorNoInstitution;
-  if (error.status === 429) return copy.loginErrorThrottled;
-  return copy.loginErrorUnexpected;
+const errorKeyFor = (error: unknown): InstitutionCopyKey => {
+  if (!(error instanceof InstitutionApiError)) return "loginErrorUnexpected";
+  if (error.status === 400) return "loginErrorCredentials";
+  if (error.status === 403) return "loginErrorNoInstitution";
+  if (error.status === 429) return "loginErrorThrottled";
+  return "loginErrorUnexpected";
 };
 
 /**
@@ -33,10 +40,13 @@ const messageForError = (error: unknown): string => {
 export function LoginForm({
   contactMail,
   guideHref,
+  lang,
 }: {
   contactMail: string;
   guideHref: string;
+  lang: Lang;
 }) {
+  const copy = useInstitutionCopy(lang);
   const emailId = useId();
   const passwordId = useId();
 
@@ -59,7 +69,7 @@ export function LoginForm({
       // browser send the cookie Django just set.
       window.location.assign(INSTITUTION_DASHBOARD_PATH);
     } catch (caught) {
-      setError(messageForError(caught));
+      setError(copy[errorKeyFor(caught)]);
       setSubmitting(false);
     }
   };

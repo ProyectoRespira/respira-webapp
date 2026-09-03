@@ -24,8 +24,9 @@
 // capture `/institucion/dashboard` full-page at 1280px CSS width, with the
 // Astro dev toolbar removed from the DOM first.
 //
-// Spanish only, matching the panel it documents (see `i18n/institution.ts`);
-// this page is intentionally outside the `t()` dictionaries.
+// Trilingual: the prose lives in `i18n/guides.ts`, and the strings this page
+// quotes from the panel itself come from `i18n/institution.ts`, so a quoted
+// message always matches what the reader would actually see on screen.
 
 import { Image } from "astro:assets";
 
@@ -34,33 +35,37 @@ import Callout from "../../components/guides/Callout.astro";
 import PanelScreenshot from "../../assets/guias/panel-institucional.png";
 import { GUIDE_ROUTES, INSTITUTION_ACCESS } from "../../data/menu";
 import { INSTITUTION_FORGOT_PASSWORD_PATH } from "../../utils/institution-session";
-import { institutionCopy } from "../../i18n/institution";
+import { useInstitutionCopy } from "../../i18n/institution";
+import { useGuideCopy } from "../../i18n/guides";
+import { getLangFromLocals } from "../../i18n/utils";
+
+const lang = getLangFromLocals(Astro.locals);
+const c = useGuideCopy(lang);
+const institutionCopy = useInstitutionCopy(lang);
 
 const sections = [
-  { id: "entrar", label: "Entrar al panel" },
-  { id: "errores", label: "Si algo no funciona" },
-  { id: "clave", label: "Olvidé mi contraseña" },
-  { id: "recorrido", label: "Recorrido del panel" },
-  { id: "salir", label: "Cerrar sesión" },
-  { id: "faq", label: "Preguntas frecuentes" },
+  { id: "entrar", label: c.instNavEntrar },
+  { id: "errores", label: c.instNavErrores },
+  { id: "clave", label: c.instNavClave },
+  { id: "recorrido", label: c.instNavRecorrido },
+  { id: "salir", label: c.instNavSalir },
+  { id: "faq", label: c.instNavFaq },
 ];
 ---
 
 <GuideLayout
-  eyebrow="Guía de uso · Instituciones"
-  title="Cómo entrar y moverte por el panel de tu institución"
-  dek="Esta guía explica, en términos simples, qué ves cuando entrás al panel de tu institución en Respira: la pantalla de ingreso, qué hacer si algo falla, y un recorrido por cada sección del panel una vez adentro. No hace falta ningún conocimiento técnico para seguirla."
-  meta={["Para instituciones con sensor Respira"]}
+  eyebrow={c.instEyebrow}
+  title={c.instTitle}
+  dek={c.instDek}
+  meta={[c.instMeta]}
   sections={sections}
 >
   <section id="entrar">
-    <h2>La pantalla de ingreso</h2>
+    <h2>{c.instEntrarTitle}</h2>
     <p class="lede">
-      El panel se abre desde <a href={INSTITUTION_ACCESS.route}
+      {c.instEntrarLede1}{" "}<a href={INSTITUTION_ACCESS.route}
         >{INSTITUTION_ACCESS.title}</a
-      >, el enlace que está en el menú del sitio. Es una pantalla dividida en
-      dos: a la izquierda la presentación de Respira, a la derecha el formulario
-      para entrar.
+      >{c.instEntrarLede2}
     </p>
 
     <figure
@@ -83,35 +88,36 @@ const sections = [
           <span class="font-serif text-[17px] font-bold">respira</span>
           <span class="block h-[3px] w-8 rounded bg-green"></span>
           <p class="max-w-[20ch] font-serif text-[15px] font-bold leading-snug">
-            El aire de tu institución, medido todos los días.
+            {institutionCopy.loginTagline}
           </p>
           <p class="max-w-[28ch] font-sans text-[12px] text-bg-gray">
-            Accedé al estado de tu sensor, las recomendaciones del día y tus
-            reportes.
+            {institutionCopy.loginBlurb}
           </p>
         </div>
         <div class="flex flex-col justify-center gap-3 px-6 py-7">
-          <p class="font-serif text-[16px] font-bold">Ingresá a tu panel</p>
+          <p class="font-serif text-[16px] font-bold">
+            {institutionCopy.loginTitle}
+          </p>
           <p class="font-sans text-[12px] text-gray">
-            Usá el correo con el que registramos tu institución.
+            {institutionCopy.loginSubtitle}
           </p>
           <div>
             <p
               class="mb-1 font-sans text-[10px] font-bold uppercase tracking-wider text-lightgray"
             >
-              Correo institucional
+              {institutionCopy.loginEmail}
             </p>
             <div
               class="rounded-md border border-bg-gray bg-base px-2.5 py-1.5 font-sans text-[13px] text-lightgray"
             >
-              contacto@tuinstitucion.edu.py
+              {c.instMockEmailSample}
             </div>
           </div>
           <div>
             <p
               class="mb-1 font-sans text-[10px] font-bold uppercase tracking-wider text-lightgray"
             >
-              Contraseña
+              {institutionCopy.loginPassword}
             </p>
             <div
               class="rounded-md border border-bg-gray bg-base px-2.5 py-1.5 font-sans text-[13px] text-lightgray"
@@ -121,136 +127,80 @@ const sections = [
           </div>
           <span
             class="w-fit rounded-md bg-green_dark px-4 py-1.5 font-sans text-[12px] font-bold uppercase tracking-wide text-white"
-            >Ingresar</span
+            >{institutionCopy.loginSubmit}</span
           >
           <p class="font-sans text-[11px] text-lightgray">
-            ¿Olvidaste tu contraseña?
+            {institutionCopy.forgotLink}
           </p>
         </div>
       </div>
-      <figcaption class="px-4 py-3">
-        Recreación simplificada de la pantalla real, para orientarte — no es una
-        captura literal.
-      </figcaption>
+      <figcaption class="px-4 py-3">{c.instMockCaption}</figcaption>
     </figure>
 
     <p>
-      El formulario pide solo dos datos: <strong>correo institucional</strong> y
-      <strong>contraseña</strong>. No hay casillas extra ni forma de "quedar
-      conectado". Debajo del botón vas a encontrar el enlace <strong
-        >¿Olvidaste tu contraseña?</strong
-      > y el correo de contacto del equipo.
+      {c.instEntrarBody1}
+      <strong>{c.instEntrarBodyEmail}</strong>{" "}
+      {c.instEntrarBodyAnd}
+      <strong>{c.instEntrarBodyPassword}</strong>{c.instEntrarBody2}
+      <strong>{institutionCopy.forgotLink}</strong>
+      {c.instEntrarBody3}
     </p>
 
-    <Callout label="Un detalle útil">
-      <p>
-        Si ya tenés la sesión abierta y volvés a esta dirección, el sistema te
-        manda directo a tu panel — no vas a ver el formulario de nuevo. Es a
-        propósito, para que el botón "atrás" del navegador no te devuelva a una
-        pantalla de ingreso vacía.
-      </p>
+    <Callout label={c.instEntrarCalloutLabel}>
+      <p>{c.instEntrarCalloutBody}</p>
     </Callout>
   </section>
 
   <section id="errores">
-    <h2>Los mensajes que podés ver al intentar entrar</h2>
-    <p class="lede">
-      El sistema distingue cuatro situaciones y muestra un aviso en rojo, arriba
-      del formulario, sin recargar la página:
-    </p>
+    <h2>{c.instErroresTitle}</h2>
+    <p class="lede">{c.instErroresLede}</p>
 
-    <h3>Correo o contraseña equivocados</h3>
-    <p>
-      "Correo o contraseña incorrectos. Verificá los datos e intentá de nuevo."
-      — nunca aclara cuál de los dos campos falló, por seguridad.
-    </p>
+    <h3>{c.instErroresCredsTitle}</h3>
+    <p>{c.instErroresCredsBody}</p>
 
-    <h3>La cuenta existe, pero no es de una institución</h3>
-    <p>
-      "Esta cuenta no tiene acceso a un panel institucional." — pasa si probás
-      con un correo que no fue dado de alta como institución.
-    </p>
+    <h3>{c.instErroresNoInstTitle}</h3>
+    <p>{c.instErroresNoInstBody}</p>
 
-    <h3>Demasiados intentos seguidos</h3>
-    <p>
-      "Demasiados intentos. Esperá unos minutos antes de volver a probar." — es
-      una protección automática contra intentos repetidos; se destraba sola
-      pasado un rato.
-    </p>
+    <h3>{c.instErroresThrottledTitle}</h3>
+    <p>{c.instErroresThrottledBody}</p>
 
-    <h3>Algo falló del lado del servidor</h3>
-    <p>
-      "No pudimos completar el ingreso. Intentá de nuevo en unos segundos." —
-      conviene reintentar antes de asumir que es un problema de credenciales.
-    </p>
+    <h3>{c.instErroresServerTitle}</h3>
+    <p>{c.instErroresServerBody}</p>
   </section>
 
   <section id="clave">
-    <h2>Si olvidaste tu contraseña</h2>
-    <p class="lede">
-      Podés recuperarla vos misma o vos mismo, sin escribirle a nadie. El
-      recorrido completo son cinco pasos:
-    </p>
+    <h2>{c.instClaveTitle}</h2>
+    <p class="lede">{c.instClaveLede}</p>
 
     <ol class="steps">
       <li>
-        En la pantalla de ingreso, tocá <a
-          href={INSTITUTION_FORGOT_PASSWORD_PATH}
+        {c.instClaveStep1a}{" "}<a href={INSTITUTION_FORGOT_PASSWORD_PATH}
           >{institutionCopy.forgotLink}</a
         >.
       </li>
       <li>
-        Escribí el correo de tu cuenta — el mismo con el que entrás al panel — y
-        tocá <strong>Enviar enlace</strong>.
+        {c.instClaveStep2a}
+        <strong>{c.instClaveStep2b}</strong>.
       </li>
-      <li>
-        Vas a ver el mensaje "Revisá tu correo". Si esa dirección tiene una
-        cuenta en Respira, en unos minutos te llega un correo con el enlace. Si
-        no aparece, mirá la carpeta de spam.
-      </li>
-      <li>
-        Abrí el enlace del correo. Se abre una pantalla para escribir la
-        contraseña nueva dos veces.
-      </li>
-      <li>
-        Guardá y volvé al ingreso: desde ese momento entrás con la contraseña
-        nueva, y la anterior deja de funcionar.
-      </li>
+      <li>{c.instClaveStep3}</li>
+      <li>{c.instClaveStep4}</li>
+      <li>{c.instClaveStep5}</li>
     </ol>
 
-    <Callout label="Sobre el enlace del correo" tone="warn">
-      <p>
-        El enlace vence a las 24 horas y se puede usar una sola vez. Si venció,
-        si ya lo usaste, o si volviste a entrar con tu contraseña vieja en el
-        medio, la pantalla te va a avisar que el enlace ya no sirve y te ofrece
-        pedir uno nuevo. Pedir uno nuevo también invalida el anterior.
-      </p>
+    <Callout label={c.instClaveCalloutLabel} tone="warn">
+      <p>{c.instClaveCalloutBody}</p>
     </Callout>
 
-    <p>
-      La contraseña nueva tiene que tener al menos 10 caracteres e incluir una
-      letra, un número y un carácter especial. Si la que elegiste no cumple
-      algo, la pantalla te dice qué falta y podés volver a intentar con el mismo
-      enlace.
-    </p>
+    <p>{c.instClaveRules}</p>
 
-    <Callout label="Por qué el mensaje no confirma tu correo">
-      <p>
-        La pantalla dice "si ese correo tiene una cuenta" en lugar de
-        confirmarlo. Es a propósito: así, alguien que no es de tu institución no
-        puede usar este formulario para averiguar qué direcciones están
-        registradas en Respira.
-      </p>
+    <Callout label={c.instClavePrivacyLabel}>
+      <p>{c.instClavePrivacyBody}</p>
     </Callout>
   </section>
 
   <section id="recorrido">
-    <h2>Recorrido por el panel, sección por sección</h2>
-    <p class="lede">
-      Al entrar correctamente llegás a tu panel, bajo el título "Estado de tu
-      sensor". Arriba de todo hay una barra oscura con el nombre de tu
-      institución y el botón para cerrar sesión; debajo, todo lo que sigue.
-    </p>
+    <h2>{c.instRecorridoTitle}</h2>
+    <p class="lede">{c.instRecorridoLede}</p>
 
     {
       /*
@@ -264,126 +214,69 @@ const sections = [
     <figure class="my-6">
       <Image
         src={PanelScreenshot}
-        alt="Panel institucional de Respira: barra superior con el nombre de la institución y el botón de cerrar sesión; tarjeta de calidad del aire con AQI 55 «Moderado» y recomendaciones del día; tarjeta del sensor en línea con ubicación, última medición y contrato; gráfico del historial de tres meses con la línea del umbral de alerta; lista de acciones registradas junto al formulario para cargar una nueva; tarjeta de alertas con el umbral y los grupos sensibles; botones de descarga; y el bloque de contacto."
+        alt={c.instScreenshotAlt}
         widths={[640, 960, 1280]}
         sizes="(min-width: 1024px) 700px, 100vw"
         loading="lazy"
         class="h-auto w-full rounded-xl border border-bg-gray"
       />
-      <figcaption>
-        El panel real, con los datos de una institución de ejemplo — los
-        números, las fechas y los textos que veas dependen de tu sensor.
-      </figcaption>
+      <figcaption>{c.instScreenshotCaption}</figcaption>
     </figure>
 
-    <h3>Calidad del aire de hoy</h3>
-    <p>
-      Muestra un número grande (el índice de calidad del aire, o AQI) con un
-      emoji y una categoría en palabras simples — "Bueno", "Moderado", etc. —
-      más un mensaje y una lista de recomendaciones para ese día. Si tu sensor
-      todavía no envió ninguna medición, en su lugar vas a leer "Tu sensor aún
-      no reportó mediciones".
-    </p>
+    <h3>{c.instAirTitle}</h3>
+    <p>{c.instAirBody}</p>
 
-    <h3>Tu sensor</h3>
-    <p>
-      Una tarjeta con el estado del equipo: "En línea" o "Fuera de línea", su
-      ubicación (ciudad y coordenadas), cuándo llegó su última medición, y hasta
-      cuándo está vigente el contrato de tu institución. Si el sensor está fuera
-      de línea, aclara: "El sensor no envía datos nuevos. Ya estamos revisando
-      el equipo." — para que no te alarmes innecesariamente.
-    </p>
+    <h3>{c.instSensorTitle}</h3>
+    <p>{c.instSensorBody}</p>
 
-    <h3>Historial de los últimos 3 meses</h3>
-    <p>
-      Un gráfico con el promedio diario de calidad del aire y una línea que
-      marca el "umbral de alerta". Necesita al menos dos días de mediciones para
-      aparecer; antes de eso, se lee "Todavía no hay historial".
-    </p>
+    <h3>{c.instHistoryTitle}</h3>
+    <p>{c.instHistoryBody}</p>
 
-    <h3>Acciones registradas</h3>
-    <p>
-      Es el historial de lo que tu institución fue haciendo frente al aire (por
-      ejemplo, suspender el recreo o avisar a las familias). Cada entrada tiene
-      fecha, hora, una nota, y si respondió a una alerta puntual. Hay un botón
-      "Ver más acciones" para cargar más, y al costado un pequeño formulario
-      para cargar una nueva: elegís opcionalmente si responde a una alerta,
-      escribís qué hicieron, y guardás — la fecha y la hora se completan solas.
-    </p>
+    <h3>{c.instActionsTitle}</h3>
+    <p>{c.instActionsBody}</p>
 
-    <h3>Alertas</h3>
-    <p>
-      Muestra si las alertas están activas o no, a partir de qué nivel de
-      contaminación se dispara una ("X AQI o más") y qué grupos sensibles están
-      configurados (por ejemplo, personas con asma). Es solo para consulta: no
-      hay botones para cambiar esta configuración desde el panel. Si querés
-      modificarla, el enlace "Solicitar cambios" arma un correo ya redactado
-      hacia el equipo de Respira.
-    </p>
+    <h3>{c.instAlertsTitle}</h3>
+    <p>{c.instAlertsBody}</p>
 
-    <h3>Descargas</h3>
-    <p>Dos botones: "Reporte mensual (PDF)" e "Historial crudo (Excel)".</p>
-    <Callout label="Estado actual" tone="warn">
-      <p>
-        Estas dos descargas todavía no están disponibles del lado del servidor.
-        Hoy, al presionarlas, vas a ver "Esta descarga todavía no está
-        disponible."
-      </p>
+    <h3>{c.instDownloadsTitle}</h3>
+    <p>{c.instDownloadsBody}</p>
+    <Callout label={c.instDownloadsCalloutLabel} tone="warn">
+      <p>{c.instDownloadsCalloutBody}</p>
     </Callout>
 
-    <h3>Tu contacto en Respira</h3>
-    <p>
-      Al final del panel, un bloque con el correo de contacto y un recordatorio:
-      "Escribinos si el sensor aparece fuera de línea más de 24 horas."
-    </p>
+    <h3>{c.instContactTitle}</h3>
+    <p>{c.instContactBody}</p>
   </section>
 
   <section id="salir">
-    <h2>Cerrar sesión</h2>
-    <p class="lede">
-      El botón "Cerrar sesión" está siempre arriba a la derecha, en cualquier
-      pantalla del panel. Un clic y volvés al ingreso. Si por algún motivo no se
-      puede cerrar la sesión, el botón cambia a "Reintentar" y se ve el aviso
-      "No pudimos cerrar la sesión."
-    </p>
+    <h2>{c.instSalirTitle}</h2>
+    <p class="lede">{c.instSalirBody}</p>
   </section>
 
   <section id="faq">
-    <h2>Preguntas frecuentes</h2>
+    <h2>{c.instFaqTitle}</h2>
 
-    <h3>¿Cómo recupero mi contraseña si la olvido?</h3>
+    <h3>{c.instFaqQ1}</h3>
     <p>
-      Desde <a href={INSTITUTION_FORGOT_PASSWORD_PATH}
-        >{institutionCopy.forgotLink}</a
-      >, en la pantalla de ingreso. El paso a paso está en <a href="#clave"
-        >Si olvidaste tu contraseña</a
-      >. No hace falta que escribas al equipo.
+      {c.instFaqA1a}
+      <a href={INSTITUTION_FORGOT_PASSWORD_PATH}>{institutionCopy.forgotLink}</a
+      >{c.instFaqA1b}
+      <a href="#clave">{c.instFaqA1Link}</a>{c.instFaqA1c}
     </p>
 
-    <h3>¿Puedo cambiar el umbral de mis alertas por mi cuenta?</h3>
-    <p>
-      No desde el panel. Podés pedirlo por correo con el botón "Solicitar
-      cambios" — el cambio real lo hace el equipo de Respira.
-    </p>
+    <h3>{c.instFaqQ2}</h3>
+    <p>{c.instFaqA2}</p>
 
-    <h3>¿Qué veo si mi institución todavía no tiene un sensor asignado?</h3>
-    <p>
-      El panel igual se abre, pero en el lugar de los datos dice "Tu institución
-      todavía no tiene sensor asignado" y explica que el panel se activa solo
-      apenas se instale el equipo.
-    </p>
+    <h3>{c.instFaqQ3}</h3>
+    <p>{c.instFaqA3}</p>
 
-    <h3>¿Y si la sesión se vence mientras estoy mirando el panel?</h3>
-    <p>
-      Aparece "Tu sesión expiró — Volvé a ingresar para seguir viendo tu panel"
-      con un botón "Ir al ingreso".
-    </p>
+    <h3>{c.instFaqQ4}</h3>
+    <p>{c.instFaqA4}</p>
 
-    <h3>¿Dónde está la guía para administradores?</h3>
+    <h3>{c.instFaqQ5}</h3>
     <p>
-      En <a href={GUIDE_ROUTES.admin}>Guía para administradores</a>. Es para el
-      equipo que da de alta instituciones desde el backoffice, no para las
-      instituciones.
+      {c.instFaqA5a}
+      <a href={GUIDE_ROUTES.admin}>{c.instFaqA5Link}</a>{c.instFaqA5b}
     </p>
   </section>
 </GuideLayout>

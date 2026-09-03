@@ -14,7 +14,8 @@ import InstitutionLayout from "../../layouts/InstitutionLayout.astro";
 import { DashboardSections } from "../../components/react/institution/DashboardSections";
 import type { InitialDashboardState } from "../../components/react/institution/DashboardSections";
 import { institutionName } from "../../data/institution";
-import { institutionCopy as copy } from "../../i18n/institution";
+import { useInstitutionCopy } from "../../i18n/institution";
+import { getLangFromLocals } from "../../i18n/utils";
 import { getFrontendRuntimeConfig } from "../../runtime-env";
 import { InstitutionApiError, fetchDashboard } from "../../store/institution";
 import { formatDateTime } from "../../utils/institution-format";
@@ -22,6 +23,9 @@ import {
   INSTITUTION_LOGIN_PATH,
   resolveInstitutionSession,
 } from "../../utils/institution-session";
+
+const lang = getLangFromLocals(Astro.locals);
+const copy = useInstitutionCopy(lang);
 
 const session = await resolveInstitutionSession(Astro.request);
 
@@ -90,6 +94,7 @@ const lastReading =
       initial={initial}
       contract={institution?.contract ?? null}
       contactMail={contactMail}
+      lang={lang}
       client:load
     />
 

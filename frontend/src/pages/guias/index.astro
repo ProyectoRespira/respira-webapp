@@ -8,34 +8,37 @@
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import Footer from "../../components/atoms/Footer.astro";
 import { GUIDE_ROUTES, INSTITUTION_ACCESS } from "../../data/menu";
+import { useGuideCopy } from "../../i18n/guides";
+import { getLangFromLocals } from "../../i18n/utils";
+
+const lang = getLangFromLocals(Astro.locals);
+const c = useGuideCopy(lang);
 
 const GUTTER = "px-[clamp(20px,5vw,64px)]";
 
 const guides = [
   {
-    audience: "Para instituciones",
-    title: "Cómo entrar y moverte por el panel de tu institución",
-    summary:
-      "La pantalla de ingreso, qué hacer si perdiste la contraseña, y un recorrido por cada sección del panel: calidad del aire, sensor, historial, acciones, alertas y descargas.",
+    audience: c.indexInstAudience,
+    title: c.indexInstTitle,
+    summary: c.indexInstSummary,
     href: GUIDE_ROUTES.institution,
     topics: [
-      "Entrar al panel",
-      "Recuperar la contraseña",
-      "Recorrido del panel",
-      "Preguntas frecuentes",
+      c.indexInstTopic1,
+      c.indexInstTopic2,
+      c.indexInstTopic3,
+      c.indexInstTopic4,
     ],
   },
   {
-    audience: "Para administradores",
-    title: "Alta de una institución, de cero a panel activo",
-    summary:
-      "El paso a paso en el backoffice: crear la institución, asociarle un usuario y una estación, configurar alertas y verificar que su panel responde.",
+    audience: c.indexAdminAudience,
+    title: c.indexAdminTitle,
+    summary: c.indexAdminSummary,
     href: GUIDE_ROUTES.admin,
     topics: [
-      "Entrar al admin",
-      "Crear y vincular",
-      "Verificar el panel",
-      "Errores comunes",
+      c.indexAdminTopic1,
+      c.indexAdminTopic2,
+      c.indexAdminTopic3,
+      c.indexAdminTopic4,
     ],
   },
 ];
@@ -48,18 +51,17 @@ const guides = [
     <p
       class="font-sans text-[12px] font-bold uppercase tracking-[0.09em] text-green_darker"
     >
-      Guías de uso
+      {c.indexEyebrow}
     </p>
     <h1
       class="mt-3 max-w-[20ch] text-balance font-serif text-[clamp(30px,5vw,48px)] font-black leading-[1.1] text-near_black"
     >
-      Cómo usar Proyecto Respira
+      {c.indexTitle}
     </h1>
     <p
       class="mt-4 max-w-[62ch] font-sans text-[17px] leading-relaxed text-gray"
     >
-      Dos guías, según quién seas: la institución que consulta su panel, o el
-      equipo que da de alta instituciones desde el backoffice.
+      {c.indexDek}
     </p>
 
     <ul class="mt-10 grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -87,7 +89,7 @@ const guides = [
                 ))}
               </span>
               <span class="mt-2 font-sans text-[13px] font-bold uppercase tracking-wide text-green_darker underline underline-offset-4">
-                Leer la guía
+                {c.indexRead}
               </span>
             </a>
           </li>
@@ -96,10 +98,10 @@ const guides = [
     </ul>
 
     <p class="mt-10 font-sans text-[15px] text-gray">
-      ¿Ya sabés lo que buscás? Entrá directo al{" "}
+      {c.indexDirect}{" "}
       <a
         class="font-semibold text-green_darker underline underline-offset-4"
-        href={INSTITUTION_ACCESS.route}>panel de tu institución</a
+        href={INSTITUTION_ACCESS.route}>{c.indexDirectLink}</a
       >.
     </p>
   </section>

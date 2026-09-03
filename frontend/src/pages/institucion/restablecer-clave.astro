@@ -12,7 +12,11 @@
 
 import InstitutionAuthLayout from "../../layouts/InstitutionAuthLayout.astro";
 import { ResetPasswordForm } from "../../components/react/institution/ResetPasswordForm";
-import { institutionCopy as copy } from "../../i18n/institution";
+import { useInstitutionCopy } from "../../i18n/institution";
+import { getLangFromLocals } from "../../i18n/utils";
+
+const lang = getLangFromLocals(Astro.locals);
+const copy = useInstitutionCopy(lang);
 
 const params = Astro.url.searchParams;
 const uid = params.get("uid") ?? "";
@@ -24,5 +28,5 @@ const token = params.get("token") ?? "";
   tagline={copy.resetTagline}
   blurb={copy.resetBlurb}
 >
-  <ResetPasswordForm uid={uid} token={token} client:load />
+  <ResetPasswordForm uid={uid} token={token} lang={lang} client:load />
 </InstitutionAuthLayout>
