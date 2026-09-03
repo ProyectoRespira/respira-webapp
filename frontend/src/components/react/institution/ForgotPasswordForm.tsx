@@ -8,7 +8,11 @@
 
 import { useId, useState, type FormEvent } from "react";
 
-import { institutionCopy as copy } from "../../../i18n/institution";
+import type { Lang } from "../../../i18n/config";
+import {
+  useInstitutionCopy,
+  type InstitutionCopyKey,
+} from "../../../i18n/institution";
 import {
   InstitutionApiError,
   requestPasswordReset,
@@ -16,15 +20,17 @@ import {
 import { INSTITUTION_LOGIN_PATH } from "../../../utils/institution-session";
 import { Button, FieldLabel, fieldClassName } from "./ui";
 
-const messageForError = (error: unknown): string => {
-  if (!(error instanceof InstitutionApiError))
-    return copy.forgotErrorUnexpected;
+// Returns the key, not the string: this runs outside the component and so has
+// no access to the active language's dictionary.
+const errorKeyFor = (error: unknown): InstitutionCopyKey => {
+  if (!(error instanceof InstitutionApiError)) return "forgotErrorUnexpected";
   // The endpoint is rate limited per IP; waiting is the only fix, so say so.
-  if (error.status === 429) return copy.forgotErrorThrottled;
-  return copy.forgotErrorUnexpected;
+  if (error.status === 429) return "forgotErrorThrottled";
+  return "forgotErrorUnexpected";
 };
 
-export function ForgotPasswordForm() {
+export function ForgotPasswordForm({ lang }: { lang: Lang }) {
+  const copy = useInstitutionCopy(lang);
   const emailId = useId();
 
   const [email, setEmail] = useState("");
@@ -43,7 +49,7 @@ export function ForgotPasswordForm() {
       await requestPasswordReset(email);
       setSent(true);
     } catch (caught) {
-      setError(messageForError(caught));
+      setError(copy[errorKeyFor(caught)]);
     } finally {
       setSubmitting(false);
     }
