@@ -118,7 +118,11 @@ jobs:
         run: |
           set -eu
 
-          git fetch origin main --depth=1
+          # Full fetch, not --depth=1: the checkout step above already
+          # unshallowed history (fetch-depth: 0), and re-shallowing origin/main
+          # here would give merge-base --is-ancestor false negatives once main
+          # advances past the release tag's commit.
+          git fetch origin main
 
           if ! git merge-base --is-ancestor HEAD origin/main; then
             echo "Release tag $RELEASE_TAG does not point to a commit contained in origin/main"
