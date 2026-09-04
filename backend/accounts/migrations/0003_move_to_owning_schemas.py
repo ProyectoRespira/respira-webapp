@@ -32,6 +32,12 @@ TABLES = [
 
 
 def _move_tables(apps, schema_editor):
+    # SQLite (local dev, and any run without BACKEND_POSTGRES_* configured)
+    # has no notion of schemas: every table already lives in the single
+    # namespace search_path would otherwise disambiguate, so there is
+    # nothing to move.
+    if schema_editor.connection.vendor != "postgresql":
+        return
     with schema_editor.connection.cursor() as cursor:
         cursor.execute('CREATE SCHEMA IF NOT EXISTS "django_admin"')
         for table_name in TABLES:

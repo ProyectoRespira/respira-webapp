@@ -44,6 +44,10 @@ already in its target schema:
   Django-owned tables move there. ``respira_gold`` tables are typically
   already in ``respira_gold`` — dbt creates that schema itself and has been
   materializing these tables there — so their move is a no-op.
+
+Every operation is a no-op on non-PostgreSQL backends: SQLite (local dev
+without ``BACKEND_POSTGRES_*`` set) has no schemas at all, so there is
+nothing to separate and ``CREATE SCHEMA`` is a syntax error there.
 """
 
 from django.db import migrations
@@ -79,6 +83,8 @@ RESPIRA_GOLD_TABLES = [
 
 
 def _ensure_schemas(apps, schema_editor):
+    if schema_editor.connection.vendor != "postgresql":
+        return
     with schema_editor.connection.cursor() as cursor:
         cursor.execute('CREATE SCHEMA IF NOT EXISTS "django_admin"')
         cursor.execute('CREATE SCHEMA IF NOT EXISTS "respira_gold"')
@@ -86,6 +92,8 @@ def _ensure_schemas(apps, schema_editor):
 
 def _move_tables(target_schema, table_names):
     def _move(apps, schema_editor):
+        if schema_editor.connection.vendor != "postgresql":
+            return
         with schema_editor.connection.cursor() as cursor:
             for table_name in table_names:
                 cursor.execute(

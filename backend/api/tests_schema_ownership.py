@@ -13,6 +13,8 @@ never quietly regress:
   respira_gold table.
 """
 
+import unittest
+
 from django.apps import apps
 from django.db import connection, transaction
 from django.test import TestCase, TransactionTestCase
@@ -58,6 +60,17 @@ def _owned_tables_by_schema():
     return django_admin_tables, respira_gold_tables
 
 
+# Everything that inspects *where* a table physically lives is PostgreSQL-only:
+# SQLite has no schemas, so 0019/0003 move nothing there and there is no
+# ownership to assert. CI runs these for real by pointing BACKEND_POSTGRES_* at
+# a Postgres service (see .github/workflows/backend-test.yml); a local SQLite
+# run skips them rather than failing.
+requires_postgres = unittest.skipUnless(
+    connection.vendor == "postgresql",
+    "schema ownership is a PostgreSQL-only contract (SQLite has no schemas)",
+)
+
+
 class SchemaOwnershipContractTests(TestCase):
     def test_no_table_name_is_shared_between_the_two_schemas(self):
         # This is what makes a fixed search_path order safe: if this ever
@@ -75,6 +88,7 @@ class SchemaOwnershipContractTests(TestCase):
             with self.subTest(model=model.__name__):
                 self.assertTrue(issubclass(model, ReadOnlyGoldModel))
 
+    @requires_postgres
     def test_gold_tables_actually_live_in_respira_gold(self):
         with connection.cursor() as cursor:
             for model in GOLD_MODELS:
@@ -90,6 +104,7 @@ class SchemaOwnershipContractTests(TestCase):
                 with self.subTest(model=model.__name__):
                     self.assertEqual(schemas, {"respira_gold"})
 
+    @requires_postgres
     def test_django_owned_tables_actually_live_in_django_admin(self):
         django_admin_tables, _ = _owned_tables_by_schema()
         with connection.cursor() as cursor:
@@ -139,6 +154,7 @@ class SchemaOwnershipContractTests(TestCase):
         self.assertEqual(Regions.objects.get(pk=region.pk).name, "Test region")
 
 
+@requires_postgres
 class SearchPathOrderIndependenceTests(TestCase):
     """A query must resolve to the same table regardless of search_path order.
 
@@ -192,6 +208,7 @@ class SearchPathOrderIndependenceTests(TestCase):
                 self.assertEqual(schema, "django_admin")
 
 
+@requires_postgres
 class MigrateNeverTouchesGoldSchemaTests(TransactionTestCase):
     """`manage.py migrate` must never create/alter/drop respira_gold objects.
 
