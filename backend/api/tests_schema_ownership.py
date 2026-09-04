@@ -122,9 +122,7 @@ class SchemaOwnershipContractTests(TestCase):
 
     def test_gold_model_bulk_create_is_rejected(self):
         with self.assertRaises(GoldTableWriteError):
-            Regions.objects.bulk_create(
-                [Regions(name="Test region", region_code="TR")]
-            )
+            Regions.objects.bulk_create([Regions(name="Test region", region_code="TR")])
 
     def test_gold_model_queryset_update_is_rejected(self):
         Regions.seed_for_tests(name="Test region", region_code="TR")

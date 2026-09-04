@@ -99,9 +99,7 @@ def _move_tables(target_schema, table_names):
                 schemas = {row[0] for row in cursor.fetchall()}
                 if target_schema in schemas or not schemas:
                     continue
-                source_schema = (
-                    "public" if "public" in schemas else next(iter(schemas))
-                )
+                source_schema = "public" if "public" in schemas else next(iter(schemas))
                 cursor.execute(
                     f'ALTER TABLE "{source_schema}"."{table_name}" '
                     f'SET SCHEMA "{target_schema}"'
