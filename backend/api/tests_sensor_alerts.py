@@ -104,14 +104,14 @@ class NotificationForTests(TestCase):
 
 class SendSensorAlertsTests(TestCase):
     def setUp(self):
-        self.region = Regions.objects.create(name="Gran Asunción", region_code="GA")
-        self.station = Stations.objects.create(
+        self.region = Regions.seed_for_tests(name="Gran Asunción", region_code="GA")
+        self.station = Stations.seed_for_tests(
             name="Respira: Villa Morra",
             region=self.region,
             station_code="RSP-001",
             is_station_on=True,
         )
-        self.other_station = Stations.objects.create(
+        self.other_station = Stations.seed_for_tests(
             name="Respira: San Lorenzo",
             region=self.region,
             station_code="RSP-002",
@@ -119,7 +119,7 @@ class SendSensorAlertsTests(TestCase):
         )
 
     def _reading(self, station, aqi):
-        return StationReadingsGold.objects.create(
+        return StationReadingsGold.seed_for_tests(
             station=station, date_utc=timezone.now(), aqi_pm2_5=aqi
         )
 
@@ -240,7 +240,7 @@ class SendSensorAlertsTests(TestCase):
         # alert on air of unknown age.
         self._follower("RSP-001", "token-a")
         self._reading(self.station, 20)
-        StationReadingsGold.objects.create(
+        StationReadingsGold.seed_for_tests(
             station=self.station, date_utc=None, aqi_pm2_5=320
         )
 
@@ -315,7 +315,7 @@ class SendSensorAlertsTests(TestCase):
         self._follower("RSP-001", "token-a")
         self._reading(self.station, 300)
         self.station.is_station_on = False
-        self.station.save(update_fields=["is_station_on"])
+        self.station.update_for_tests(update_fields=["is_station_on"])
 
         capture = Capture()
         with patch("api.push._post_batch", side_effect=capture):
@@ -613,8 +613,8 @@ class CatchUpFollowerTests(TestCase):
     """
 
     def setUp(self):
-        self.region = Regions.objects.create(name="Gran Asunción", region_code="GA")
-        self.station = Stations.objects.create(
+        self.region = Regions.seed_for_tests(name="Gran Asunción", region_code="GA")
+        self.station = Stations.seed_for_tests(
             name="Respira: Villa Morra",
             region=self.region,
             station_code="RSP-001",
@@ -622,7 +622,7 @@ class CatchUpFollowerTests(TestCase):
         )
 
     def _reading(self, aqi):
-        return StationReadingsGold.objects.create(
+        return StationReadingsGold.seed_for_tests(
             station=self.station, date_utc=timezone.now(), aqi_pm2_5=aqi
         )
 
@@ -684,7 +684,7 @@ class CatchUpFollowerTests(TestCase):
     def test_a_station_switched_off_says_nothing(self):
         self._reading(165)
         self.station.is_station_on = False
-        self.station.save(update_fields=["is_station_on"])
+        self.station.update_for_tests(update_fields=["is_station_on"])
 
         capture = Capture()
         with patch("api.push._post_batch", side_effect=capture):

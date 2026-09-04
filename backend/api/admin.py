@@ -133,6 +133,15 @@ class StationsViewer(RoleBasedModelAdmin):
         # station's own fields stay read-only regardless.
         return request.user.has_perm("api.change_stationdetails")
 
+    def save_model(self, request, obj, form, change):
+        # Every station field is readonly, so this page never has a
+        # legitimate change to `obj` itself — only its StationDetails inline
+        # does, saved separately by `save_formset`. Skip the parent save
+        # instead of calling it: `Stations` is a `ReadOnlyGoldModel` and
+        # `obj.save()` unconditionally rejects writes to a dbt-owned table,
+        # even one that changes nothing (see api/gold.py).
+        pass
+
     def has_override_permission(self, request):
         """Gate for the activate/deactivate actions (``permissions=["override"]``).
 
