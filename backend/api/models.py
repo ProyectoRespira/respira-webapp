@@ -6,6 +6,8 @@ from django.conf import settings
 from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
+from .gold import ReadOnlyGoldModel
+
 
 def _column_env_or_default(key: str, default: str) -> str:
     return (os.getenv(key) or "").strip() or default
@@ -55,7 +57,7 @@ def user_role(user) -> str:
     return UserRole.VIEWER
 
 
-class Regions(models.Model):
+class Regions(ReadOnlyGoldModel):
     name = models.CharField(max_length=255)
     region_code = models.CharField(max_length=255)
     bbox = models.CharField(max_length=255, blank=True, null=True)
@@ -71,7 +73,7 @@ class Regions(models.Model):
         return self.name
 
 
-class Stations(models.Model):
+class Stations(ReadOnlyGoldModel):
     name = models.CharField(max_length=255)
     # The pipeline's stable natural key (``dim_stations.code``), exposed on the
     # gold table so operational records can address a station by something that
@@ -794,7 +796,7 @@ class SensorAlertState(models.Model):
         return cls.objects.select_for_update().get(station_code=station_code)
 
 
-class RegionReadings(models.Model):
+class RegionReadings(ReadOnlyGoldModel):
     region = models.ForeignKey("Regions", on_delete=models.DO_NOTHING)
     date_utc = models.DateTimeField()
     pm2_5_region_avg = models.FloatField(blank=True, null=True)
@@ -811,7 +813,7 @@ class RegionReadings(models.Model):
         db_table = "region_readings_gold"
 
 
-class StationReadingsGold(models.Model):
+class StationReadingsGold(ReadOnlyGoldModel):
     station = models.ForeignKey("Stations", on_delete=models.DO_NOTHING)
     airnow_id = models.IntegerField(blank=True, null=True)
     date_utc = models.DateTimeField(
@@ -840,7 +842,7 @@ class StationReadingsGold(models.Model):
         db_table = "station_readings_gold"
 
 
-class InferenceRuns(models.Model):
+class InferenceRuns(ReadOnlyGoldModel):
     class Status(models.TextChoices):
         RUNNING = "running", "running"
         SUCCESS = "success", "success"
@@ -874,8 +876,13 @@ class InferenceRuns(models.Model):
         db_table = "inference_runs"
 
 
-class InferenceResults(models.Model):
+class InferenceResults(ReadOnlyGoldModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # Written by the same Prefect/Python inference pipeline as InferenceRuns
+    # (not dbt SQL), so it is gold data too — see ReadOnlyGoldModel. The FKs
+    # below intentionally omit db_constraint=False: unlike stations/regions,
+    # inference_runs/inference_results are append-only and never dropped and
+    # recreated wholesale by the pipeline, so a physical FK is safe here.
     inference_run = models.ForeignKey("InferenceRuns", on_delete=models.DO_NOTHING)
     station = models.ForeignKey("Stations", on_delete=models.DO_NOTHING)
     forecasts_6h = models.JSONField(
