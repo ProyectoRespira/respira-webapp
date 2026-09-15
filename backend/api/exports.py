@@ -103,6 +103,15 @@ AQI_BAND_COLORS = {
 # being handed a truncated file.
 MAX_EXPORT_DAYS = 366
 
+# How far back an export reaches when the caller names no range.
+#
+# Deliberately shorter than MAX_EXPORT_DAYS. Defaulting to the whole contract
+# made the button fail outright for any institution leasing a sensor for over a
+# year — it asked for more than the cap allowed and got a 400, with nothing in
+# the panel offering a way to ask for less. A default has to be something every
+# institution can actually download; callers who want more pass `from`.
+DEFAULT_EXPORT_DAYS = 90
+
 
 # --- shared helpers ---------------------------------------------------------
 
@@ -823,13 +832,14 @@ def build_raw_export_csv(location_type: str, rows) -> bytes:
         "requested range, read live from the AirGradient API and written as "
         "a CSV in exactly the format AirGradient's own portal exports — same "
         "columns, same order, same labels, newest row first — so the two "
-        "files are interchangeable. Defaults to the whole contract, from its "
-        "start date to today. Timestamps are given in both sensor-local time "
-        "and UTC. Returns 404 when the institution has no assigned sensor or "
-        "the sensor is not linked to the provider, and 400 when the range is "
-        "longer than a single export may carry or the provider is "
-        "unreachable. An `X-Respira-Partial-Export` header on a 200 counts "
-        "the sub-ranges the provider failed to serve."
+        "files are interchangeable. With no range given it returns the last "
+        "90 days (never reaching before the contract start); pass `from` for "
+        "more, up to 366 days per file. Timestamps are given in both "
+        "sensor-local time and UTC. Returns 404 when the institution has no "
+        "assigned sensor or the sensor is not linked to the provider, and "
+        "400 when the range is longer than a single export may carry or the "
+        "provider is unreachable. An `X-Respira-Partial-Export` header on a "
+        "200 counts the sub-ranges the provider failed to serve."
     ),
     parameters=[
         OpenApiParameter(
@@ -862,10 +872,12 @@ class InstitutionRawExportView(APIView):
         institution, contract = _contract_for_request(request)
         today = timezone.now().astimezone(REPORT_TIME_ZONE).date()
 
-        start = _parse_date(request.query_params.get("from"), "from") or (
-            contract.start_date
-        )
         end = _parse_date(request.query_params.get("to"), "to") or today
+        # Without a `from`, reach back DEFAULT_EXPORT_DAYS — but never past the
+        # contract start, since readings before it are not this institution's.
+        start = _parse_date(request.query_params.get("from"), "from") or max(
+            contract.start_date, end - timedelta(days=DEFAULT_EXPORT_DAYS - 1)
+        )
         if end < start:
             raise ValidationError({"to": "The end date cannot precede the start date."})
 

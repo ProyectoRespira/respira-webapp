@@ -15,7 +15,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework.test import APIClient, APITestCase
 
-from .exports import REPORT_TIME_ZONE
+from .exports import DEFAULT_EXPORT_DAYS, REPORT_TIME_ZONE
 from .models import (
     Institution,
     InstitutionAlertConfig,
@@ -61,7 +61,7 @@ class InstitutionExportTestCase(APITestCase):
         self.institution = Institution.objects.create(
             legal_name="Hospital Bautista", display_name="Hospital Bautista"
         )
-        InstitutionContract.objects.create(
+        self.contract = InstitutionContract.objects.create(
             institution=self.institution,
             station=self.station,
             contract_status=InstitutionContract.ContractStatus.ACTIVE,
@@ -514,12 +514,40 @@ class RawExportTests(InstitutionExportTestCase):
         )
         self.assertEqual(len(self.rows_from(response)), 2)
 
-    def test_defaults_to_the_whole_contract(self):
-        self.stub()
+    def test_defaults_to_a_recent_window_not_the_whole_contract(self):
+        """The default has to be something every institution can download.
+
+        Defaulting to the whole contract made the button fail outright for any
+        institution leasing a sensor for over a year: it asked for more than
+        MAX_EXPORT_DAYS and got a 400, with nothing in the panel offering a way
+        to ask for less.
+        """
+        captured = self.stub()
         self.login()
         response = self.client.get(self.url())
+
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(self.rows_from(response)), 6)
+        requested = (captured["end"] - captured["start"]).days
+        self.assertLessEqual(requested, DEFAULT_EXPORT_DAYS)
+
+    def test_default_never_reaches_before_the_contract(self):
+        """Readings from before the contract are not this institution's history."""
+        captured = self.stub()
+        self.login()
+        self.client.get(self.url())
+
+        self.assertGreaterEqual(captured["start"].date(), self.contract.start_date)
+
+    def test_a_long_contract_still_downloads(self):
+        """The regression this default exists for."""
+        self.contract.start_date = date(2020, 1, 1)
+        self.contract.save(update_fields=["start_date"])
+        self.stub()
+        self.login()
+
+        response = self.client.get(self.url())
+
+        self.assertEqual(response.status_code, 200)
 
     def test_requests_the_stations_own_location(self):
         captured = self.stub()

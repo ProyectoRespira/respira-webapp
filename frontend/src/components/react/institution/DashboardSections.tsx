@@ -145,7 +145,7 @@ export function DashboardSections({
             contract={contract}
             lang={lang}
           />
-          <DownloadCard lang={lang} />
+          <DownloadCard lang={lang} contract={contract} />
         </div>
       </div>
 

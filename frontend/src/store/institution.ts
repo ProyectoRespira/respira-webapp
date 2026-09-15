@@ -412,10 +412,17 @@ export const fetchReportMonths = async (
 
 export const downloadInstitutionFile = async (
   kind: DownloadKind,
-  options: { month?: string } = {},
+  options: { month?: string; from?: string; to?: string } = {},
 ): Promise<DownloadOutcome> => {
-  const endpoint = options.month
-    ? `${INSTITUTION_ENDPOINTS[kind]}?month=${encodeURIComponent(options.month)}`
+  // `month` belongs to the report, `from`/`to` to the raw export; the two
+  // endpoints take different parameters, so whichever is set is what goes.
+  const params = new URLSearchParams();
+  if (options.month) params.set("month", options.month);
+  if (options.from) params.set("from", options.from);
+  if (options.to) params.set("to", options.to);
+  const query = params.toString();
+  const endpoint = query
+    ? `${INSTITUTION_ENDPOINTS[kind]}?${query}`
     : INSTITUTION_ENDPOINTS[kind];
   const response = await request(endpoint, {
     treat404AsUnavailable: true,

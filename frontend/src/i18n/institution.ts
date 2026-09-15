@@ -230,6 +230,13 @@ const es = {
 
   // `{month}` is filled in by the card; see `formatMonthNote`.
   reportDownloadPdf: "Descargar PDF",
+  reportDownloadCsv: "Descargar CSV",
+  rangeFrom: "Desde",
+  rangeTo: "Hasta",
+  rangeDays: "Rango de {days} días.",
+  rangeInverted: "La fecha de inicio no puede ser posterior a la de fin.",
+  rangeTooLong:
+    "El rango no puede superar {max} días. Elegí un período más corto.",
   reportMonthsLoading: "Cargando meses disponibles…",
   reportNoMonths: "Todavía no hay meses con mediciones.",
   reportMonthsError:
@@ -454,6 +461,12 @@ const en: Translation = {
     "The file downloaded, but some periods are missing because the sensor could not provide them.",
 
   reportDownloadPdf: "Download PDF",
+  reportDownloadCsv: "Download CSV",
+  rangeFrom: "From",
+  rangeTo: "To",
+  rangeDays: "{days}-day range.",
+  rangeInverted: "The start date cannot be after the end date.",
+  rangeTooLong: "The range cannot exceed {max} days. Choose a shorter period.",
   reportMonthsLoading: "Loading available months…",
   reportNoMonths: "No months with measurements yet.",
   reportMonthsError:
@@ -673,6 +686,13 @@ const pt: Translation = {
     "Baixamos o arquivo, mas faltam alguns períodos que o sensor não conseguiu entregar.",
 
   reportDownloadPdf: "Baixar PDF",
+  reportDownloadCsv: "Baixar CSV",
+  rangeFrom: "De",
+  rangeTo: "Até",
+  rangeDays: "Intervalo de {days} dias.",
+  rangeInverted: "A data inicial não pode ser posterior à final.",
+  rangeTooLong:
+    "O intervalo não pode exceder {max} dias. Escolha um período menor.",
   reportMonthsLoading: "Carregando meses disponíveis…",
   reportNoMonths: "Ainda não há meses com medições.",
   reportMonthsError:
