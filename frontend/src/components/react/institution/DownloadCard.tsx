@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from "react";
 
+import type { InstitutionContract } from "../../../data/institution";
 import type { Lang } from "../../../i18n/config";
 import { useInstitutionCopy } from "../../../i18n/institution";
 import {
@@ -16,11 +17,22 @@ import {
   Card,
   CardHead,
   CardTitle,
+  DateField,
   DownloadIcon,
   FieldLabel,
   Select,
   Skeleton,
 } from "./ui";
+
+/**
+ * Mirrors `MAX_EXPORT_DAYS` in `api/exports.py`.
+ *
+ * Duplicated rather than fetched: it is a stable guard, and knowing it here
+ * lets the panel explain an over-long range before spending a round trip on a
+ * request the server will refuse. The server stays the authority — this only
+ * moves the message earlier.
+ */
+const MAX_EXPORT_DAYS = 366;
 
 /**
  * The two file exports.
@@ -33,7 +45,13 @@ import {
  * report and can come back with gaps; both cases surface under the button that
  * caused them.
  */
-export function DownloadCard({ lang }: { lang: Lang }) {
+export function DownloadCard({
+  lang,
+  contract,
+}: {
+  lang: Lang;
+  contract?: InstitutionContract | null;
+}) {
   const copy = useInstitutionCopy(lang);
   return (
     <Card>
@@ -41,19 +59,136 @@ export function DownloadCard({ lang }: { lang: Lang }) {
         <CardTitle>{copy.downloadsTitle}</CardTitle>
       </CardHead>
       <MonthlyReport lang={lang} />
-      {/* A rule rather than more whitespace: the report above owns a control,
-          so the two downloads need a visible boundary to stop the month
-          selector from reading as if it applied to both. */}
+      {/* A rule rather than more whitespace: each download owns its own range
+          control, so they need a visible boundary to stop one reading as if it
+          applied to both. */}
       <div className="border-t border-bg-gray pt-4">
-        <DownloadButton
-          kind="rawExport"
-          label={copy.downloadRaw}
-          note={copy.downloadRawNote}
-          variant="void"
-          lang={lang}
-        />
+        <RawExport lang={lang} contract={contract} />
       </div>
     </Card>
+  );
+}
+
+/** Today in Asunción, as `YYYY-MM-DD` — the latest date worth offering. */
+const todayInAsuncion = (): string =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Asuncion",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
+const addDays = (isoDate: string, days: number): string => {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(year, month - 1, day, 12, 0, 0);
+  date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
+
+/**
+ * The raw sensor export, over a date range the visitor picks.
+ *
+ * Defaults to the last 30 days — short enough to arrive quickly, since every 10
+ * days of range is another upstream call. The bounds are enforced by the inputs
+ * themselves (`min`/`max`) rather than only by validation on submit: a date the
+ * export could never serve should not be pickable in the first place.
+ */
+function RawExport({
+  lang,
+  contract,
+}: {
+  lang: Lang;
+  contract?: InstitutionContract | null;
+}) {
+  const copy = useInstitutionCopy(lang);
+  const fromId = useId();
+  const toId = useId();
+
+  const today = todayInAsuncion();
+  // Readings before the contract are not this institution's history, so the
+  // picker cannot reach past it.
+  const earliest = contract?.start_date ?? undefined;
+
+  const [to, setTo] = useState(today);
+  const [from, setFrom] = useState(() => {
+    const thirtyDaysAgo = addDays(today, -29);
+    return earliest && earliest > thirtyDaysAgo ? earliest : thirtyDaysAgo;
+  });
+
+  const inverted = from > to;
+  // Calendar length of the range, which is all the panel can know before the
+  // request: how many days actually hold readings is only apparent once the
+  // provider answers. `rangeDays` therefore says "range of N days" rather than
+  // "N days of measurements" — a sensor offline for a fortnight would make the
+  // latter a lie in exactly the case that matters most.
+  const spanDays =
+    (new Date(`${to}T12:00:00`).getTime() -
+      new Date(`${from}T12:00:00`).getTime()) /
+      86_400_000 +
+    1;
+  const tooLong = spanDays > MAX_EXPORT_DAYS;
+  const invalid = inverted || tooLong;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1.5">
+        <FieldLabel htmlFor={fromId}>{copy.downloadRaw}</FieldLabel>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor={fromId}
+              className="text-[11px] uppercase tracking-wide text-lightgray"
+            >
+              {copy.rangeFrom}
+            </label>
+            <DateField
+              id={fromId}
+              value={from}
+              onChange={setFrom}
+              min={earliest}
+              max={today}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor={toId}
+              className="text-[11px] uppercase tracking-wide text-lightgray"
+            >
+              {copy.rangeTo}
+            </label>
+            <DateField
+              id={toId}
+              value={to}
+              onChange={setTo}
+              min={from || earliest}
+              max={today}
+            />
+          </div>
+        </div>
+      </div>
+
+      <DownloadButton
+        kind="rawExport"
+        label={copy.reportDownloadCsv}
+        note={
+          invalid
+            ? undefined
+            : copy.rangeDays.replace("{days}", String(Math.round(spanDays)))
+        }
+        variant="void"
+        lang={lang}
+        from={from}
+        to={to}
+        disabled={invalid}
+        blockedMessage={
+          inverted
+            ? copy.rangeInverted
+            : tooLong
+              ? copy.rangeTooLong.replace("{max}", String(MAX_EXPORT_DAYS))
+              : undefined
+        }
+      />
+    </div>
   );
 }
 
@@ -161,7 +296,10 @@ function DownloadButton({
   variant,
   lang,
   month,
+  from,
+  to,
   disabled = false,
+  blockedMessage,
 }: {
   kind: DownloadKind;
   label: string;
@@ -169,7 +307,11 @@ function DownloadButton({
   variant: "color" | "void";
   lang: Lang;
   month?: string;
+  from?: string;
+  to?: string;
   disabled?: boolean;
+  /** Why the button is disabled — shown in place of any download error. */
+  blockedMessage?: string;
 }) {
   const copy = useInstitutionCopy(lang);
   const [busy, setBusy] = useState(false);
@@ -182,7 +324,11 @@ function DownloadButton({
     setBusy(true);
     setMessage(undefined);
     try {
-      const { missingRanges } = await downloadInstitutionFile(kind, { month });
+      const { missingRanges } = await downloadInstitutionFile(kind, {
+        month,
+        from,
+        to,
+      });
       if (missingRanges > 0) {
         setTone("warning");
         setMessage(copy.downloadPartial);
@@ -219,16 +365,18 @@ function DownloadButton({
         {busy ? copy.downloadPreparing : label}
       </Button>
       {note && <span className="text-[11.5px] text-lightgray">{note}</span>}
-      {message && (
+      {(blockedMessage ?? message) && (
         <span
           role="alert"
           className={
-            tone === "warning"
+            // A blocked range is guidance, not a failure: it reads in the muted
+            // tone, like a partial download, rather than in the error red.
+            blockedMessage || tone === "warning"
               ? "text-[11.5px] text-gray"
               : "text-[11.5px] text-aqi-red-dark"
           }
         >
-          {message}
+          {blockedMessage ?? message}
         </span>
       )}
     </div>

@@ -36,7 +36,15 @@ logger = logging.getLogger(__name__)
 API_ROOT = "https://api.airgradient.com/public/api/v1"
 
 # The API rejects a wider window; see the `from`/`to` parameters in its docs.
+# Measured rather than assumed: exactly 10 days is accepted, 11 returns 422.
 MAX_WINDOW = timedelta(days=10)
+
+# A range wider than a sensor's own history comes back short, with HTTP 200 and
+# no warning — the fleet was installed recently, so in September 2026 nothing
+# predates roughly mid-2026. Nothing here needs to change for that: the export
+# carries what exists. Worth knowing only so an empty stretch at the far end of
+# a wide range is read as "the sensor was not installed yet" rather than chased
+# as a fetch failure.
 
 # Per-request timeouts (connect, read). An export walks several windows in one
 # HTTP request, so a hung upstream call must fail fast rather than sit on the

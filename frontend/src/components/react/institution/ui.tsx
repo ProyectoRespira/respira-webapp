@@ -303,6 +303,43 @@ export function Select({
   );
 }
 
+/**
+ * A date input, styled like the panel's other fields.
+ *
+ * A native `<input type="date">` rather than a calendar component: it brings the
+ * platform's own picker — including the mobile one and the locale's date order —
+ * for no bundle cost, and `min`/`max` make impossible dates unpickable rather
+ * than merely rejected after the fact.
+ */
+export function DateField({
+  id,
+  value,
+  onChange,
+  min,
+  max,
+  disabled = false,
+}: {
+  id?: string;
+  value: string;
+  onChange: (value: string) => void;
+  min?: string;
+  max?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <input
+      id={id}
+      type="date"
+      value={value}
+      min={min}
+      max={max}
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.value)}
+      className={`${fieldClassName} disabled:cursor-not-allowed disabled:opacity-60`}
+    />
+  );
+}
+
 export function DownloadIcon() {
   return (
     <svg
