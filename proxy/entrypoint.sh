@@ -1,29 +1,36 @@
 #!/bin/sh
 
-# Build an nginx include with allow/deny directives for Django Admin.
+# Build an nginx include with allow/deny directives for a restricted location.
 # Expected format: comma-separated CIDRs/IPs, e.g. "203.0.113.10/32,198.51.100.0/24".
+# Secure default: if the allowlist is empty, access is blocked.
+build_ip_allowlist() {
+	output_file="$1"
+	raw_ranges="$2"
+	: > "$output_file"
+	if [ -n "$raw_ranges" ]; then
+		IFS=','
+		for entry in $raw_ranges; do
+			cidr=$(echo "$entry" | tr -d '[:space:]')
+			if [ -n "$cidr" ]; then
+				printf 'allow %s;\n' "$cidr" >> "$output_file"
+			fi
+		done
+		unset IFS
+	fi
+	printf 'deny all;\n' >> "$output_file"
+}
+
 ADMIN_ALLOWLIST_FILE="/etc/nginx/conf.d/admin-ip-allowlist.conf"
 ADMIN_ALLOWLIST_RAW="${PROXY_ADMIN_ALLOWED_IP_RANGES:-}"
+PREFECT_ALLOWLIST_FILE="/etc/nginx/conf.d/prefect-ip-allowlist.conf"
+PREFECT_ALLOWLIST_RAW="${PROXY_PREFECT_ALLOWED_IP_RANGES:-}"
 CSP_HEADERS_FILE="/etc/nginx/conf.d/csp-headers.conf"
 CSP_MODE="${PROXY_CSP_MODE:-report-only}"
 CSP_SECURITY_ENDPOINT="${PROXY_CSP_SECURITY_ENDPOINT:-}"
 CSP_GLITCHTIP_ORIGIN="${PROXY_CSP_GLITCHTIP_ORIGIN:-}"
 
-: > "$ADMIN_ALLOWLIST_FILE"
-
-if [ -n "$ADMIN_ALLOWLIST_RAW" ]; then
-	IFS=','
-	for entry in $ADMIN_ALLOWLIST_RAW; do
-		cidr=$(echo "$entry" | tr -d '[:space:]')
-		if [ -n "$cidr" ]; then
-			printf 'allow %s;\n' "$cidr" >> "$ADMIN_ALLOWLIST_FILE"
-		fi
-	done
-	unset IFS
-fi
-
-# Secure default: if allowlist is empty, block admin access.
-printf 'deny all;\n' >> "$ADMIN_ALLOWLIST_FILE"
+build_ip_allowlist "$ADMIN_ALLOWLIST_FILE" "$ADMIN_ALLOWLIST_RAW"
+build_ip_allowlist "$PREFECT_ALLOWLIST_FILE" "$PREFECT_ALLOWLIST_RAW"
 
 validate_https_url() {
 	case "$1" in
@@ -67,6 +74,6 @@ case "$CSP_MODE" in
 		;;
 esac
 
-envsubst "\${BACKEND_HOST} \${BACKEND_PORT} \${CERT_NAME} \${FRONTEND_PORT} \${FRONTEND_HOST} \${SERVER_HOST}" < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+envsubst "\${BACKEND_HOST} \${BACKEND_PORT} \${CERT_NAME} \${FRONTEND_PORT} \${FRONTEND_HOST} \${SERVER_HOST} \${PREFECT_HOST} \${PREFECT_PORT}" < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
 nginx -t
 nginx -g 'daemon off;'
