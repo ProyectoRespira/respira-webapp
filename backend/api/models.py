@@ -1282,3 +1282,45 @@ class FaqQuestion(models.Model):
 
     def __str__(self):
         return self.question_es
+
+
+class Contact(models.Model):
+    """A person in Proyecto Respira's centralized contact list.
+
+    A contact exists on its own: most of them never become platform users, and
+    the ones that do keep their record afterwards. The optional link to a user
+    is declared here rather than as a field on ``accounts.User`` — same
+    reasoning as ``InstitutionUser``: the core auth model stays untouched, and
+    the contact is the side that may or may not have an account.
+
+    ``OneToOneField`` so the same contact can never back two platform accounts,
+    and ``SET_NULL`` so deleting a user releases the link instead of taking the
+    contact with it. ``institution`` is free text, not a FK to
+    :class:`Institution`: that model is the Sensor Leasing client catalog, and a
+    contact's employer is often an organization that is not (or not yet) a
+    leasing client.
+    """
+
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    institution = models.CharField(max_length=255, blank=True)
+    phone = models.CharField(max_length=50, blank=True)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="contact",
+        help_text="Optional platform account for this contact.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "contact"
+        ordering = ["name"]
+        verbose_name = "Contact"
+        verbose_name_plural = "Contacts"
+
+    def __str__(self):
+        return self.name

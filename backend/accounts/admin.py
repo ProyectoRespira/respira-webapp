@@ -23,6 +23,7 @@ class UserAdmin(BaseUserAdmin):
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         ("Personal info", {"fields": ("first_name", "last_name", "username")}),
+        ("Contact", {"fields": ("contact",)}),
         ("Role", {"fields": ("role",)}),
         (
             "Permissions",
@@ -44,6 +45,17 @@ class UserAdmin(BaseUserAdmin):
             {
                 "classes": ("wide",),
                 "fields": ("email", "password1", "password2"),
+            },
+        ),
+        (
+            "Contact",
+            {
+                "classes": ("wide",),
+                "fields": ("contact",),
+                "description": (
+                    "Optional. Pick an existing contact to associate with this "
+                    "user; leave blank to create the user without one."
+                ),
             },
         ),
     )
