@@ -25,7 +25,6 @@ from .models import (
     FaqQuestion,
     Institution,
     InstitutionAlert,
-    InstitutionAlertConfig,
     InstitutionAlertRule,
     InstitutionAlertRuleState,
     InstitutionContract,
@@ -394,21 +393,6 @@ class InstitutionUserInline(admin.TabularInline):
     verbose_name_plural = "Dashboard users"
 
 
-class InstitutionAlertConfigInline(admin.StackedInline):
-    """Alert configuration edited from the institution page.
-
-    ``InstitutionAlertConfig`` has no changelist of its own — same reasoning
-    as ``StationDetailsInline`` — and a config only makes sense alongside its
-    institution.
-    """
-
-    model = InstitutionAlertConfig
-    can_delete = False
-    extra = 1
-    filter_horizontal = ("sensitive_groups",)
-    readonly_fields = ("created_at", "updated_at")
-
-
 @admin.register(Institution)
 class InstitutionAdmin(RoleBasedModelAdmin):
     """Client organizations in the Sensor Leasing program."""
@@ -417,7 +401,7 @@ class InstitutionAdmin(RoleBasedModelAdmin):
     list_filter = ("institution_type", "city")
     search_fields = ("legal_name", "display_name", "contact_name", "contact_email")
     ordering = ("legal_name",)
-    inlines = (InstitutionUserInline, InstitutionAlertConfigInline)
+    inlines = (InstitutionUserInline,)
     fieldsets = (
         (None, {"fields": ("legal_name", "display_name", "institution_type")}),
         (

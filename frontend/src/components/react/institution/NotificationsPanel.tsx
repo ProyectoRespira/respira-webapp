@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   emojiForCategory,
-  type InstitutionAlertConfig,
   type InstitutionNotification,
 } from "../../../data/institution";
 import type { Lang } from "../../../i18n/config";
@@ -62,27 +61,18 @@ const stateForError = (error: unknown): ListState => {
  * the whole difference from `ActionLogPanel`, which is a form plus its history;
  * the two sections sit side by side and neither reads the other's data.
  *
- * Carries the alert *configuration* in its header rather than leaving it in a
- * card of its own. Shown separately, the two read as two different channels —
- * "we warn you above 100 AQI" in one box and a list of warnings in another
- * invites the question of whether those are the same warnings. They are: the
- * threshold is the rule, the list is what that rule produced. Stating the rule
- * directly above its own history is what makes that legible.
+ * Shows only what was sent, not the rule behind it. The alert configuration was
+ * a band in this header once; institutions have no write path for it, so stating
+ * it here only invited questions the dashboard could not answer. The threshold
+ * still reaches the reader where it means something — as the line on the history
+ * chart, and on each notification that carries one.
  *
  * Both kinds of notification share one list. `type` is what separates them —
  * an AQI alert carries a reading and a threshold, a general announcement
  * carries neither — so every AQI-specific field is rendered only when present
  * rather than assumed.
  */
-export function NotificationsPanel({
-  alertConfig,
-  contactMail,
-  lang,
-}: {
-  alertConfig: InstitutionAlertConfig;
-  contactMail: string;
-  lang: Lang;
-}) {
+export function NotificationsPanel({ lang }: { lang: Lang }) {
   const copy = useInstitutionCopy(lang);
   const [list, setList] = useState<ListState>({ status: "loading" });
   const [loadingMore, setLoadingMore] = useState(false);
@@ -138,12 +128,6 @@ export function NotificationsPanel({
           </span>
         )}
       </CardHead>
-
-      <AlertSettings
-        alertConfig={alertConfig}
-        contactMail={contactMail}
-        lang={lang}
-      />
 
       {list.status === "loading" && (
         <div className="flex flex-col gap-3">
@@ -223,86 +207,6 @@ export function NotificationsPanel({
           </>
         ))}
     </Card>
-  );
-}
-
-// --- Settings header --------------------------------------------------------
-
-/**
- * The standing rule, stated directly above the history it produced.
- *
- * A band rather than a card: this is context for the list below it, not a
- * section competing with it. Read-only, like the card it replaces — the API
- * exposes no write path for `InstitutionAlertConfig`, so changes go through the
- * team via the contact link.
- */
-function AlertSettings({
-  alertConfig,
-  contactMail,
-  lang,
-}: {
-  alertConfig: InstitutionAlertConfig;
-  contactMail: string;
-  lang: Lang;
-}) {
-  const copy = useInstitutionCopy(lang);
-  const { is_enabled: enabled, alert_threshold: threshold } = alertConfig;
-  const groups = alertConfig.sensitive_groups;
-
-  return (
-    <div className="flex flex-col gap-2.5 rounded-lg bg-base px-4 py-3">
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        {enabled && threshold != null ? (
-          <p className="m-0 text-[13px] text-gray">
-            {copy.notificationsRuleLead}{" "}
-            <span className="font-serif text-lg font-bold tabular-nums text-near_black">
-              {threshold}
-            </span>{" "}
-            <span className="text-near_black">
-              {copy.notificationsRuleUnit}
-            </span>
-          </p>
-        ) : (
-          <p className="m-0 text-[13px] text-gray">
-            {enabled ? copy.alertsNoThreshold : copy.alertsDisabledBody}
-          </p>
-        )}
-
-        {contactMail && (
-          <a
-            className="text-xs font-bold text-green_dark hover:underline sm:ml-auto"
-            href={`mailto:${contactMail}?subject=${encodeURIComponent(
-              copy.alertsRequestSubject,
-            )}`}
-          >
-            {copy.alertsRequestChanges}
-          </a>
-        )}
-      </div>
-
-      {/* Who the alerts are watched for. Only when there are any: an empty
-          "sensitive groups" heading is noise in a context line. */}
-      {groups.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11.5px] text-lightgray">
-            {copy.notificationsRuleGroups}
-          </span>
-          {groups.map((group) => (
-            <span
-              key={group.key}
-              className="inline-flex items-center gap-1 rounded-full border border-bg-gray bg-white px-2 py-0.5 text-[11.5px]"
-            >
-              {group.emoji && (
-                <span className="font-emoji" aria-hidden="true">
-                  {group.emoji}
-                </span>
-              )}
-              {group.label}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }
 
