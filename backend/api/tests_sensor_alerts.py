@@ -36,6 +36,7 @@ from .push import (
     should_alert,
     should_notify_recovery,
 )
+from .tests_window_helpers import UnrestrictedWindowMixin
 
 INSTALLATION_ID = "8f14e45f-ceea-467e-bd97-1a2b3c4d5e6f"
 OTHER_INSTALLATION_ID = "2c1f9b4a-77d3-4e21-9a5c-6b0e8d3f1a2b"
@@ -105,7 +106,7 @@ class NotificationForTests(TestCase):
         self.assertIsNone(notification_for("unhealthy", "unhealthy"))
 
 
-class SendSensorAlertsTests(TestCase):
+class SendSensorAlertsTests(UnrestrictedWindowMixin, TestCase):
     def setUp(self):
         self.region = Regions.seed_for_tests(name="Gran Asunción", region_code="GA")
         self.station = Stations.seed_for_tests(
@@ -606,7 +607,7 @@ class SendSensorAlertsTests(TestCase):
 
 
 @override_settings(SENSOR_ALERTS_ENABLED=True)
-class CatchUpFollowerTests(TestCase):
+class CatchUpFollowerTests(UnrestrictedWindowMixin, TestCase):
     """Following a sensor that is already bad has to say so.
 
     `SensorAlertState` is per station, so somebody joining an episode that is

@@ -269,7 +269,12 @@ class SendBroadcastTests(TestCase):
 
 
 class PushBroadcastFormTests(TestCase):
-    """The scope decides which field is required — checked, not hidden."""
+    """What a leftover selection does when the scope no longer uses it.
+
+    Which field each scope *requires* is covered by
+    `RecipientFieldRelevanceTests`; this is the other half — what happens to a
+    value the operator chose before switching scope.
+    """
 
     def setUp(self):
         self.region = Regions.seed_for_tests(name="Gran Asunción", region_code="GA")
@@ -281,22 +286,10 @@ class PushBroadcastFormTests(TestCase):
     def _data(self, **kwargs):
         return {"push_title": "Aviso", "push_body": "Mensaje.", **kwargs}
 
-    def test_station_scope_requires_a_station(self):
-        form = PushBroadcastForm(self._data(scope=PushBroadcast.SCOPE_STATION))
-        self.assertFalse(form.is_valid())
-        self.assertIn("station", form.errors)
-
-    def test_institution_scope_requires_an_institution(self):
-        form = PushBroadcastForm(self._data(scope=PushBroadcast.SCOPE_INSTITUTION))
-        self.assertFalse(form.is_valid())
-        self.assertIn("institution", form.errors)
-
-    def test_all_scope_needs_neither(self):
-        form = PushBroadcastForm(self._data(scope=PushBroadcast.SCOPE_ALL))
-        self.assertTrue(form.is_valid())
-
     def test_all_scope_discards_a_leftover_selection(self):
-        # Switching scope must not quietly narrow a platform-wide send.
+        # Switching to "All users" must not quietly narrow the send to whatever
+        # was selected beforehand — the recipients would then be neither what
+        # the label says nor what the operator last picked on purpose.
         form = PushBroadcastForm(
             self._data(
                 scope=PushBroadcast.SCOPE_ALL,
@@ -307,6 +300,464 @@ class PushBroadcastFormTests(TestCase):
         self.assertTrue(form.is_valid())
         self.assertIsNone(form.cleaned_data["station"])
         self.assertIsNone(form.cleaned_data["institution"])
+
+    def test_an_institution_send_discards_a_leftover_sensor(self):
+        """Its audience comes from the contract, so a stray sensor is dropped.
+
+        Regression: the row used to store whatever sensor was still selected,
+        leaving the log naming a sensor that had no part in choosing the
+        recipients. The hiding makes it worse, not better — a hidden select is
+        still posted, so the operator cannot see the value being recorded.
+        """
+        InstitutionContract.objects.create(
+            institution=self.institution,
+            station=self.station,
+            start_date=date(2026, 1, 1),
+        )
+        form = PushBroadcastForm(
+            self._data(
+                scope=PushBroadcast.SCOPE_INSTITUTION,
+                institution=self.institution.pk,
+                station=self.station.pk,
+            )
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["institution"], self.institution)
+        self.assertIsNone(form.cleaned_data["station"])
+
+
+class RecipientOptionsTests(TestCase):
+    """The three recipient scopes, and that the labels say who receives them.
+
+    The wording is the feature here: an operator picks recipients from these
+    labels alone, and a push sent to the wrong audience cannot be recalled.
+    "All of an institution's stations" named stations when the recipients are
+    people, so it was read as the institution's own staff.
+    """
+
+    def test_exactly_three_recipient_options_are_offered(self):
+        self.assertEqual(len(PushBroadcast.SCOPE_CHOICES), 3)
+
+    def test_the_labels_name_the_recipients(self):
+        self.assertEqual(
+            dict(PushBroadcast.SCOPE_CHOICES),
+            {
+                PushBroadcast.SCOPE_ALL: "All users",
+                PushBroadcast.SCOPE_STATION: "Followers of a specific sensor",
+                PushBroadcast.SCOPE_INSTITUTION: "Followers of an institution",
+            },
+        )
+
+    def test_the_widest_audience_is_listed_first(self):
+        # So notifying everybody is a deliberate choice rather than the option
+        # an operator lands on by leaving the select alone.
+        first_value, _ = PushBroadcast.SCOPE_CHOICES[0]
+        self.assertEqual(first_value, PushBroadcast.SCOPE_ALL)
+
+    def test_the_stored_values_did_not_change(self):
+        """Rewording must not orphan the broadcasts already logged.
+
+        `scope` is a plain CharField, so a renamed value would leave existing
+        rows holding a string the model no longer knows — rendering blank in
+        the log and matching no filter.
+        """
+        self.assertEqual(
+            sorted(value for value, _ in PushBroadcast.SCOPE_CHOICES),
+            ["all", "institution", "station"],
+        )
+
+    def test_an_existing_row_still_renders_its_label(self):
+        region = Regions.seed_for_tests(name="Gran Asunción", region_code="GA")
+        station = Stations.seed_for_tests(
+            name="Colegio", region=region, station_code="RSP-001"
+        )
+        broadcast = PushBroadcast.objects.create(
+            scope=PushBroadcast.SCOPE_STATION,
+            station=station,
+            push_title="Aviso",
+            push_body="Mensaje.",
+        )
+        self.assertEqual(
+            broadcast.get_scope_display(), "Followers of a specific sensor"
+        )
+
+    def test_the_form_offers_the_same_three_options(self):
+        form = PushBroadcastForm()
+        self.assertEqual(
+            [value for value, _ in form.fields["scope"].choices],
+            ["all", "station", "institution"],
+        )
+
+
+class RecipientFieldRelevanceTests(TestCase):
+    """Only the field a scope uses is asked for — and only it is required.
+
+    The hiding itself is done by `push_broadcast_compose.js`; what is pinned
+    here is the half that holds with scripting off, which is the half that
+    decides whether a send goes out.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            "operator", password="x", is_staff=True, is_superuser=True
+        )
+        self.client.force_login(self.user)
+
+        region = Regions.seed_for_tests(name="Gran Asunción", region_code="GA")
+        self.station = Stations.seed_for_tests(
+            name="Colegio", region=region, station_code="RSP-001"
+        )
+        self.institution = Institution.objects.create(legal_name="Colegio San José")
+        InstitutionContract.objects.create(
+            institution=self.institution,
+            station=self.station,
+            start_date=date(2026, 1, 1),
+        )
+
+    def _data(self, **kwargs):
+        return {"push_title": "Aviso", "push_body": "Mensaje.", **kwargs}
+
+    def test_all_users_needs_no_institution_or_sensor(self):
+        form = PushBroadcastForm(self._data(scope=PushBroadcast.SCOPE_ALL))
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_a_sensor_send_requires_the_sensor(self):
+        form = PushBroadcastForm(self._data(scope=PushBroadcast.SCOPE_STATION))
+        self.assertFalse(form.is_valid())
+        self.assertIn("station", form.errors)
+
+    def test_an_institution_send_requires_the_institution(self):
+        form = PushBroadcastForm(self._data(scope=PushBroadcast.SCOPE_INSTITUTION))
+        self.assertFalse(form.is_valid())
+        self.assertIn("institution", form.errors)
+
+    def test_an_institution_send_needs_no_sensor(self):
+        # Its audience is derived from the contract, so asking for a sensor
+        # would be asking for something the send ignores.
+        form = PushBroadcastForm(
+            self._data(
+                scope=PushBroadcast.SCOPE_INSTITUTION,
+                institution=self.institution.pk,
+            )
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertIsNone(form.cleaned_data["station"])
+
+    def test_the_rows_are_addressable_for_hiding(self):
+        """`data-field` is what the script hides a whole row by.
+
+        Without it the script can only reach the input, leaving the label and
+        help text of an irrelevant field on screen.
+        """
+        page = self.client.get(reverse("admin:api_pushbroadcast_send")).content.decode()
+        self.assertIn('data-field="institution"', page)
+        self.assertIn('data-field="station"', page)
+
+    def test_the_templates_own_notes_do_not_reach_the_page(self):
+        """Regression: `{# … #}` does not span lines, `{% comment %}` does.
+
+        A multi-line `{#` note was being emitted verbatim into the markup —
+        once per field, since it sat inside the loop — putting implementation
+        notes on screen for anyone who opens the composer.
+        """
+        page = self.client.get(reverse("admin:api_pushbroadcast_send")).content.decode()
+        self.assertNotIn("companion script", page)
+        self.assertNotIn("data-field` is what", page)
+
+    def test_the_composer_shows_the_recipient_labels(self):
+        page = self.client.get(reverse("admin:api_pushbroadcast_send")).content.decode()
+        self.assertIn("All users", page)
+        self.assertIn("Followers of a specific sensor", page)
+        self.assertIn("Followers of an institution", page)
+
+    @override_settings(SENSOR_ALERTS_ENABLED=True)
+    def test_the_logged_row_records_only_what_chose_the_recipients(self):
+        """The hidden field is still submitted, so the row must drop it.
+
+        Sent through the page rather than the form, because this is about what
+        ends up in the log an operator later reads to answer "who got this?".
+        """
+        installation, _ = DeviceInstallation.register(
+            INSTALLATION_A, push_token="token-a"
+        )
+        DeviceFollower.objects.create(installation=installation, station_code="RSP-001")
+
+        with patch("api.push._post_batch", side_effect=ok_tickets):
+            self.client.post(
+                reverse("admin:api_pushbroadcast_send"),
+                {
+                    "scope": PushBroadcast.SCOPE_INSTITUTION,
+                    "institution": self.institution.pk,
+                    # Left selected from before the scope changed, and hidden by
+                    # the script — but browsers post hidden selects all the same.
+                    "station": self.station.pk,
+                    "push_title": "Aviso",
+                    "push_body": "Mensaje.",
+                },
+            )
+
+        broadcast = PushBroadcast.objects.get()
+        self.assertEqual(broadcast.institution, self.institution)
+        self.assertIsNone(broadcast.station)
+        # The delivery itself is unchanged: the contract is what resolves it.
+        self.assertEqual(broadcast.recipients, 1)
+
+
+class StationScopedToInstitutionTests(TestCase):
+    """An institution's notification can only name the institution's own sensors.
+
+    The boundary this holds: the composer offers every station on the platform,
+    so before this narrowing an operator sending on one institution's behalf
+    could pick a sensor belonging to FIUNA, AireLibre, MADES or another
+    institution entirely — and the push would reach that sensor's followers
+    with somebody else's announcement, unrecallable, visible only to the people
+    who should never have received it.
+    """
+
+    def setUp(self):
+        self.region = Regions.seed_for_tests(name="Gran Asunción", region_code="GA")
+        self.mine = Stations.seed_for_tests(
+            name="Colegio San José — patio",
+            region=self.region,
+            station_code="RSP-001",
+        )
+        self.also_mine = Stations.seed_for_tests(
+            name="Colegio San José — aula",
+            region=self.region,
+            station_code="RSP-002",
+        )
+        self.theirs = Stations.seed_for_tests(
+            name="FIUNA", region=self.region, station_code="RSP-003"
+        )
+        self.uncontracted = Stations.seed_for_tests(
+            name="AireLibre: Centro", region=self.region, station_code="RSP-004"
+        )
+
+        self.institution = Institution.objects.create(legal_name="Colegio San José")
+        InstitutionContract.objects.create(
+            institution=self.institution,
+            station=self.mine,
+            start_date=date(2026, 1, 1),
+        )
+        self.other_institution = Institution.objects.create(legal_name="FIUNA")
+        InstitutionContract.objects.create(
+            institution=self.other_institution,
+            station=self.theirs,
+            start_date=date(2026, 1, 1),
+        )
+
+    def _data(self, **kwargs):
+        return {
+            "scope": PushBroadcast.SCOPE_STATION,
+            "push_title": "Aviso",
+            "push_body": "Mensaje.",
+            **kwargs,
+        }
+
+    def _offered(self, form):
+        """The station ids the rendered select actually offers.
+
+        Read off the widget rather than the field's queryset: the narrowing is
+        applied to what is rendered, while `clean` judges the pair — so the
+        widget is where "what could the operator pick?" is answered.
+        """
+        return [value for value, _ in form.fields["station"].widget.choices if value]
+
+    # --- the picker's options ----------------------------------------------
+
+    def test_the_station_choices_narrow_to_the_chosen_institution(self):
+        form = PushBroadcastForm(
+            self._data(institution=self.institution.pk, station=self.mine.pk)
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(self._offered(form), [self.mine.pk])
+
+    def test_another_institutions_station_is_not_offered(self):
+        form = PushBroadcastForm(
+            self._data(institution=self.institution.pk, station=self.mine.pk)
+        )
+        form.is_valid()
+        offered = self._offered(form)
+        self.assertNotIn(self.theirs.pk, offered)
+        self.assertNotIn(self.uncontracted.pk, offered)
+
+    def test_an_institution_with_no_contract_says_so_in_the_empty_select(self):
+        orphan = Institution.objects.create(legal_name="Sin contrato")
+        form = PushBroadcastForm(self._data(institution=orphan.pk))
+        form.is_valid()
+
+        labels = [label for _, label in form.fields["station"].widget.choices]
+        self.assertEqual(labels, ["(no sensor under contract)"])
+
+    def test_with_no_institution_every_station_stays_available(self):
+        """A notice about a public sensor under no contract is still sendable."""
+        form = PushBroadcastForm(self._data(station=self.uncontracted.pk))
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["station"], self.uncontracted)
+
+    def test_the_composer_opens_with_every_station(self):
+        # A GET has no institution yet, so narrowing it here would leave the
+        # operator an empty select with nothing explaining why.
+        form = PushBroadcastForm()
+        self.assertIn(self.theirs, list(form.fields["station"].queryset))
+
+    # --- multi-station institutions ----------------------------------------
+
+    def test_an_institution_with_several_stations_offers_all_of_them(self):
+        """The DoD's multi-station case, exercised through the same code path.
+
+        `InstitutionContract.institution` is OneToOne, so an institution cannot
+        hold two contracts today — the two-station relationship is stood in for
+        rather than stored. That is exactly what is being pinned: every caller
+        goes through `institution_stations`, which answers with a *set*, so the
+        day a contract covers several sensors — or that OneToOne becomes an FK —
+        the picker and the validation already handle it with nothing to change.
+        """
+        both = Stations.objects.filter(pk__in=[self.mine.pk, self.also_mine.pk])
+
+        with patch("api.forms.institution_stations", return_value=both):
+            form = PushBroadcastForm(
+                self._data(institution=self.institution.pk, station=self.also_mine.pk)
+            )
+            self.assertTrue(form.is_valid(), form.errors)
+
+        self.assertEqual(
+            sorted(self._offered(form)),
+            sorted([self.mine.pk, self.also_mine.pk]),
+        )
+        # Displayed *and* accepted: the second sensor is a valid target, not
+        # just a visible option.
+        self.assertEqual(form.cleaned_data["station"], self.also_mine)
+
+    # --- submitting an invalid pair anyway ---------------------------------
+
+    def test_a_cross_institution_pair_is_refused(self):
+        """Hand-edited POST: the backend refuses it, not just the dropdown."""
+        form = PushBroadcastForm(
+            self._data(institution=self.institution.pk, station=self.theirs.pk)
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn("station", form.errors)
+
+    def test_the_refusal_names_the_mismatch(self):
+        # The field's generic "not one of the available choices" reads as a bug
+        # rather than as the boundary being enforced.
+        form = PushBroadcastForm(
+            self._data(institution=self.institution.pk, station=self.theirs.pk)
+        )
+        form.is_valid()
+        self.assertIn("does not belong to", " ".join(form.errors["station"]))
+
+    def test_an_uncontracted_station_is_refused_for_an_institution(self):
+        form = PushBroadcastForm(
+            self._data(institution=self.institution.pk, station=self.uncontracted.pk)
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn("station", form.errors)
+
+    def test_an_institution_with_no_contract_cannot_name_a_station(self):
+        orphan = Institution.objects.create(legal_name="Sin contrato")
+        form = PushBroadcastForm(
+            self._data(institution=orphan.pk, station=self.mine.pk)
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn("station", form.errors)
+
+    def test_institution_scope_is_unaffected_by_the_narrowing(self):
+        # Institution scope derives its stations from the contract, so it needs
+        # no station at all — the narrowing must not start demanding one.
+        form = PushBroadcastForm(
+            {
+                "scope": PushBroadcast.SCOPE_INSTITUTION,
+                "institution": self.institution.pk,
+                "push_title": "Aviso",
+                "push_body": "Mensaje.",
+            }
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertIsNone(form.cleaned_data["station"])
+
+    def test_all_scope_still_discards_a_cross_institution_leftover(self):
+        # Clearing runs before the cross-check, so a leftover pair that would
+        # be invalid for a narrower scope must not block a platform-wide send.
+        form = PushBroadcastForm(
+            {
+                "scope": PushBroadcast.SCOPE_ALL,
+                "institution": self.institution.pk,
+                "station": self.theirs.pk,
+                "push_title": "Aviso",
+                "push_body": "Mensaje.",
+            }
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertIsNone(form.cleaned_data["station"])
+
+
+class SenderRefusesAnInvalidPairTests(TestCase):
+    """The gate behind the form, for rows the composer did not write.
+
+    A `PushBroadcast` can be created from a shell, a script or a data
+    migration, none of which pass through `PushBroadcastForm`. Since a push
+    cannot be recalled, the sender treats a station outside the named
+    institution as an audience of nobody rather than delivering to whoever
+    happens to follow it.
+    """
+
+    def setUp(self):
+        region = Regions.seed_for_tests(name="Gran Asunción", region_code="GA")
+        self.mine = Stations.seed_for_tests(
+            name="Colegio", region=region, station_code="RSP-001"
+        )
+        self.theirs = Stations.seed_for_tests(
+            name="FIUNA", region=region, station_code="RSP-003"
+        )
+        self.institution = Institution.objects.create(legal_name="Colegio San José")
+        InstitutionContract.objects.create(
+            institution=self.institution,
+            station=self.mine,
+            start_date=date(2026, 1, 1),
+        )
+
+        installation, _ = DeviceInstallation.register(
+            INSTALLATION_B, push_token="token-theirs"
+        )
+        DeviceFollower.objects.create(installation=installation, station_code="RSP-003")
+
+    def test_a_foreign_station_reaches_nobody(self):
+        broadcast = PushBroadcast.objects.create(
+            scope=PushBroadcast.SCOPE_STATION,
+            institution=self.institution,
+            station=self.theirs,
+            push_title="Aviso",
+            push_body="Mensaje.",
+        )
+        self.assertEqual(broadcast_tokens(broadcast), [])
+
+    def test_the_institutions_own_station_still_reaches_its_followers(self):
+        installation, _ = DeviceInstallation.register(
+            INSTALLATION_A, push_token="token-mine"
+        )
+        DeviceFollower.objects.create(installation=installation, station_code="RSP-001")
+
+        broadcast = PushBroadcast.objects.create(
+            scope=PushBroadcast.SCOPE_STATION,
+            institution=self.institution,
+            station=self.mine,
+            push_title="Aviso",
+            push_body="Mensaje.",
+        )
+        self.assertEqual(broadcast_tokens(broadcast), ["token-mine"])
+
+    def test_a_station_notice_with_no_institution_is_left_alone(self):
+        """No institution named means no boundary to cross."""
+        broadcast = PushBroadcast.objects.create(
+            scope=PushBroadcast.SCOPE_STATION,
+            institution=None,
+            station=self.theirs,
+            push_title="Sensor fuera de servicio",
+            push_body="Mensaje.",
+        )
+        self.assertEqual(broadcast_tokens(broadcast), ["token-theirs"])
 
 
 class GlobalBroadcastPermissionTests(TestCase):
@@ -414,3 +865,110 @@ class SendPageTests(TestCase):
         # actually sending one.
         response = self.client.get(reverse("admin:api_pushbroadcast_add"))
         self.assertEqual(response.status_code, 403)
+
+    def test_the_composer_loads_the_script_that_narrows_the_select(self):
+        # The page extends `base_site.html`, which does not emit form media on
+        # its own — so this is what proves the narrowing is actually visible in
+        # the browser and not just enforced on submit.
+        response = self.client.get(reverse("admin:api_pushbroadcast_send"))
+        self.assertContains(response, "push_broadcast_compose.js")
+
+    def test_a_cross_institution_send_is_refused_and_nothing_goes_out(self):
+        institution = Institution.objects.create(legal_name="Colegio San José")
+        other = Stations.seed_for_tests(
+            name="FIUNA",
+            region=Regions.objects.get(region_code="GA"),
+            station_code="RSP-009",
+            is_station_on=True,
+        )
+        InstitutionContract.objects.create(
+            institution=institution, station=self.station, start_date=date(2026, 1, 1)
+        )
+
+        with patch("api.push.send_broadcast") as sender:
+            response = self.client.post(
+                reverse("admin:api_pushbroadcast_send"),
+                {
+                    "scope": PushBroadcast.SCOPE_STATION,
+                    "institution": institution.pk,
+                    "station": other.pk,
+                    "push_title": "Aviso",
+                    "push_body": "Mensaje.",
+                },
+            )
+
+        # Redisplayed with the error rather than redirecting, and no row means
+        # the send was never attempted.
+        self.assertEqual(response.status_code, 200)
+        sender.assert_not_called()
+        self.assertFalse(PushBroadcast.objects.exists())
+
+
+class InstitutionStationsLookupTests(TestCase):
+    """The JSON the composer's select is repopulated from.
+
+    Behind the same permission as the page it serves: which sensors an
+    institution leases is not public information.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            "operator", password="x", is_staff=True, is_superuser=False
+        )
+        for codename in ("view_pushbroadcast", "add_pushbroadcast"):
+            self.user.user_permissions.add(Permission.objects.get(codename=codename))
+        self.client.force_login(self.user)
+
+        region = Regions.seed_for_tests(name="Gran Asunción", region_code="GA")
+        self.mine = Stations.seed_for_tests(
+            name="Colegio — patio", region=region, station_code="RSP-001"
+        )
+        self.theirs = Stations.seed_for_tests(
+            name="FIUNA", region=region, station_code="RSP-003"
+        )
+        self.institution = Institution.objects.create(legal_name="Colegio San José")
+        InstitutionContract.objects.create(
+            institution=self.institution,
+            station=self.mine,
+            start_date=date(2026, 1, 1),
+        )
+        self.url = reverse("admin:api_pushbroadcast_institution_stations")
+
+    def test_it_returns_the_institutions_own_stations(self):
+        payload = self.client.get(self.url, {"institution": self.institution.pk}).json()
+        self.assertEqual(
+            payload["stations"],
+            [{"id": self.mine.pk, "name": "Colegio — patio"}],
+        )
+
+    def test_it_omits_stations_belonging_to_others(self):
+        payload = self.client.get(self.url, {"institution": self.institution.pk}).json()
+        self.assertNotIn(self.theirs.pk, [s["id"] for s in payload["stations"]])
+
+    def test_an_institution_with_no_contract_returns_an_empty_list(self):
+        orphan = Institution.objects.create(legal_name="Sin contrato")
+        payload = self.client.get(self.url, {"institution": orphan.pk}).json()
+        self.assertEqual(payload["stations"], [])
+
+    def test_a_missing_or_unknown_institution_returns_an_empty_list(self):
+        self.assertEqual(self.client.get(self.url).json()["stations"], [])
+        self.assertEqual(
+            self.client.get(self.url, {"institution": 999999}).json()["stations"], []
+        )
+
+    def test_it_is_refused_without_the_send_permission(self):
+        self.user.user_permissions.remove(
+            Permission.objects.get(codename="add_pushbroadcast")
+        )
+        # Permissions are cached on the instance for the length of a request.
+        self.client.force_login(User.objects.get(pk=self.user.pk))
+
+        response = self.client.get(self.url, {"institution": self.institution.pk})
+        self.assertEqual(response.status_code, 403)
+
+    def test_the_lookup_url_is_not_swallowed_by_the_object_id_catch_all(self):
+        # `send/institution-stations/` sits under the same prefix as `send/`,
+        # and both are registered ahead of the admin's `<path:object_id>/`.
+        self.assertEqual(
+            self.url.rstrip("/").split("/")[-2:], ["send", "institution-stations"]
+        )

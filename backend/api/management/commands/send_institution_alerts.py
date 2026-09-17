@@ -12,6 +12,7 @@ Meant to run on a schedule, shortly after the pipeline publishes new readings.
 
 from django.core.management.base import BaseCommand
 
+from api.models import PushNotificationWindow
 from api.push import is_configured, send_institution_alerts
 
 
@@ -54,6 +55,15 @@ class Command(BaseCommand):
             f"{result.messages_sent} message(s) accepted, "
             f"{result.tokens_cleared} dead token(s) cleared."
         )
+
+        if result.deferred_stations:
+            # Otherwise a quiet-hours run that found real crossings looks
+            # identical to one that found none.
+            window = PushNotificationWindow.current()
+            self.stdout.write(
+                f"{prefix}{result.deferred_stations} rule(s) held until the "
+                f"notification window ({window}) opens."
+            )
 
         for error in result.errors:
             self.stdout.write(self.style.ERROR(f"  failed: {error}"))
