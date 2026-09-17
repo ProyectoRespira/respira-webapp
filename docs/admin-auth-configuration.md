@@ -47,9 +47,27 @@ environment variables (all defined in `backend/backend/settings.py`):
 
 | Setting                           | Env var                                   | Default      | Notes                                                                                                   |
 | --------------------------------- | ----------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------- |
-| `SESSION_COOKIE_AGE`              | `BACKEND_SESSION_COOKIE_AGE`              | `28800` (8h) | Session lifetime in seconds.                                                                            |
-| `SESSION_EXPIRE_AT_BROWSER_CLOSE` | `BACKEND_SESSION_EXPIRE_AT_BROWSER_CLOSE` | `false`      | If `true`, the session cookie is deleted when the browser closes, regardless of `SESSION_COOKIE_AGE`.   |
-| `SESSION_SAVE_EVERY_REQUEST`      | `BACKEND_SESSION_SAVE_EVERY_REQUEST`      | `false`      | If `true`, the session expiry is refreshed on every request (sliding session) instead of only on write. |
+| `SESSION_COOKIE_AGE`              | `BACKEND_SESSION_COOKIE_AGE`              | `86400` (24h) | Session lifetime in seconds.                                                                            |
+| `SESSION_EXPIRE_AT_BROWSER_CLOSE` | `BACKEND_SESSION_EXPIRE_AT_BROWSER_CLOSE` | `false`       | If `true`, the session cookie is deleted when the browser closes, regardless of `SESSION_COOKIE_AGE`.   |
+| `SESSION_SAVE_EVERY_REQUEST`      | `BACKEND_SESSION_SAVE_EVERY_REQUEST`      | `true`        | If `true`, the session expiry is refreshed on every request (sliding session) instead of only on write. |
+
+The 24-hour lifetime is a sliding window: because `SESSION_SAVE_EVERY_REQUEST`
+is on, every authenticated request pushes the expiry back to a full 24 hours,
+so the clock runs from the last activity rather than from login. Somebody
+working in the backoffice or the institutional dashboard is never logged out
+mid-task; a session left idle for 24 hours expires.
+
+Both administrative surfaces share this configuration. `/admin/` and the
+institutional dashboard (`/institucion/*`) authenticate through the same Django
+session — the institutional login view calls `django.contrib.auth.login` just
+as the admin login form does (`backend/api/views.py`) — so session lifetime,
+expiry and logout behave identically for admin and institutional users. There
+is no separate token or lifetime for either.
+
+> **Deployment note.** These are code defaults. A deployment that sets
+> `BACKEND_SESSION_COOKIE_AGE` in its own `.env` overrides them, so when
+> sessions expire sooner than expected, check the server's `.env` before the
+> code — an unexpectedly small value there is the usual cause.
 
 Sessions are stored in the database (Django's default `db` backend via
 `django.contrib.sessions`), so logging out or expiring a session invalidates
