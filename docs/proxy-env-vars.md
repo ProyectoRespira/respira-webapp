@@ -61,16 +61,17 @@ Prefect runs as a separate compose stack (`respira-data`) and is reverse-proxied
 
 If Prefect's compose project uses a different network name, update the `respira-data_default` entry under the top-level `networks:` key (and the `proxy` service's `networks:` list) in `docker-compose.yml` to match.
 
-**Required on the Prefect side** (in the `respira-data` compose stack, not here): Prefect must know it's mounted under `/prefect` so its UI/static assets are requested with the prefix intact — nginx preserves the prefix for `location /prefect/` and only strips it for `location /prefect/api/` (the internal API stays mounted at `/api`, unaffected by `serve_base`). Set on the Prefect server container:
+**Required on the Prefect side** (in the `respira-data` compose stack, not here): Prefect mounts both its UI and API under `/prefect` internally, so nginx forwards the full path through unchanged — no rewriting/stripping needed. Set on the Prefect server container:
 
 ```
-PREFECT_API_URL=http://prefect_server:4200/api
-PREFECT_UI_URL=https://demo.proyectorespira.net/prefect
-PREFECT_UI_API_URL=/prefect/api
 PREFECT_UI_SERVE_BASE=/prefect
+PREFECT_SERVER_API_BASE_PATH=/prefect/api
+PREFECT_UI_API_URL=/prefect/api
+PREFECT_API_URL=http://prefect_server:4200/prefect/api
+PREFECT_UI_URL=https://demo.proyectorespira.net/prefect
 ```
 
-`PREFECT_API_URL` (used by workers/agents on the internal network) is unaffected by `serve_base` and stays pointed at `/api`. `PREFECT_UI_URL` is cosmetic (only used for links Prefect displays).
+`PREFECT_API_URL` moved to `/prefect/api` because `PREFECT_SERVER_API_BASE_PATH` relocated the API's actual mount point — internal callers (workers, agents, `wait_for_prefect.py`, etc.) must use the new path too. `PREFECT_UI_URL` is cosmetic (only used for links Prefect displays).
 
 Access Prefect at `https://$SERVER_HOST/prefect/` instead of the host's direct `:4200` port; the direct port should be firewalled off from the public internet.
 

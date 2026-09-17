@@ -139,9 +139,9 @@ http {
             proxy_pass http://$FRONTEND_HOST:$FRONTEND_PORT;
         }
 
-        # PREFECT_UI_SERVE_BASE=/prefect means Prefect expects the prefix
-        # intact for the UI/static assets; keep it. The internal API stays
-        # mounted at /api regardless, so /prefect/api/ is stripped separately.
+        # PREFECT_UI_SERVE_BASE=/prefect and PREFECT_SERVER_API_BASE_PATH=/prefect/api
+        # mean Prefect mounts both UI and API under /prefect internally, so
+        # forward the full path unchanged — no stripping/rewriting needed.
         location /prefect/ {
             include /etc/nginx/conf.d/prefect-ip-allowlist.conf;
             proxy_http_version 1.1;
@@ -156,22 +156,6 @@ http {
             proxy_read_timeout 60s;
             set $prefect_upstream http://$PREFECT_HOST:$PREFECT_PORT;
             proxy_pass $prefect_upstream;
-        }
-
-        location /prefect/api/ {
-            include /etc/nginx/conf.d/prefect-ip-allowlist.conf;
-            proxy_http_version 1.1;
-            proxy_set_header Host $http_host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "upgrade";
-            proxy_connect_timeout 10s;
-            proxy_send_timeout 60s;
-            proxy_read_timeout 60s;
-            set $prefect_api_upstream http://$PREFECT_HOST:$PREFECT_PORT;
-            proxy_pass $prefect_api_upstream/api/;
         }
     }
 }
