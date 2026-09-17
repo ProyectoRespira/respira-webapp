@@ -1,7 +1,12 @@
 import type { DashboardAirQuality } from "../../../data/institution";
-import { emojiForCategory } from "../../../data/institution";
+import {
+  emojiForCategory,
+  levelIdForCategory,
+} from "../../../data/institution";
 import type { Lang } from "../../../i18n/config";
 import { useInstitutionCopy } from "../../../i18n/institution";
+import { aqiRecommendations, type UIKey } from "../../../i18n/ui";
+import { useTranslations } from "../../../i18n/utils";
 import { formatAqi } from "../../../utils/institution-format";
 import { getColorRange, isValidAqi } from "../../../utils";
 import { Card, CardHead, CardTitle, Pill, StateBlock } from "./ui";
@@ -22,6 +27,7 @@ export function AirQualityPanel({
   lang: Lang;
 }) {
   const copy = useInstitutionCopy(lang);
+  const t = useTranslations(lang);
   if (!airQuality) {
     return (
       <Card>
@@ -44,6 +50,20 @@ export function AirQualityPanel({
   const bandColor = isValidAqi(airQuality.aqi)
     ? getColorRange(airQuality.aqi)
     : undefined;
+
+  // `category_label`, `message` and `recommendations` come from the API in
+  // Spanish whatever the reader's language, so translate them here off the
+  // category key. An unknown category keeps the API's own text.
+  const levelId = levelIdForCategory(airQuality.category);
+  const categoryLabel = levelId
+    ? t(`aqi.${levelId}.title` as UIKey)
+    : airQuality.category_label;
+  const message = levelId
+    ? t(`aqi.${levelId}.description` as UIKey)
+    : airQuality.message;
+  const recommendations = levelId
+    ? aqiRecommendations[lang][levelId]
+    : airQuality.recommendations;
 
   return (
     <section className="flex flex-col overflow-hidden rounded-xl border border-bg-gray bg-white">
@@ -68,20 +88,16 @@ export function AirQualityPanel({
           </div>
         </div>
         <div>
-          <h2 className="m-0 font-serif text-xl font-bold">
-            {airQuality.category_label}
-          </h2>
-          <p className="m-0 mt-1 max-w-[46ch] text-[13.5px]">
-            {airQuality.message}
-          </p>
+          <h2 className="m-0 font-serif text-xl font-bold">{categoryLabel}</h2>
+          <p className="m-0 mt-1 max-w-[46ch] text-[13.5px]">{message}</p>
         </div>
       </div>
 
-      {airQuality.recommendations.length > 0 && (
+      {recommendations.length > 0 && (
         <div className="flex flex-col gap-3 px-6 pb-6 pt-5">
           <CardTitle>{copy.recommendationsTitle}</CardTitle>
           <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
-            {airQuality.recommendations.map((recommendation) => (
+            {recommendations.map((recommendation) => (
               <li
                 key={recommendation}
                 className="flex items-start gap-2.5 text-[13.5px]"

@@ -1,6 +1,9 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 
-import type { InstitutionContract } from "../../../data/institution";
+import type {
+  DashboardSensor,
+  InstitutionContract,
+} from "../../../data/institution";
 import type { Lang } from "../../../i18n/config";
 import { useInstitutionCopy } from "../../../i18n/institution";
 import {
@@ -19,7 +22,7 @@ import {
   CardTitle,
   DateField,
   DownloadIcon,
-  FieldLabel,
+  HelpDisclosure,
   Select,
   Skeleton,
 } from "./ui";
@@ -35,7 +38,34 @@ import {
 const MAX_EXPORT_DAYS = 366;
 
 /**
- * The two file exports.
+ * The two-column split, keyed to the card's width rather than the window's.
+ *
+ * Plain CSS because Tailwind 3.4 has no container-query utilities without the
+ * `@tailwindcss/container-queries` plugin, and one card does not justify adding
+ * a build dependency. Scoped by class names so it cannot reach other cards.
+ */
+const DOWNLOAD_COLUMNS_CSS = `
+.downloads-card { container-type: inline-size; }
+@container (min-width: 560px) {
+  .downloads-grid { grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+  .downloads-second {
+    border-top: 0;
+    padding-top: 0;
+    /* The literal bg-gray token, since this rule is outside Tailwind. */
+    border-left: 1px solid #DBD3D0;
+    padding-left: 1.5rem;
+  }
+}
+`;
+
+/**
+ * The two file exports, side by side (RES-433).
+ *
+ * They answer different questions — "how was last month?" against "give me the
+ * numbers to work on myself" — and stacked they read as one long form whose
+ * second half is merely more of the first. Two columns put them in parallel,
+ * where the pair of headings and the pair of notes can be compared at a glance,
+ * and each download plainly owns its own selector.
  *
  * Each button resolves its own 404 into "not available yet" and says so under
  * itself. State is per-button rather than per-card: a failing report must not
@@ -44,28 +74,120 @@ const MAX_EXPORT_DAYS = 366;
  * The raw export is read live from the sensor API, so it is slower than the
  * report and can come back with gaps; both cases surface under the button that
  * caused them.
+ *
+ * The raw column is dropped entirely for a sensor that has no raw history to
+ * serve — see `supports_raw_export`. Hidden rather than disabled: a greyed-out
+ * download invites the reader to work out what would enable it, and nothing
+ * they can do would. The monthly report is built from the warehouse and works
+ * for every network, so that half of the card is unaffected.
  */
 export function DownloadCard({
   lang,
   contract,
+  sensor,
 }: {
   lang: Lang;
   contract?: InstitutionContract | null;
+  sensor?: DashboardSensor | null;
 }) {
   const copy = useInstitutionCopy(lang);
+  // Absent on a backend that predates the field: keep offering the download
+  // rather than hiding it from every panel the moment the frontend ships first.
+  const hasRawExport = sensor?.supports_raw_export !== false;
+
+  if (!hasRawExport) {
+    return (
+      <Card className="downloads-card">
+        <CardHead>
+          <CardTitle>{copy.downloadsTitle}</CardTitle>
+        </CardHead>
+        {/* One download left, so no grid and no dividing rule — the container
+            query below exists to split a pair, and a lone column needs neither
+            the split nor the border that separates it from a neighbour. */}
+        <MonthlyReport lang={lang} />
+      </Card>
+    );
+  }
+
   return (
-    <Card>
+    <Card className="downloads-card">
       <CardHead>
         <CardTitle>{copy.downloadsTitle}</CardTitle>
       </CardHead>
-      <MonthlyReport lang={lang} />
-      {/* A rule rather than more whitespace: each download owns its own range
-          control, so they need a visible boundary to stop one reading as if it
-          applied to both. */}
-      <div className="border-t border-bg-gray pt-4">
-        <RawExport lang={lang} contract={contract} />
+      {/* One column, splitting into two once the *card* is wide enough — a
+          container query rather than a `md:` breakpoint, because what has to
+          fit is the card, not the window. Screenshotting this at 1280px inside
+          a narrow column showed why: viewport breakpoints split a 420px card
+          into two columns on a wide screen, leaving each date field ~130px and
+          rendering "08/1". The card is full width on the dashboard today, so
+          only a future move would hit that — this makes the component correct
+          wherever it is put, instead of correct only where it currently sits.
+
+          560px is where two date fields, their labels and the gutter stop being
+          cramped. Browsers without container-query support keep the stacked
+          single column, which is the safe way to be wrong.
+
+          A rule between the two rather than more whitespace: each download owns
+          its own selector, so they need a visible boundary to stop one reading
+          as if it applied to both. It turns with the layout — a top border when
+          they are stacked, a left one when they sit side by side. */}
+      <style>{DOWNLOAD_COLUMNS_CSS}</style>
+      <div className="downloads-grid grid grid-cols-1 gap-4">
+        <MonthlyReport lang={lang} />
+        {/* `h-full` so the column inside can measure against the grid row —
+            without it `mt-auto` has no slack to take up and the buttons stop
+            lining up. */}
+        <div className="downloads-second h-full border-t border-bg-gray pt-4">
+          <RawExport lang={lang} contract={contract} />
+        </div>
       </div>
     </Card>
+  );
+}
+
+/**
+ * The shared shape of a download column: heading, explanatory line, selector,
+ * then the button pinned to the bottom.
+ *
+ * `h-full` with `mt-auto` on the button is what keeps the two buttons on one
+ * line when the notes wrap to different heights — without it the shorter column
+ * ends higher and the pair reads as two unrelated blocks.
+ */
+function DownloadColumn({
+  title,
+  note,
+  help,
+  helpToggle,
+  children,
+}: {
+  title: string;
+  note: string;
+  help: string;
+  helpToggle: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex h-full flex-col gap-3">
+      <div className="flex flex-col gap-1.5">
+        {/* A heading, not a `<label>` (RES-435): every field inside now carries
+            its own — "Mes a reportar" here, "Desde"/"Hasta" in the export — and
+            a heading that also labelled one of them made a screen reader
+            announce the control as "Reporte mensual (PDF) Mes a reportar". It
+            names the download; the fields below name themselves. */}
+        <h3 className="m-0 text-xs font-semibold text-gray">{title}</h3>
+        <p className="text-[12px] leading-snug text-gray">{note}</p>
+        {/* The note above says what the file is; this says what is actually
+            inside it — what someone deciding between the two downloads needs,
+            and what someone about to open a 24-column spreadsheet wants first.
+
+            `overlay` because the two downloads share a grid row: expanded in
+            the normal flow, opening one grew the row, stretching the other
+            column and pushing both buttons down. Floating, reading about one
+            file leaves the other untouched. */}
+        <HelpDisclosure toggle={helpToggle} body={help} overlay />
+      </div>
+      {children}
+    </div>
   );
 }
 
@@ -115,65 +237,77 @@ function RawExport({
     return earliest && earliest > thirtyDaysAgo ? earliest : thirtyDaysAgo;
   });
 
-  const inverted = from > to;
+  // Clearing a date input leaves the empty string, which dates as `Invalid
+  // Date`: every comparison against it is false, so an unguarded range read as
+  // valid and the note rendered "Rango de NaN días" over an enabled button.
+  // Missing is its own state — not inverted, not too long, just not answerable
+  // yet — so the button waits and the note says which date is missing.
+  const incomplete = !from || !to;
+  const inverted = !incomplete && from > to;
   // Calendar length of the range, which is all the panel can know before the
   // request: how many days actually hold readings is only apparent once the
   // provider answers. `rangeDays` therefore says "range of N days" rather than
   // "N days of measurements" — a sensor offline for a fortnight would make the
   // latter a lie in exactly the case that matters most.
-  const spanDays =
-    (new Date(`${to}T12:00:00`).getTime() -
-      new Date(`${from}T12:00:00`).getTime()) /
-      86_400_000 +
-    1;
+  const spanDays = incomplete
+    ? 0
+    : (new Date(`${to}T12:00:00`).getTime() -
+        new Date(`${from}T12:00:00`).getTime()) /
+        86_400_000 +
+      1;
   const tooLong = spanDays > MAX_EXPORT_DAYS;
-  const invalid = inverted || tooLong;
+  const invalid = incomplete || inverted || tooLong;
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1.5">
-        <FieldLabel htmlFor={fromId}>{copy.downloadRaw}</FieldLabel>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="flex flex-col gap-1">
-            <label
-              htmlFor={fromId}
-              className="text-[11px] uppercase tracking-wide text-lightgray"
-            >
-              {copy.rangeFrom}
-            </label>
-            <DateField
-              id={fromId}
-              value={from}
-              onChange={setFrom}
-              min={earliest}
-              max={today}
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label
-              htmlFor={toId}
-              className="text-[11px] uppercase tracking-wide text-lightgray"
-            >
-              {copy.rangeTo}
-            </label>
-            <DateField
-              id={toId}
-              value={to}
-              onChange={setTo}
-              min={from || earliest}
-              max={today}
-            />
-          </div>
+    <DownloadColumn
+      title={copy.downloadRaw}
+      note={copy.downloadRawNote}
+      help={copy.downloadRawHelp}
+      helpToggle={copy.downloadHelpToggle}
+    >
+      <div className="grid grid-cols-2 gap-2">
+        <div className="flex flex-col gap-1">
+          <label
+            htmlFor={fromId}
+            className="text-[11px] uppercase tracking-wide text-lightgray"
+          >
+            {copy.rangeFrom}
+          </label>
+          <DateField
+            id={fromId}
+            value={from}
+            onChange={setFrom}
+            min={earliest}
+            max={today}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label
+            htmlFor={toId}
+            className="text-[11px] uppercase tracking-wide text-lightgray"
+          >
+            {copy.rangeTo}
+          </label>
+          <DateField
+            id={toId}
+            value={to}
+            onChange={setTo}
+            min={from || earliest}
+            max={today}
+          />
         </div>
       </div>
 
       <DownloadButton
+        className="mt-auto"
         kind="rawExport"
         label={copy.reportDownloadCsv}
         note={
           invalid
             ? undefined
-            : copy.rangeDays.replace("{days}", String(Math.round(spanDays)))
+            : Math.round(spanDays) === 1
+              ? copy.rangeDaysOne
+              : copy.rangeDays.replace("{days}", String(Math.round(spanDays)))
         }
         variant="void"
         lang={lang}
@@ -181,14 +315,16 @@ function RawExport({
         to={to}
         disabled={invalid}
         blockedMessage={
-          inverted
-            ? copy.rangeInverted
-            : tooLong
-              ? copy.rangeTooLong.replace("{max}", String(MAX_EXPORT_DAYS))
-              : undefined
+          incomplete
+            ? copy.rangeIncomplete
+            : inverted
+              ? copy.rangeInverted
+              : tooLong
+                ? copy.rangeTooLong.replace("{max}", String(MAX_EXPORT_DAYS))
+                : undefined
         }
       />
-    </div>
+    </DownloadColumn>
   );
 }
 
@@ -232,9 +368,25 @@ function MonthlyReport({ lang }: { lang: Lang }) {
   const noMonths = months !== undefined && months.length === 0;
 
   return (
-    <div className="flex flex-col gap-3">
+    <DownloadColumn
+      title={copy.downloadMonthly}
+      note={copy.downloadMonthlyNote}
+      help={copy.downloadMonthlyHelp}
+      helpToggle={copy.downloadHelpToggle}
+    >
       <div className="flex flex-col gap-1.5">
-        <FieldLabel htmlFor={selectId}>{copy.downloadMonthly}</FieldLabel>
+        {/* The column heading names the file; this names the choice (RES-435).
+            Without it the month sat unlabelled under "Reporte mensual (PDF)"
+            and the reader had to infer that picking it changed what the report
+            covered. Rendered whatever the state, so the selector, the skeleton
+            and the "no months yet" placeholder all arrive labelled and the
+            column does not reflow as the list loads. */}
+        <label
+          htmlFor={selectId}
+          className="text-[11px] uppercase tracking-wide text-lightgray"
+        >
+          {copy.reportMonthLabel}
+        </label>
 
         {loading && (
           <>
@@ -278,6 +430,7 @@ function MonthlyReport({ lang }: { lang: Lang }) {
           layout jumping while you pick is worse than the redundancy it saved.
           The selector directly above already states the month. */}
       <DownloadButton
+        className="mt-auto"
         kind="monthlyReport"
         label={copy.reportDownloadPdf}
         variant="color"
@@ -285,7 +438,7 @@ function MonthlyReport({ lang }: { lang: Lang }) {
         month={selected || undefined}
         disabled={loading || noMonths}
       />
-    </div>
+    </DownloadColumn>
   );
 }
 
@@ -300,6 +453,7 @@ function DownloadButton({
   to,
   disabled = false,
   blockedMessage,
+  className = "",
 }: {
   kind: DownloadKind;
   label: string;
@@ -312,6 +466,8 @@ function DownloadButton({
   disabled?: boolean;
   /** Why the button is disabled — shown in place of any download error. */
   blockedMessage?: string;
+  /** Placement within the column — `mt-auto` to pin it to the bottom. */
+  className?: string;
 }) {
   const copy = useInstitutionCopy(lang);
   const [busy, setBusy] = useState(false);
@@ -354,7 +510,7 @@ function DownloadButton({
   };
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className={`flex flex-col gap-1.5 ${className}`}>
       <Button
         variant={variant}
         block

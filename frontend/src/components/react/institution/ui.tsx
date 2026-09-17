@@ -359,3 +359,71 @@ export function DownloadIcon() {
     </svg>
   );
 }
+
+/**
+ * A "what is this?" disclosure — a short prompt that opens an explanation.
+ *
+ * Used where a section needs more explaining than its heading and field labels
+ * can carry: what a download actually contains, what a form is for. A
+ * `<details>` rather than a modal or a tooltip — it opens in place without
+ * covering anything, survives before hydration, and is reachable by keyboard
+ * and screen reader without any state of ours.
+ *
+ * Collapsed by default: the people who use the panel regularly already know,
+ * and a permanent paragraph of explanation would push the controls down.
+ */
+export function HelpDisclosure({
+  toggle,
+  body,
+  className = "",
+  overlay = false,
+}: {
+  toggle: string;
+  body: string;
+  className?: string;
+  /**
+   * Float the panel over what follows instead of pushing it down.
+   *
+   * For a disclosure that sits inside a grid row shared with another column:
+   * opening one in the normal flow grows the row, so the neighbour stretches
+   * and the controls below both columns shift. Absolutely positioned, the panel
+   * takes no height of its own, so opening it changes nothing outside itself.
+   *
+   * The trade-off is that it covers the content underneath while open, which is
+   * why it is not the default — a disclosure with nothing beside it should just
+   * push the page down, which needs no stacking context and cannot clip.
+   */
+  overlay?: boolean;
+}) {
+  return (
+    <details className={`group ${overlay ? "relative" : ""} ${className}`}>
+      <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded text-[11.5px] text-green_dark underline decoration-dotted underline-offset-2 hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green_dark [&::-webkit-details-marker]:hidden">
+        {/* Rotates to point down when open, so the control reads as expandable
+            at a glance rather than as a link that navigates away. */}
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 12 12"
+          className="h-2.5 w-2.5 shrink-0 transition-transform group-open:rotate-90"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M4 2l4 4-4 4" />
+        </svg>
+        {toggle}
+      </summary>
+      {overlay ? (
+        // Its own surface, since it now sits over other content: without a
+        // background the two texts overlap into something unreadable. `left-0
+        // right-0` rather than a width, so it spans its own column and no more.
+        <p className="absolute left-0 right-0 top-full z-20 mt-1.5 rounded-md border border-bg-gray bg-white p-3 text-[11.5px] leading-relaxed text-gray shadow-lg">
+          {body}
+        </p>
+      ) : (
+        <p className="mt-1.5 text-[11.5px] leading-relaxed text-gray">{body}</p>
+      )}
+    </details>
+  );
+}
