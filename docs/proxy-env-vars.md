@@ -61,6 +61,19 @@ Prefect runs as a separate compose stack (`respira-data`) and is reverse-proxied
 
 If Prefect's compose project uses a different network name, update the `respira-data_default` entry under the top-level `networks:` key (and the `proxy` service's `networks:` list) in `docker-compose.yml` to match.
 
+**Required on the Prefect side** (in the `respira-data` compose stack, not here): Prefect's own UI/API assume they're served from `/` unless told otherwise. nginx here proxies `/prefect/` to the UI/static assets as-is, but strips the `/prefect` prefix specifically for `/prefect/api/` so it reaches Prefect's internal API, which stays mounted at `/api` (unchanged, so existing internal clients using `PREFECT_API_URL=http://prefect_server:4200/api` keep working). Set on the Prefect server container (see Prefect's [settings reference](https://docs.prefect.io/v3/api-ref/settings-ref)):
+
+```
+PREFECT_UI_SERVE_BASE=/prefect
+PREFECT_UI_API_URL=/prefect/api
+```
+
+Do **not** set `PREFECT_SERVER_API_BASE_PATH` — leave the internal API at `/api` so `PREFECT_API_URL` (used by workers/agents on the internal network) doesn't need to change. Only `PREFECT_UI_API_URL` (what the *browser* calls) needs the `/prefect` prefix; nginx's `/prefect/api/` location rewrites it back to `/api/` before it reaches Prefect.
+
+Also update `PREFECT_UI_URL` (cosmetic — only used for links Prefect displays) from the old direct-port address to `https://$SERVER_HOST/prefect`.
+
+Without `PREFECT_UI_SERVE_BASE`/`PREFECT_UI_API_URL`, the UI's HTML will reference root-absolute paths (e.g. `/assets/*.js`) that 404 through this proxy, since they collide with (or simply aren't routed by) the main site's `location /`.
+
 Access Prefect at `https://$SERVER_HOST/prefect/` instead of the host's direct `:4200` port; the direct port should be firewalled off from the public internet.
 
 ---

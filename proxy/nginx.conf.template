@@ -148,5 +148,22 @@ http {
             proxy_read_timeout 60s;
             proxy_pass http://$PREFECT_HOST:$PREFECT_PORT;
         }
+
+        # Prefect's internal API stays mounted at /api; strip the /prefect
+        # prefix here so PREFECT_UI_API_URL=/prefect/api resolves correctly.
+        location /prefect/api/ {
+            include /etc/nginx/conf.d/prefect-ip-allowlist.conf;
+            proxy_http_version 1.1;
+            proxy_set_header Host $http_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_connect_timeout 10s;
+            proxy_send_timeout 60s;
+            proxy_read_timeout 60s;
+            proxy_pass http://$PREFECT_HOST:$PREFECT_PORT/api/;
+        }
     }
 }
