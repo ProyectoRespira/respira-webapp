@@ -143,25 +143,6 @@ const es = {
   historyChartLabel:
     "{days} días con mediciones, entre {min} y {max} de AQI diario.",
 
-  // --- Alerts --------------------------------------------------------------
-  // "Configuración de alertas", not "Alertas": this card is the standing
-  // configuration — the threshold in force and who it is watched for — while
-  // the notifications section below is the history of what was actually sent.
-  // Naming both "alertas" left two sections that sounded like the same thing.
-  alertsTitle: "Configuración de alertas",
-  alertsOn: "Activas",
-  alertsOff: "Desactivadas",
-  alertsThresholdSuffix: "AQI o más",
-  alertsThresholdHelp: "Te avisamos cuando el sensor supere este valor.",
-  alertsNoThreshold: "Sin umbral configurado.",
-  alertsDisabledBody:
-    "Tu institución no tiene alertas activas. Escribinos si querés activarlas.",
-  alertsGroupsTitle: "Grupos sensibles",
-  alertsNoGroups: "Todavía no hay grupos sensibles configurados.",
-  alertsRequestChanges: "Solicitar cambios",
-  // Subject line of the mail the "request changes" link opens.
-  alertsRequestSubject: "Cambios en la configuración de alertas",
-
   // --- Action log ----------------------------------------------------------
   actionsTitle: "Acciones registradas",
   actionsEmptyTitle: "Todavía no registraste ninguna acción",
@@ -224,11 +205,6 @@ const es = {
   notificationTypeAqi: "Calidad del aire",
   notificationTypeGeneral: "General",
   notificationThreshold: "Umbral",
-  // The standing rule, stated above the history it produced — reads as one
-  // sentence: "Te avisamos cuando el aire supere 100 AQI".
-  notificationsRuleLead: "Te avisamos cuando el aire supere",
-  notificationsRuleUnit: "AQI",
-  notificationsRuleGroups: "Pensado para:",
 
   // --- Downloads -----------------------------------------------------------
   downloadsTitle: "Descargas",
@@ -423,20 +399,6 @@ const en: Translation = {
   historyChartLabel:
     "{days} days with readings, between {min} and {max} daily AQI.",
 
-  // --- Alerts --------------------------------------------------------------
-  alertsTitle: "Alert settings",
-  alertsOn: "On",
-  alertsOff: "Off",
-  alertsThresholdSuffix: "AQI or above",
-  alertsThresholdHelp: "We'll let you know when the sensor goes above this.",
-  alertsNoThreshold: "No threshold configured.",
-  alertsDisabledBody:
-    "Your institution doesn't have alerts turned on. Write to us if you'd like to enable them.",
-  alertsGroupsTitle: "Sensitive groups",
-  alertsNoGroups: "No sensitive groups configured yet.",
-  alertsRequestChanges: "Request changes",
-  alertsRequestSubject: "Changes to the alert settings",
-
   // --- Action log ----------------------------------------------------------
   actionsTitle: "Logged actions",
   actionsEmptyTitle: "You haven't logged any actions yet",
@@ -489,9 +451,6 @@ const en: Translation = {
   notificationTypeAqi: "Air quality",
   notificationTypeGeneral: "General",
   notificationThreshold: "Threshold",
-  notificationsRuleLead: "We'll let you know when the air goes above",
-  notificationsRuleUnit: "AQI",
-  notificationsRuleGroups: "Watched for:",
 
   // --- Downloads -----------------------------------------------------------
   downloadsTitle: "Downloads",
@@ -665,20 +624,6 @@ const pt: Translation = {
   historyChartLabel:
     "{days} dias com medições, entre {min} e {max} de AQI diário.",
 
-  // --- Alerts --------------------------------------------------------------
-  alertsTitle: "Configuração de alertas",
-  alertsOn: "Ativos",
-  alertsOff: "Desativados",
-  alertsThresholdSuffix: "AQI ou mais",
-  alertsThresholdHelp: "Avisamos você quando o sensor passar deste valor.",
-  alertsNoThreshold: "Sem limite configurado.",
-  alertsDisabledBody:
-    "Sua instituição não tem alertas ativos. Escreva para nós se quiser ativá-los.",
-  alertsGroupsTitle: "Grupos sensíveis",
-  alertsNoGroups: "Ainda não há grupos sensíveis configurados.",
-  alertsRequestChanges: "Solicitar mudanças",
-  alertsRequestSubject: "Mudanças na configuração de alertas",
-
   // --- Action log ----------------------------------------------------------
   actionsTitle: "Ações registradas",
   actionsEmptyTitle: "Você ainda não registrou nenhuma ação",
@@ -731,9 +676,6 @@ const pt: Translation = {
   notificationTypeAqi: "Qualidade do ar",
   notificationTypeGeneral: "Geral",
   notificationThreshold: "Limite",
-  notificationsRuleLead: "Avisamos você quando o ar passar de",
-  notificationsRuleUnit: "AQI",
-  notificationsRuleGroups: "Pensado para:",
 
   // --- Downloads -----------------------------------------------------------
   downloadsTitle: "Downloads",

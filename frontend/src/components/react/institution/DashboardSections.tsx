@@ -38,12 +38,10 @@ export type InitialDashboardState =
 export function DashboardSections({
   initial,
   contract,
-  contactMail,
   lang,
 }: {
   initial: InitialDashboardState;
   contract: InstitutionContract | null;
-  contactMail: string;
   lang: Lang;
 }) {
   const copy = useInstitutionCopy(lang);
@@ -168,18 +166,11 @@ export function DashboardSections({
       />
 
       {/* What the platform sent about the sensor, as against what the action
-          log holds — what the institution did about it.
-
-          The alert configuration lives in this section's header rather than in
-          a card of its own: as two sections they read as two channels, and
-          "we warn you above 100 AQI" beside a separate list of warnings invites
-          the question of whether those are the same warnings. The threshold is
-          the rule and the list is its history, so they belong together. */}
-      <NotificationsPanel
-        alertConfig={dashboard.alert_config}
-        contactMail={contactMail}
-        lang={lang}
-      />
+          log holds — what the institution did about it. The alert rule behind
+          those notifications is not restated here: institutions cannot change
+          it from the dashboard, and it already reaches them as the threshold
+          line on the history chart above. */}
+      <NotificationsPanel lang={lang} />
     </div>
   );
 }
