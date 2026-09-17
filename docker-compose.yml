@@ -144,11 +144,16 @@ services:
       PROXY_CSP_SECURITY_ENDPOINT: ${PROXY_CSP_SECURITY_ENDPOINT:-}
       PROXY_CSP_GLITCHTIP_ORIGIN: ${PROXY_CSP_GLITCHTIP_ORIGIN:-}
       SERVER_HOST: ${SERVER_HOST}
+      # Prefect is a separate compose stack; reached via its external Docker network.
+      PREFECT_HOST: ${PREFECT_HOST:-prefect_server}
+      PREFECT_PORT: ${PREFECT_PORT:-4200}
+      PROXY_PREFECT_ALLOWED_IP_RANGES: ${PROXY_PREFECT_ALLOWED_IP_RANGES:-}
     ports:
       - "${PROXY_PORT}:80"
       - 443:443
     networks:
       - proxy_nw
+      - respira-data_default
     volumes:
       - static_volume:/static
       - ${HOST_WORKSPACE_FOLDER:-.}/certbot/www:/var/www/certbot/
@@ -165,3 +170,5 @@ volumes:
 networks:
   proxy_nw:
   frontend_nw:
+  respira-data_default:
+    external: true

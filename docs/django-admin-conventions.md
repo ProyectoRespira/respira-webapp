@@ -13,6 +13,30 @@ Modules registered today, in `api/admin.py`:
 | `Stations`        | `RoleBasedModelAdmin` | dbt gold pipeline (fields all read-only) |
 | `StationDetails`  | `StackedInline`       | backoffice — replaces the ops spreadsheet |
 | `StationOverride` | `RoleBasedModelAdmin` | backoffice — replaces `station_status_seed.csv` |
+| `Contact`         | `RoleBasedModelAdmin` | backoffice — centralized contact list    |
+
+### Selecting a related record from the *other* model's page
+
+`Contact` holds an optional `OneToOneField` to `accounts.User`, but operators
+also need to pick a contact while adding or editing a user. Because the
+relation is declared on `Contact`, it is not a field of `User` and the user
+form does not render it on its own.
+
+The pattern is a **form field, not an inline** (`ContactSelectionMixin` in
+`accounts/forms.py`): an inline offers to *create* the related record, which
+is exactly what "do not automatically create a Contact when creating a User"
+forbids. Three rules make it work:
+
+1. Declare the field at **class level** on the form. `ModelAdmin.get_form`
+   validates every name in `fieldsets` against the form class's declared
+   fields plus the model's, and raises `FieldError` for a field injected in
+   `__init__`. Narrow the *queryset* per instance instead.
+2. Restrict that queryset to records that are **free or already this
+   object's**, so a one-to-one can't be handed to a second owner through the
+   form.
+3. Write the link in `save()`, unlinking the previous record before attaching
+   the new one — the unique index rejects the new link while the old row still
+   points at the same user. Blank means *unlink*, never *delete*.
 
 ## Base class: always extend `RoleBasedModelAdmin`
 

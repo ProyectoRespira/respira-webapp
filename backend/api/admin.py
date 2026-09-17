@@ -18,6 +18,7 @@ from .forms import (
 )
 from .models import (
     ActionLog,
+    Contact,
     DeviceFollower,
     DeviceInstallation,
     FaqCategory,
@@ -1219,3 +1220,34 @@ class StationOverrideAdmin(RoleBasedModelAdmin):
         ("Context", {"fields": ("note", "change_date")}),
         ("Pipeline", {"fields": ("processed",)}),
     )
+
+
+@admin.register(Contact)
+class ContactAdmin(RoleBasedModelAdmin):
+    """Centralized contact list, independent of platform accounts.
+
+    Contacts are managed here; the same link is also editable from the user
+    page through ``ContactInline`` (registered on ``accounts.UserAdmin``), so
+    an operator can associate an existing contact while creating or editing a
+    user without leaving that page.
+    """
+
+    list_display = ("name", "institution", "phone", "description_excerpt", "user")
+    list_filter = ("institution",)
+    search_fields = ("name", "institution", "phone", "description")
+    ordering = ("name",)
+    autocomplete_fields = ("user",)
+    list_select_related = ("user",)
+    readonly_fields = ("created_at", "updated_at")
+    fieldsets = (
+        (None, {"fields": ("name", "description")}),
+        ("Contact", {"fields": ("institution", "phone")}),
+        ("Platform account", {"fields": ("user",)}),
+        ("Audit", {"fields": ("created_at", "updated_at")}),
+    )
+
+    @admin.display(description="Description")
+    def description_excerpt(self, obj):
+        """First line of the description, so the changelist stays one row."""
+        first_line = obj.description.strip().splitlines()[0] if obj.description else ""
+        return first_line if len(first_line) <= 80 else f"{first_line[:77]}…"
