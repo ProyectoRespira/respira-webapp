@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.sessions.models import Session
 from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -111,8 +112,6 @@ class SessionLifecycleTests(TestCase):
         a non-sliding session, the expiry stamped at login stands no matter how
         recently the user clicked something, so the session dies mid-task.
         """
-        from django.contrib.sessions.models import Session
-
         self.client.force_login(self.admin)
         session_key = self.client.session.session_key
         expiry_at_login = Session.objects.get(session_key=session_key).expire_date
@@ -124,6 +123,9 @@ class SessionLifecycleTests(TestCase):
             self.assertEqual(response.status_code, 200)
 
         renewed_expiry = Session.objects.get(session_key=session_key).expire_date
+        # Moved forward at all: this is what fails on a non-sliding session.
+        self.assertGreater(renewed_expiry, expiry_at_login)
+        # And moved to a full lifetime past the request, not some lesser bump.
         self.assertEqual(
             renewed_expiry,
             later + timedelta(seconds=settings.SESSION_COOKIE_AGE),
