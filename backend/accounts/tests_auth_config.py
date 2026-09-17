@@ -111,8 +111,11 @@ class SessionLifecycleTests(TestCase):
         a non-sliding session, the expiry stamped at login stands no matter how
         recently the user clicked something, so the session dies mid-task.
         """
+        from django.contrib.sessions.models import Session
+
         self.client.force_login(self.admin)
-        expiry_at_login = self.client.session.get_expiry_date()
+        session_key = self.client.session.session_key
+        expiry_at_login = Session.objects.get(session_key=session_key).expire_date
 
         # Browse a page an hour later. The expiry must move with the clock.
         later = timezone.now() + timedelta(hours=1)
@@ -120,4 +123,8 @@ class SessionLifecycleTests(TestCase):
             response = self.client.get(reverse("admin:index"))
             self.assertEqual(response.status_code, 200)
 
-        self.assertGreater(self.client.session.get_expiry_date(), expiry_at_login)
+        renewed_expiry = Session.objects.get(session_key=session_key).expire_date
+        self.assertEqual(
+            renewed_expiry,
+            later + timedelta(seconds=settings.SESSION_COOKIE_AGE),
+        )
