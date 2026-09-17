@@ -15,6 +15,11 @@ http {
     keepalive_timeout 30s;
     reset_timedout_connection on;
 
+    # Docker's embedded DNS. Lets $PREFECT_HOST resolve at request time so a
+    # down/absent Prefect stack 502s /prefect/ instead of crash-looping nginx
+    # at startup (unlike backend/frontend, Prefect isn't a compose dependency).
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
     limit_req_zone $binary_remote_addr zone=admin_login_rate:10m rate=5r/m;
     limit_conn_zone $binary_remote_addr zone=perip_conn:10m;
 
@@ -146,7 +151,8 @@ http {
             proxy_connect_timeout 10s;
             proxy_send_timeout 60s;
             proxy_read_timeout 60s;
-            proxy_pass http://$PREFECT_HOST:$PREFECT_PORT;
+            set $prefect_upstream http://$PREFECT_HOST:$PREFECT_PORT;
+            proxy_pass $prefect_upstream;
         }
 
         # Prefect's internal API stays mounted at /api; strip the /prefect
@@ -163,7 +169,8 @@ http {
             proxy_connect_timeout 10s;
             proxy_send_timeout 60s;
             proxy_read_timeout 60s;
-            proxy_pass http://$PREFECT_HOST:$PREFECT_PORT/api/;
+            set $prefect_api_upstream http://$PREFECT_HOST:$PREFECT_PORT;
+            proxy_pass $prefect_api_upstream/api/;
         }
     }
 }
