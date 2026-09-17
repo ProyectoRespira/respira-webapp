@@ -142,9 +142,9 @@ in production. See `docs/admin-auth-configuration.md`.
 | Variable                                  | Required                | Default              | Where used                    | Notes                                                                     |
 | ----------------------------------------- | ----------------------- | -------------------- | ----------------------------- | ------------------------------------------------------------------------- |
 | `BACKEND_CSRF_TRUSTED_ORIGINS`            | Yes behind HTTPS proxy  | `""` (empty)         | `backend/backend/settings.py` | Comma-separated HTTPS origins trusted for admin POSTs. Required behind the proxy or login is rejected. |
-| `BACKEND_SESSION_COOKIE_AGE`              | No                      | `28800` (8h)         | `backend/backend/settings.py` | Session lifetime in seconds.                                              |
+| `BACKEND_SESSION_COOKIE_AGE`              | No                      | `86400` (24h)        | `backend/backend/settings.py` | Session lifetime in seconds.                                              |
 | `BACKEND_SESSION_EXPIRE_AT_BROWSER_CLOSE` | No                      | `false`              | `backend/backend/settings.py` | Delete the session cookie when the browser closes.                       |
-| `BACKEND_SESSION_SAVE_EVERY_REQUEST`      | No                      | `false`              | `backend/backend/settings.py` | Refresh session expiry on every request (sliding session).              |
+| `BACKEND_SESSION_SAVE_EVERY_REQUEST`      | No                      | `true`               | `backend/backend/settings.py` | Refresh session expiry on every request (sliding session).              |
 | `BACKEND_SESSION_COOKIE_SECURE`           | No                      | `true` when not DEBUG | `backend/backend/settings.py` | Send the session cookie over HTTPS only.                                 |
 | `BACKEND_CSRF_COOKIE_SECURE`              | No                      | `true` when not DEBUG | `backend/backend/settings.py` | Send the CSRF cookie over HTTPS only.                                    |
 | `BACKEND_SESSION_COOKIE_SAMESITE`         | No                      | `Lax`                | `backend/backend/settings.py` | SameSite policy for the session cookie.                                  |

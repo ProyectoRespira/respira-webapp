@@ -325,12 +325,18 @@ LOGIN_URL = "admin:login"
 LOGIN_REDIRECT_URL = "admin:index"
 
 # Session management (environment-aware).
-# Default session lifetime: 8 hours. Sessions are stored in the database.
-SESSION_COOKIE_AGE = _env_int("BACKEND_SESSION_COOKIE_AGE", 60 * 60 * 8)
+# Default session lifetime: 24 hours. Sessions are stored in the database, so
+# expiry and logout are enforced server-side, not just by dropping the cookie.
+SESSION_COOKIE_AGE = _env_int("BACKEND_SESSION_COOKIE_AGE", 60 * 60 * 24)
 SESSION_EXPIRE_AT_BROWSER_CLOSE = _env_bool(
     "BACKEND_SESSION_EXPIRE_AT_BROWSER_CLOSE", False
 )
-SESSION_SAVE_EVERY_REQUEST = _env_bool("BACKEND_SESSION_SAVE_EVERY_REQUEST", False)
+# Sliding sessions: every request pushes the expiry back to a full
+# SESSION_COOKIE_AGE, so the 24 hours count from the last activity rather than
+# from login. Without this, an admin or institutional user is logged out
+# mid-task once the window that started at login runs out, however recently
+# they clicked something.
+SESSION_SAVE_EVERY_REQUEST = _env_bool("BACKEND_SESSION_SAVE_EVERY_REQUEST", True)
 
 # Secure cookie settings. Secure cookies (HTTPS-only) are enabled by default
 # whenever DEBUG is off (i.e. in production) and can be overridden per
