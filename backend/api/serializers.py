@@ -680,6 +680,9 @@ class DashboardSensorSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=["online", "offline"])
     location = DashboardLocationSerializer()
     last_measurement_at = serializers.DateTimeField(allow_null=True)
+    # False for the networks the raw export cannot reach (FIUNA, MADES): the
+    # panel hides that download rather than offering one that would 404.
+    supports_raw_export = serializers.BooleanField()
 
 
 class DashboardAirQualitySerializer(serializers.Serializer):

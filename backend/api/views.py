@@ -29,6 +29,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet, ModelViewSet, ReadOnlyModelViewSet
 
+from .airgradient import AirGradientError, location_id_for_station
 from .aqi import classify_aqi
 from .models import (
     ActionLog,
@@ -698,6 +699,26 @@ class AdminUserViewSet(ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
 
+def _supports_raw_export(station) -> bool:
+    """Whether this station's readings can be exported as a raw CSV.
+
+    The raw export is read live from the AirGradient API, so it exists only for
+    sensors AirGradient actually holds. Stations from the other networks (FIUNA,
+    MADES) reach gold through the pipeline but have no AirGradient identity, and
+    asking for their raw history can only ever 404.
+
+    The same call the export itself makes, so the panel cannot offer a download
+    the endpoint would refuse: one source of truth for "is this an AirGradient
+    sensor", checked here before the button is drawn rather than after it is
+    pressed.
+    """
+    try:
+        location_id_for_station(station)
+    except AirGradientError:
+        return False
+    return True
+
+
 def _dashboard_sensor(station):
     details = getattr(station, "details", None)
     last_reading = (
@@ -716,6 +737,7 @@ def _dashboard_sensor(station):
             "longitude": station.longitude,
         },
         "last_measurement_at": last_reading.date_utc if last_reading else None,
+        "supports_raw_export": _supports_raw_export(station),
     }, last_reading
 
 

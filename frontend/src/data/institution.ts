@@ -5,6 +5,8 @@
 // consumes a handful of endpoints, not the whole schema — but they must be kept
 // in step with those serializers when the backend changes.
 
+import type { AQILevelId } from "./cards";
+
 /** Paths under the API root (`BACKEND_URL`, e.g. `/api`). */
 export const INSTITUTION_ENDPOINTS = {
   // Implemented: RES-368 (auth) and RES-369 (dashboard).
@@ -88,6 +90,16 @@ export type DashboardSensor = {
   status: "online" | "offline";
   location: DashboardLocation;
   last_measurement_at: string | null;
+  /**
+   * Whether the raw CSV export exists for this sensor.
+   *
+   * The export is read live from the AirGradient API, so sensors from the other
+   * networks (FIUNA, MADES) have no raw history to serve and the endpoint can
+   * only 404 for them. Optional because a backend that predates the field sends
+   * nothing; treat a missing value as `true` so the download does not vanish
+   * from panels served by an older deployment.
+   */
+  supports_raw_export?: boolean;
 };
 
 export type DashboardAirQuality = {
@@ -230,3 +242,25 @@ const CATEGORY_EMOJI: Record<string, string> = {
 
 export const emojiForCategory = (category: string): string =>
   CATEGORY_EMOJI[category] ?? "";
+
+// The backend sends `category_label`, `message` and `recommendations` in
+// Spanish only (`AQI_LEVELS` has no translations), so the panel renders them
+// from the site dictionary instead, keyed by the category. Same table, same
+// wording as the public AQI cards — only the language follows the reader.
+const CATEGORY_LEVEL_ID: Record<string, AQILevelId> = {
+  good: "good",
+  moderate: "moderate",
+  unhealthy_sensitive: "unhealthySensitive",
+  unhealthy: "unhealthy",
+  very_unhealthy: "veryUnhealthy",
+  hazardous: "hazardous",
+};
+
+/**
+ * The AQI level id for a backend category, or `null` for one we don't know.
+ *
+ * A null means the backend grew a level the frontend hasn't learned yet; the
+ * caller falls back to the Spanish text the API sent rather than showing a gap.
+ */
+export const levelIdForCategory = (category: string): AQILevelId | null =>
+  CATEGORY_LEVEL_ID[category] ?? null;

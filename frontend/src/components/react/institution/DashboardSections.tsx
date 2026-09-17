@@ -130,9 +130,9 @@ export function DashboardSections({
           be read together sat as far apart as two unrelated sections. The wider
           outer gap is what separates one subject from the next.
 
-          Today first: what the air is doing, whether the sensor saying so is
-          actually reporting, and the exports — the standing facts about the
-          sensor, read together. */}
+          Today first: what the air is doing, and whether the sensor saying so
+          is actually reporting — the standing facts about the sensor, read
+          together. */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
         <div className="lg:col-span-8">
           <AirQualityPanel airQuality={dashboard.air_quality} lang={lang} />
@@ -143,9 +143,15 @@ export function DashboardSections({
             contract={contract}
             lang={lang}
           />
-          <DownloadCard lang={lang} contract={contract} />
         </div>
       </div>
+
+      {/* Full width rather than beside the AQI panel (RES-433): the two exports
+          now sit in two columns, and in the 4-column slot they had before there
+          was no room for that — the date range alone wants the better part of
+          it. On its own row each download gets a readable column, and the pair
+          can be compared side by side. */}
+      <DownloadCard lang={lang} contract={contract} sensor={dashboard.sensor} />
 
       <HistoryChart
         history={dashboard.history}

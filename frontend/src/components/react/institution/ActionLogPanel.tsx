@@ -15,6 +15,7 @@ import {
 } from "../../../store/institution";
 import {
   formatAqi,
+  formatDate,
   formatShortDate,
   formatTime,
 } from "../../../utils/institution-format";
@@ -26,6 +27,7 @@ import {
   CardTitle,
   ErrorState,
   FieldLabel,
+  HelpDisclosure,
   Pill,
   Skeleton,
   StateBlock,
@@ -130,16 +132,17 @@ export function ActionLogPanel({
           history with two entries is padded out to the height of a six-field
           form, and the empty half reads as something failing to load. Each card
           takes the height its content needs; the shared top edge is what makes
-          them a pair. */}
-      <div className="lg:col-span-7">
-        <ActionLogList
-          state={list}
-          onRetry={load}
-          onLoadMore={loadMore}
-          loadingMore={loadingMore}
-          lang={lang}
-        />
-      </div>
+          them a pair.
+
+          The form comes first (RES-434). Reading order is the order of the
+          task: you write the action, then it appears in the history beside it —
+          the list led with the result of a step the page had not offered yet.
+          This also settles the stacking order below `lg`, where the form now
+          precedes the history it feeds.
+
+          The widths do not travel with the cards: the history keeps the wider
+          half, since it holds notes, dates and alert badges, while the form is
+          two fields and a button and reads better narrow. */}
       <div className="lg:col-span-5">
         <ActionLogForm
           stationId={stationId}
@@ -147,6 +150,15 @@ export function ActionLogPanel({
           alerts={alerts}
           disabled={list.status === "unavailable"}
           onCreated={prepend}
+          lang={lang}
+        />
+      </div>
+      <div className="lg:col-span-7">
+        <ActionLogList
+          state={list}
+          onRetry={load}
+          onLoadMore={loadMore}
+          loadingMore={loadingMore}
           lang={lang}
         />
       </div>
@@ -288,6 +300,32 @@ function ActionLogList({
 
 // --- Form -------------------------------------------------------------------
 
+/**
+ * One line in the alert selector: `24/08/2026 · 128 AQI · umbral 100`.
+ *
+ * The full date, not the list's `dd/mm`: an option has to be identifiable on
+ * its own, and the alerts on offer can span more than a year. `<option>` takes
+ * text and nothing else, so the three parts are assembled from a translated
+ * template rather than from markup — which is also what moved "umbral" out of
+ * the component, where it was hardcoded in Spanish whatever the panel's
+ * language.
+ */
+function alertOptionLabel(
+  alert: InstitutionAlert,
+  copy: ReturnType<typeof useInstitutionCopy>,
+): string {
+  const base =
+    alert.alert_threshold == null
+      ? copy.actionFormAlertOptionNoThreshold
+      : copy.actionFormAlertOption.replace(
+          "{threshold}",
+          String(alert.alert_threshold),
+        );
+  return base
+    .replace("{date}", formatDate(alert.triggered_at))
+    .replace("{aqi}", formatAqi(alert.aqi_value));
+}
+
 function ActionLogForm({
   stationId,
   stationName,
@@ -306,6 +344,7 @@ function ActionLogForm({
   const copy = useInstitutionCopy(lang);
   const noteId = useId();
   const alertId = useId();
+  const alertHelpId = useId();
   const [note, setNote] = useState("");
   // "" means no alert. Kept as a string because that is what a <select> value
   // is; it becomes a number only on the way out.
@@ -385,6 +424,22 @@ function ActionLogForm({
         <CardTitle level="main">{copy.actionFormTitle}</CardTitle>
       </CardHead>
 
+      {/* Each field explains itself; what was missing is why the section exists
+          — and that what is written here comes back in the monthly PDF, which
+          is what makes it worth the minute it takes. Above the form rather than
+          inside it, so it is read before the first field rather than found
+          after the visitor has already worked out what to type.
+
+          In the normal flow, not floating: the text pushes the form down and
+          stays put while it is read, which is what a paragraph of explanation
+          should do. Nothing beside it moves — `items-start` on the row already
+          lets the history card keep its own height. */}
+      <HelpDisclosure
+        toggle={copy.actionFormHelpToggle}
+        body={copy.actionFormHelp}
+        className="-mt-1 mb-4"
+      />
+
       <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
         <p className="m-0 flex items-baseline gap-2.5 rounded-md bg-base px-3 py-2 text-[13px]">
           <span className="text-[11px] font-bold uppercase tracking-wider text-gray">
@@ -407,18 +462,22 @@ function ActionLogForm({
               value={alert}
               onChange={(event) => setAlert(event.target.value)}
               disabled={disabled || submitting}
+              aria-describedby={alertHelpId}
             >
               <option value="">{copy.actionFormAlertNone}</option>
               {selectableAlerts.map((item) => (
                 <option key={item.id} value={String(item.id)}>
-                  {formatShortDate(item.triggered_at)} ·{" "}
-                  {formatAqi(item.aqi_value)} AQI
-                  {item.alert_threshold == null
-                    ? ""
-                    : ` (umbral ${item.alert_threshold})`}
+                  {alertOptionLabel(item, copy)}
                 </option>
               ))}
             </select>
+            {/* The three numbers in an option — date, AQI, threshold — mean
+                nothing on their own; this line is what names them (RES-435).
+                It sits under the control rather than in the label so the label
+                stays a short noun phrase. */}
+            <span id={alertHelpId} className="text-[11.5px] text-lightgray">
+              {copy.actionFormAlertHelp}
+            </span>
           </div>
         )}
 
