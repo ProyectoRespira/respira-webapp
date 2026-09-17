@@ -546,8 +546,13 @@ def _station_belongs_to_institution(broadcast: PushBroadcast) -> bool:
     Vacuously true when no institution is named: a station-scoped send without
     one is a notice about that sensor itself — an outage on a public station
     under no contract at all — and has no institutional boundary to cross.
+
+    Also true with no station, which is not a boundary this can judge — the
+    caller has already returned an empty audience for that. Checked here anyway
+    rather than relying on that: both fields are nullable, so a function that
+    reads them has to say what it does with a null.
     """
-    if broadcast.institution_id is None:
+    if broadcast.institution_id is None or broadcast.station_id is None:
         return True
     return Stations.objects.filter(
         pk=broadcast.station_id,
