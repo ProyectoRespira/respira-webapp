@@ -49,6 +49,22 @@ Tips:
 
 ---
 
+## Prefect Reverse Proxy
+
+Prefect runs as a separate compose stack (`respira-data`) and is reverse-proxied at `/prefect/` behind the same TLS certificate as the rest of the site, restricted to a VPN/office IP allowlist the same way `/admin/` is. The `proxy` service joins Prefect's external Docker network (`respira-data_default` by default, declared as `external: true` in `docker-compose.yml`) so it can reach Prefect by container alias instead of a published host port.
+
+| Variable                          | Required | Default                 | Where used                                                                   | Notes                                                                                                                 |
+| ---------------------------------- | -------- | ------------------------ | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `PREFECT_HOST`                    | No       | `prefect_server`         | `docker-compose.yml` (proxy env), `proxy/entrypoint.sh`, `proxy/nginx.conf.template` | Container network alias nginx proxies `/prefect/` to. Find it with `docker inspect <prefect_container> --format '{{json .NetworkSettings.Networks}}'`. |
+| `PREFECT_PORT`                    | No       | `4200`                   | same as above                                                                | Port Prefect's server/UI listens on inside its container.                                                             |
+| `PROXY_PREFECT_ALLOWED_IP_RANGES` | No       | `""`                     | `docker-compose.yml` (proxy env), `proxy/entrypoint.sh`, `proxy/nginx.conf.template` | Comma-separated IP/CIDR entries, same format as `PROXY_ADMIN_ALLOWED_IP_RANGES`. If empty, `/prefect/` is blocked by default. |
+
+If Prefect's compose project uses a different network name, update the `respira-data_default` entry under the top-level `networks:` key (and the `proxy` service's `networks:` list) in `docker-compose.yml` to match.
+
+Access Prefect at `https://$SERVER_HOST/prefect/` instead of the host's direct `:4200` port; the direct port should be firewalled off from the public internet.
+
+---
+
 ## Content Security Policy
 
 The proxy owns the Content Security Policy for content served through the public
