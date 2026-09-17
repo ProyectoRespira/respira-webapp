@@ -429,7 +429,14 @@ class InstitutionDashboardDataTests(APITestCase):
         )
         self.assertEqual(
             set(body["sensor"].keys()),
-            {"id", "name", "status", "location", "last_measurement_at"},
+            {
+                "id",
+                "name",
+                "status",
+                "location",
+                "last_measurement_at",
+                "supports_raw_export",
+            },
         )
         self.assertEqual(
             set(body["alert_config"].keys()),
