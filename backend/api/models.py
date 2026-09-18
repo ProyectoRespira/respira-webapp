@@ -1,10 +1,17 @@
+import logging
 import os
 import uuid
+from datetime import time
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.conf import settings
 from django.db import IntegrityError, models, transaction
 from django.utils import timezone
+
+from .gold import ReadOnlyGoldModel
+
+logger = logging.getLogger(__name__)
 
 
 def _column_env_or_default(key: str, default: str) -> str:
@@ -55,7 +62,7 @@ def user_role(user) -> str:
     return UserRole.VIEWER
 
 
-class Regions(models.Model):
+class Regions(ReadOnlyGoldModel):
     name = models.CharField(max_length=255)
     region_code = models.CharField(max_length=255)
     bbox = models.CharField(max_length=255, blank=True, null=True)
@@ -71,7 +78,7 @@ class Regions(models.Model):
         return self.name
 
 
-class Stations(models.Model):
+class Stations(ReadOnlyGoldModel):
     name = models.CharField(max_length=255)
     # The pipeline's stable natural key (``dim_stations.code``), exposed on the
     # gold table so operational records can address a station by something that
@@ -360,6 +367,18 @@ class InstitutionAlert(models.Model):
             "configuration don't rewrite history."
         ),
     )
+    rule = models.ForeignKey(
+        "InstitutionAlertRule",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="events",
+        help_text=(
+            "The rule that fired this event, when one did. Null for events "
+            "predating the rules, and kept null-able so deleting a rule "
+            "preserves the history it produced."
+        ),
+    )
     triggered_at = models.DateTimeField(default=timezone.now)
     resolved_at = models.DateTimeField(
         blank=True,
@@ -373,6 +392,269 @@ class InstitutionAlert(models.Model):
 
     def __str__(self):
         return f"{self.institution} — AQI {self.aqi_value} at {self.triggered_at:%Y-%m-%d %H:%M}"
+
+
+class InstitutionAlertRule(models.Model):
+    """An institution's configurable push alert for one of its stations.
+
+    What makes institutional alerts *configurable* rather than compiled in: the
+    threshold and the wording live here, editable from the admin, instead of in
+    ``push.LEVEL_COPY``'s fixed table of AQI levels. Editing a rule changes what
+    followers receive on the next scheduled run, with no deploy involved.
+
+    Why a numeric threshold and not a level. The public alert path deliberately
+    only fires from ``unhealthySensitive`` upward — waking people for good air
+    trains them to ignore the alerts that matter. An institution leasing its own
+    sensor has a different audience: a school may well want to tell its
+    community at an AQI the general public should not be interrupted for. A
+    number expresses that; a level cannot.
+
+    Separate from :class:`InstitutionAlertConfig` rather than an extension of
+    it. That model is one row per institution holding institution-wide
+    preferences (``sensitive_groups``), is a ``OneToOneField``, and is already
+    read by the institutional dashboard through
+    ``InstitutionAlertConfigSerializer``. Widening it to one row per station
+    would change what a single row means and break that serializer's
+    assumption, for a gain this model provides on its own.
+
+    ``station`` mirrors :class:`InstitutionContract`: ``db_constraint=False``
+    because dbt drops and recreates ``stations`` on every gold run, so a
+    physical FOREIGN KEY would not survive it.
+    """
+
+    institution = models.ForeignKey(
+        "Institution", on_delete=models.CASCADE, related_name="alert_rules"
+    )
+    station = models.ForeignKey(
+        "Stations",
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        related_name="institution_alert_rules",
+    )
+    threshold = models.PositiveIntegerField(
+        help_text=(
+            "AQI value above which this rule notifies the station's followers. "
+            "Any value — an institution may choose to alert its own community "
+            "at a level the public alerts deliberately stay quiet for."
+        ),
+    )
+    push_title = models.CharField(
+        max_length=100,
+        help_text="Notification title, as it appears on the device.",
+    )
+    push_body = models.TextField(
+        max_length=500,
+        help_text="Notification body. {station} is replaced with the station's name.",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Inactive rules are skipped by the scheduled sender.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "institution_alert_rule"
+        ordering = ("institution", "threshold")
+        # "Institution alert" in the admin, because this is the one page an
+        # operator uses for the feature. The events it produces
+        # (:class:`InstitutionAlert`) are shown inline on this page rather than
+        # as a section of their own — two menu entries whose names differ by the
+        # word "rule" is a distinction nobody should have to learn.
+        verbose_name = "institution alert"
+        verbose_name_plural = "institution alerts"
+        constraints = [
+            # Several alerts per sensor on purpose: an institution that wants a
+            # caution at one AQI and an evacuation at a higher one has said so
+            # twice, deliberately, and both are meant to arrive. Escalating
+            # advice is how air-quality guidance is normally written, and
+            # collapsing it to one message per sensor would lose the middle
+            # step.
+            #
+            # Only an exact duplicate is refused, since two alerts at the same
+            # threshold could never say anything the other did not — they would
+            # fire together, every time, and send the same follower two
+            # notifications about one reading.
+            models.UniqueConstraint(
+                fields=["institution", "station", "threshold"],
+                name="uniq_alert_rule_per_threshold",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.institution} — AQI > {self.threshold}"
+
+    def message_for(self, station_name: str) -> tuple[str, str]:
+        """This rule's copy, with ``{station}`` resolved.
+
+        ``format_map`` over ``format`` so an operator who types a stray brace
+        into the body gets their literal text through rather than a
+        ``KeyError`` at send time, when there is no admin around to see it.
+        """
+
+        class _Defaults(dict):
+            def __missing__(self, key):
+                return "{" + key + "}"
+
+        return (
+            self.push_title,
+            self.push_body.format_map(_Defaults(station=station_name)),
+        )
+
+
+class InstitutionAlertRuleState(models.Model):
+    """Whether one rule is currently holding an alert open, run to run.
+
+    A numeric threshold needs its own memory and cannot borrow
+    :class:`SensorAlertState`: that model records AQI *level* keys, so with a
+    threshold of 40 a station oscillating 38→42→39→41 sits at ``good``
+    throughout and no level ever changes. Every crossing would be invisible to
+    it.
+
+    ``is_firing`` is the crossing itself. It turns on when a reading first
+    exceeds ``threshold`` and turns off only once the air falls back under
+    ``push.rearm_threshold`` — a band below it. Without that band a sensor
+    hovering at its threshold re-alerts on every scheduled run, which is the
+    duplicate-notification failure the level path avoids by requiring a
+    *worsening*, expressed here in the terms a bare number allows.
+
+    One row per rule, taken with ``select_for_update`` for the length of a
+    send, which is also what stops two overlapping runs from both notifying.
+    """
+
+    rule = models.OneToOneField(
+        "InstitutionAlertRule", on_delete=models.CASCADE, related_name="state"
+    )
+    is_firing = models.BooleanField(
+        default=False,
+        help_text=(
+            "True while followers have been warned and the air has not yet "
+            "fallen back below the rearm band."
+        ),
+    )
+    last_aqi = models.FloatField(
+        blank=True,
+        null=True,
+        help_text="The most recent reading this rule was evaluated against.",
+    )
+    last_notified_at = models.DateTimeField(blank=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "institution_alert_rule_state"
+
+    def __str__(self):
+        return f"{self.rule_id}: {'firing' if self.is_firing else 'idle'}"
+
+    @classmethod
+    def lock(cls, rule_id: int) -> "InstitutionAlertRuleState":
+        """The rule's state row, locked until the caller's transaction ends.
+
+        Created first and locked second, for the same reason as
+        :meth:`SensorAlertState.lock`: there is no row to lock on a rule's very
+        first run.
+        """
+        cls.objects.get_or_create(rule_id=rule_id)
+        return cls.objects.select_for_update().get(rule_id=rule_id)
+
+
+class PushBroadcast(models.Model):
+    """One manually sent push, and the record that it was sent.
+
+    Separate from :class:`InstitutionAlertRule` because the two are different
+    kinds of thing. A rule is standing configuration the scheduled sender
+    evaluates over and over; a broadcast is written once, sent once, and never
+    fires again. Modelling both as rows of one table would leave half the
+    columns meaningless in either case, and "active" meaning two different
+    things.
+
+    This is what carries an operational message — "no hay clases mañana",
+    "mantenimiento del sensor el martes" — that has nothing to do with the
+    current AQI, which is why it has no threshold and no state.
+
+    A row exists only once a send has been attempted: there is no draft to
+    submit twice, and ``sent_at`` is stamped on creation. That is what stops
+    the same announcement going out repeatedly.
+
+    ``scope`` is the audience, and each value names a set of *people*:
+    ``ALL`` is every user following any sensor, ``STATION`` the followers of one
+    named sensor, ``INSTITUTION`` the followers of the sensors one institution
+    has under contract. ``ALL`` is not an institutional alert at all — it is a
+    platform announcement, which is why this model has no required institution
+    and why the admin gates that scope behind a permission of its own.
+    """
+
+    SCOPE_STATION = "station"
+    SCOPE_INSTITUTION = "institution"
+    SCOPE_ALL = "all"
+    # Worded as *who receives this*, because that is the question an operator is
+    # actually answering and a push cannot be recalled once it is wrong. The
+    # earlier labels described the audience obliquely — "All of an institution's
+    # stations" names stations when the recipients are people, and it read as
+    # though the institution's own staff were the audience rather than whoever
+    # follows its sensors.
+    #
+    # `ALL` leads: it is the widest audience, so listing it first is what makes
+    # a narrower choice a deliberate one rather than a default fallen into.
+    # The stored values are untouched — only the labels move.
+    SCOPE_CHOICES = (
+        (SCOPE_ALL, "All users"),
+        (SCOPE_STATION, "Followers of a specific sensor"),
+        (SCOPE_INSTITUTION, "Followers of an institution"),
+    )
+
+    scope = models.CharField(max_length=16, choices=SCOPE_CHOICES)
+    institution = models.ForeignKey(
+        "Institution",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="broadcasts",
+        help_text=(
+            "Set when notifying an institution's followers; blank for all users."
+        ),
+    )
+    station = models.ForeignKey(
+        "Stations",
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        blank=True,
+        null=True,
+        related_name="broadcasts",
+        help_text="Set when notifying one sensor's followers.",
+    )
+    push_title = models.CharField(max_length=100)
+    push_body = models.TextField(max_length=500)
+    recipients = models.PositiveIntegerField(
+        default=0,
+        help_text="How many devices the push service accepted this broadcast for.",
+    )
+    failures = models.PositiveIntegerField(
+        default=0,
+        help_text="Messages the push service rejected for a reason worth retrying.",
+    )
+    sent_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="push_broadcasts",
+        help_text="Who sent it. Kept for the audit trail.",
+    )
+    sent_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "push_broadcast"
+        ordering = ("-sent_at",)
+        permissions = [
+            (
+                "send_global_pushbroadcast",
+                "Can send a push notification to every follower on the platform",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.get_scope_display()} — {self.push_title}"
 
 
 class ActionLog(models.Model):
@@ -794,7 +1076,7 @@ class SensorAlertState(models.Model):
         return cls.objects.select_for_update().get(station_code=station_code)
 
 
-class RegionReadings(models.Model):
+class RegionReadings(ReadOnlyGoldModel):
     region = models.ForeignKey("Regions", on_delete=models.DO_NOTHING)
     date_utc = models.DateTimeField()
     pm2_5_region_avg = models.FloatField(blank=True, null=True)
@@ -811,7 +1093,7 @@ class RegionReadings(models.Model):
         db_table = "region_readings_gold"
 
 
-class StationReadingsGold(models.Model):
+class StationReadingsGold(ReadOnlyGoldModel):
     station = models.ForeignKey("Stations", on_delete=models.DO_NOTHING)
     airnow_id = models.IntegerField(blank=True, null=True)
     date_utc = models.DateTimeField(
@@ -840,7 +1122,7 @@ class StationReadingsGold(models.Model):
         db_table = "station_readings_gold"
 
 
-class InferenceRuns(models.Model):
+class InferenceRuns(ReadOnlyGoldModel):
     class Status(models.TextChoices):
         RUNNING = "running", "running"
         SUCCESS = "success", "success"
@@ -874,8 +1156,13 @@ class InferenceRuns(models.Model):
         db_table = "inference_runs"
 
 
-class InferenceResults(models.Model):
+class InferenceResults(ReadOnlyGoldModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # Written by the same Prefect/Python inference pipeline as InferenceRuns
+    # (not dbt SQL), so it is gold data too — see ReadOnlyGoldModel. The FKs
+    # below intentionally omit db_constraint=False: unlike stations/regions,
+    # inference_runs/inference_results are append-only and never dropped and
+    # recreated wholesale by the pipeline, so a physical FK is safe here.
     inference_run = models.ForeignKey("InferenceRuns", on_delete=models.DO_NOTHING)
     station = models.ForeignKey("Stations", on_delete=models.DO_NOTHING)
     forecasts_6h = models.JSONField(
@@ -1014,3 +1301,169 @@ class FaqQuestion(models.Model):
 
     def __str__(self):
         return self.question_es
+
+
+class Contact(models.Model):
+    """A person in Proyecto Respira's centralized contact list.
+
+    A contact exists on its own: most of them never become platform users, and
+    the ones that do keep their record afterwards. The optional link to a user
+    is declared here rather than as a field on ``accounts.User`` — same
+    reasoning as ``InstitutionUser``: the core auth model stays untouched, and
+    the contact is the side that may or may not have an account.
+
+    ``OneToOneField`` so the same contact can never back two platform accounts,
+    and ``SET_NULL`` so deleting a user releases the link instead of taking the
+    contact with it. ``institution`` is free text, not a FK to
+    :class:`Institution`: that model is the Sensor Leasing client catalog, and a
+    contact's employer is often an organization that is not (or not yet) a
+    leasing client.
+    """
+
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    institution = models.CharField(max_length=255, blank=True)
+    phone = models.CharField(max_length=50, blank=True)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="contact",
+        help_text="Optional platform account for this contact.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "contact"
+        ordering = ["name"]
+        verbose_name = "Contact"
+        verbose_name_plural = "Contacts"
+
+    def __str__(self):
+        return self.name
+
+
+class PushNotificationWindow(models.Model):
+    """The hours of day AQI push notifications may be delivered in.
+
+    Exists because air quality does not keep office hours. Vallemí and
+    Concepción swing overnight, and a warning that wakes somebody at 03:00 is
+    worse than useless: they cannot act on it until morning, and the next one
+    they can act on has already been muted along with it.
+
+    A single row, held by :meth:`current`. Configuration that is edited in the
+    admin and read by a scheduled job has to be *somewhere* both can name, and
+    a settings variable would mean a deploy per change — which is exactly what
+    "notification hours can be changed without a code deployment" rules out.
+
+    ``timezone_name`` is stored rather than assumed. ``settings.TIME_ZONE`` is
+    UTC on these hosts, so a naively-read "06:00" would fire at 03:00 in
+    Asunción — the middle of the quiet period this model exists to protect.
+    Paraguay abolished DST in 2024 and now sits at UTC-3 year round, so the
+    offset happens to be stable today; the zone is still resolved through
+    ``ZoneInfo`` on every call rather than stored as a fixed offset, which is
+    what keeps this correct if that changes or the sensors move country.
+
+    What this model deliberately does *not* hold is a queue of alerts deferred
+    overnight. The sender re-reads each station's current AQI on every run, so
+    the run after the window opens evaluates the air as it is *then*: still bad
+    and nobody was told yet means notify, already recovered means stay quiet.
+    A stored queue would instead replay the night's readings and announce air
+    that no longer exists. See ``api.push.send_sensor_alerts``.
+    """
+
+    DEFAULT_START = time(6, 0)
+    DEFAULT_END = time(22, 0)
+    # Paraguay, where every sensor is. Named explicitly so the window does not
+    # silently follow `settings.TIME_ZONE` if that ever changes.
+    DEFAULT_TIMEZONE = "America/Asuncion"
+
+    is_enabled = models.BooleanField(
+        default=True,
+        help_text=(
+            "When off, notifications are delivered at any hour and the times "
+            "below are ignored."
+        ),
+    )
+    start_time = models.TimeField(
+        default=DEFAULT_START,
+        help_text="Earliest hour a notification may be delivered (inclusive).",
+    )
+    end_time = models.TimeField(
+        default=DEFAULT_END,
+        help_text="Latest hour a notification may be delivered (exclusive).",
+    )
+    timezone_name = models.CharField(
+        max_length=64,
+        default=DEFAULT_TIMEZONE,
+        help_text=(
+            "The zone the times above are read in. The server clock runs on "
+            "UTC, so this is what makes them local hours."
+        ),
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "push_notification_window"
+        verbose_name = "Push notification window"
+        verbose_name_plural = "Push notification window"
+
+    def __str__(self):
+        if not self.is_enabled:
+            return "Any hour (restriction off)"
+        return f"{self.start_time:%H:%M}–{self.end_time:%H:%M} {self.timezone_name}"
+
+    @classmethod
+    def current(cls) -> "PushNotificationWindow":
+        """The one configuration row, created with the agreed defaults if absent.
+
+        Created rather than returned as an unsaved instance, so an operator
+        opening the admin finds a row to edit instead of an empty changelist
+        with nothing explaining what the job is using.
+        """
+        window, _ = cls.objects.get_or_create(pk=1)
+        return window
+
+    def tzinfo(self):
+        """The configured zone, falling back to UTC if it is not a real one.
+
+        A bad zone name must not stop delivery altogether: the fallback is
+        ``settings.TIME_ZONE``, which still applies *a* window rather than
+        crashing the run or silently notifying at every hour.
+        """
+        try:
+            return ZoneInfo(self.timezone_name)
+        except (ZoneInfoNotFoundError, ValueError):
+            logger.warning(
+                "Push window has an unknown timezone %r; falling back to %s",
+                self.timezone_name,
+                settings.TIME_ZONE,
+            )
+            return ZoneInfo(settings.TIME_ZONE)
+
+    def allows(self, moment=None) -> bool:
+        """Whether a notification may be delivered at ``moment``.
+
+        ``start`` is inclusive and ``end`` exclusive, so a window ending at
+        22:00 permits 21:59 and refuses 22:00 exactly — one reading of the
+        boundary, applied the same way at both ends.
+
+        A window whose end is *before* its start is read as crossing midnight
+        (22:00–06:00 means the night), because that is the only reading under
+        which such a row is not simply broken. Equal times are the degenerate
+        case and allow nothing, which is what an operator who set them that way
+        asked for.
+        """
+        if not self.is_enabled:
+            return True
+
+        local = (moment or timezone.now()).astimezone(self.tzinfo()).time()
+
+        if self.start_time == self.end_time:
+            return False
+        if self.start_time < self.end_time:
+            return self.start_time <= local < self.end_time
+        # Crosses midnight: inside the window means late evening or early hours.
+        return local >= self.start_time or local < self.end_time

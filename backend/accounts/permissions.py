@@ -25,11 +25,28 @@ from __future__ import annotations
 # api.institutionuser — client organizations, their leasing contracts, and the
 # links granting users access to the institutional dashboard; admin-owned
 # like the station data above.
-# "Institutional alerts" = api.institutionalert — recorded poor-air-quality
-# events, admin-owned until a generator writes them.
+# "Institutional alerts" = api.institutionalertrule, the configurable alert an
+# operator sets up (admin's "Institution alerts" page), plus the two models it
+# owns. Both of those carry `view` only for the roles that manage alerts, since
+# neither is written by hand:
+#   * api.institutionalert — the recorded firings, shown inline on the alert
+#     page and registered read-only (see api.admin.InstitutionAlertEventAdmin).
+#   * api.institutionalertrulestate — the sender's per-alert memory. `delete` is
+#     granted alongside `delete_institutionalertrule` and only for that: it is a
+#     CASCADE dependent, so Django checks it while deleting an alert and refuses
+#     the whole deletion without it. Deleting one directly stays blocked in
+#     api.admin.InstitutionAlertRuleStateAdmin regardless of this permission.
+# Note both api.institutionalert and api.institutionalertrule display as
+# "institution alert" in the admin's permission lists — the latter sets that
+# verbose_name deliberately (see its Meta) — so match them by codename, not by
+# the label shown on screen.
 # "Institutional action history" = api.actionlog — written by institutions
 # through the API and view-only in the backoffice for everyone (see
 # api.admin.ActionLogAdmin), so only `view` is ever granted here.
+# "Contacts" = api.contact — the centralized list of relevant people, kept
+# independently of platform accounts. Managed like editorial content: anyone
+# who administers the backoffice can maintain it, and the optional link to a
+# user is edited from either side (Contacts page or the user's Contact field).
 # "Administrative configuration" = accounts.user, accounts.role.
 #
 # Note that `change_stationdetails` also gates opening a station's change page
@@ -50,7 +67,10 @@ ROLE_GROUP_PERMISSIONS: dict[str, object] = {
         ("api", "institutioncontract"): ["add", "change", "delete", "view"],
         ("api", "institutionuser"): ["add", "change", "delete", "view"],
         ("api", "institutionalert"): ["add", "change", "delete", "view"],
+        ("api", "institutionalertrule"): ["add", "change", "delete", "view"],
+        ("api", "institutionalertrulestate"): ["delete", "view"],
         ("api", "actionlog"): ["view"],
+        ("api", "contact"): ["add", "change", "delete", "view"],
         ("accounts", "user"): ["view"],
         ("accounts", "role"): ["view"],
     },
@@ -68,7 +88,10 @@ ROLE_GROUP_PERMISSIONS: dict[str, object] = {
         ("api", "institutioncontract"): ["add", "change", "view"],
         ("api", "institutionuser"): ["add", "change", "view"],
         ("api", "institutionalert"): ["add", "change", "view"],
+        ("api", "institutionalertrule"): ["add", "change", "view"],
+        ("api", "institutionalertrulestate"): ["view"],
         ("api", "actionlog"): ["view"],
+        ("api", "contact"): ["add", "change", "view"],
     },
     # Viewer: read-only on operational data, admin-owned station data, and
     # editorial content.
@@ -83,7 +106,10 @@ ROLE_GROUP_PERMISSIONS: dict[str, object] = {
         ("api", "institutioncontract"): ["view"],
         ("api", "institutionuser"): ["view"],
         ("api", "institutionalert"): ["view"],
+        ("api", "institutionalertrule"): ["view"],
+        ("api", "institutionalertrulestate"): ["view"],
         ("api", "actionlog"): ["view"],
+        ("api", "contact"): ["view"],
     },
 }
 

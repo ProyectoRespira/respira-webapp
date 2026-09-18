@@ -143,21 +143,6 @@ const es = {
   historyChartLabel:
     "{days} días con mediciones, entre {min} y {max} de AQI diario.",
 
-  // --- Alerts --------------------------------------------------------------
-  alertsTitle: "Alertas",
-  alertsOn: "Activas",
-  alertsOff: "Desactivadas",
-  alertsThresholdSuffix: "AQI o más",
-  alertsThresholdHelp: "Te avisamos cuando el sensor supere este valor.",
-  alertsNoThreshold: "Sin umbral configurado.",
-  alertsDisabledBody:
-    "Tu institución no tiene alertas activas. Escribinos si querés activarlas.",
-  alertsGroupsTitle: "Grupos sensibles",
-  alertsNoGroups: "Todavía no hay grupos sensibles configurados.",
-  alertsRequestChanges: "Solicitar cambios",
-  // Subject line of the mail the "request changes" link opens.
-  alertsRequestSubject: "Cambios en la configuración de alertas",
-
   // --- Action log ----------------------------------------------------------
   actionsTitle: "Acciones registradas",
   actionsEmptyTitle: "Todavía no registraste ninguna acción",
@@ -172,10 +157,26 @@ const es = {
     "Se habilita en cuanto se publique la próxima versión de la plataforma.",
 
   actionFormTitle: "Registrar una acción",
+  // --- "What is this section for?" -----------------------------------------
+  // The fields each explain themselves; what was missing is why the section
+  // exists at all. The last line is the part that makes it worth the minute it
+  // takes: what you write here comes back in the monthly PDF, under "Acciones
+  // registradas".
+  actionFormHelpToggle: "¿Para qué sirve esta sección?",
+  actionFormHelp:
+    "Es la bitácora de tu institución: qué hicieron cuando el aire empeoró. Por ejemplo suspender el recreo al aire libre, cerrar ventanas, mover una actividad a un espacio cerrado o avisar a las familias. Podés vincular cada acción a la alerta que la motivó, o registrarla por iniciativa propia. Todo lo que anotes aparece en el reporte mensual en PDF, en la sección «Acciones registradas», junto con las mediciones del mes.",
   actionFormSensor: "Sensor",
-  actionFormAlertLabel: "¿Responde a una alerta?",
+  actionFormAlertLabel: "Alerta a la que responde",
   actionFormAlertOptional: "Opcional",
+  // Under the selector: says what the list holds, so the options read as alerts
+  // the institution received rather than as a setting being chosen.
+  actionFormAlertHelp:
+    "Elegí la alerta de calidad del aire que motivó esta acción. Cada opción muestra la fecha, el AQI medido y el umbral que la disparó.",
   actionFormAlertNone: "Ninguna — por iniciativa propia",
+  // One option: `24/08/2026 · 128 AQI · umbral 100`.
+  actionFormAlertOption: "{date} · {aqi} AQI · umbral {threshold}",
+  /** Same, for an older alert that never stored the threshold it fired on. */
+  actionFormAlertOptionNoThreshold: "{date} · {aqi} AQI",
   actionFormNoteLabel: "¿Qué hicieron?",
   actionFormNotePlaceholder:
     "Ej.: Se suspendió el recreo al aire libre y se avisó a las familias.",
@@ -189,15 +190,77 @@ const es = {
   actionFormNoStation:
     "Necesitás un sensor asignado para registrar acciones. Escribinos si creés que es un error.",
 
+  // --- Sensor notifications ------------------------------------------------
+  notificationsTitle: "Notificaciones del sensor",
+  notificationsEmptyTitle: "Todavía no hay notificaciones",
+  notificationsEmptyBody:
+    "Acá vas a ver los avisos que enviamos sobre tu sensor: las alertas por calidad del aire y los mensajes que te mandemos.",
+  notificationsLoadMore: "Ver más notificaciones",
+  notificationsLoadingMore: "Cargando…",
+  notificationsUnavailableTitle:
+    "Las notificaciones todavía no están disponibles",
+  notificationsUnavailableBody:
+    "Se habilitan en cuanto se publique la próxima versión de la plataforma.",
+  // The two kinds of notification, as the badge on each row reads.
+  notificationTypeAqi: "Calidad del aire",
+  notificationTypeGeneral: "General",
+  notificationThreshold: "Umbral",
+
   // --- Downloads -----------------------------------------------------------
   downloadsTitle: "Descargas",
+  // Doubles as the month field's label and as the button when no month is
+  // chosen yet, so it names the thing rather than the action.
   downloadMonthly: "Reporte mensual (PDF)",
-  downloadMonthlyNote: "Resumen del último mes cerrado.",
-  downloadRaw: "Historial crudo (Excel)",
-  downloadRawNote: "Todas las mediciones desde el inicio del contrato.",
+  downloadMonthlyNote:
+    "Informe procesado del mes: promedios, picos y recomendaciones, listo para compartir.",
+  downloadRaw: "Historial crudo (CSV)",
+  downloadRawNote:
+    "Mediciones sin procesar del sensor, para analizar por tu cuenta en una planilla.",
+  // Shown in place of the date pickers when the sensor has no raw history to
+  // serve. Deliberately short: it names the sensor as the reason, which is
+  // enough to stop anyone hunting for a setting that would enable it, and the
+  // monthly report sitting enabled in the next column already shows that only
+  // this half is affected — no need to say so in words.
+  downloadRawUnsupported: "Esta descarga no está disponible para tu sensor.",
   downloadPreparing: "Generando…",
   downloadUnavailable: "Esta descarga todavía no está disponible.",
   downloadError: "No pudimos generar el archivo. Intentá de nuevo.",
+  downloadPartial:
+    "Descargamos el archivo, pero faltan algunos períodos que el sensor no pudo entregar.",
+
+  // `{month}` is filled in by the card; see `formatMonthNote`.
+  reportDownloadPdf: "Descargar PDF",
+  reportDownloadCsv: "Descargar CSV",
+  rangeFrom: "Desde",
+  rangeTo: "Hasta",
+  rangeDays: "Rango de {days} días.",
+  // A one-day range is reachable (both dates on the same day), and "Rango de 1
+  // días" is visibly wrong, so the singular is its own string rather than a
+  // plural rule — two forms is all Spanish, English and Portuguese need here.
+  rangeDaysOne: "Rango de 1 día.",
+  rangeIncomplete: "Elegí una fecha de inicio y una de fin.",
+  rangeInverted: "La fecha de inicio no puede ser posterior a la de fin.",
+  rangeTooLong:
+    "El rango no puede superar {max} días. Elegí un período más corto.",
+
+  // --- "What's in this file?" ----------------------------------------------
+  // The note under each heading says what the file is in one line; this is for
+  // the reader who needs to decide between the two, or who has to know what the
+  // columns mean before opening a spreadsheet. Collapsed by default so the card
+  // stays scannable for the people who already know.
+  downloadHelpToggle: "¿Qué incluye este archivo?",
+  downloadMonthlyHelp:
+    "Un PDF listo para leer o presentar, con cuatro secciones: el resumen del mes (AQI promedio, máximo y mínimo, y cuántas mediciones hubo), cuántos días cayó en cada categoría de calidad de aire, el detalle día por día, y las acciones que tu institución registró en el panel.",
+  downloadRawHelp:
+    "Una planilla con una fila por medición del sensor: fecha y hora, PM1, PM2.5 y PM10, CO2, temperatura, humedad y los índices TVOC y NOX. Varias columnas vienen en versión cruda y corregida. Son los datos sin procesar, sin AQI calculado, para analizar por tu cuenta. Las horas que el sensor estuvo sin conexión no aparecen.",
+  // Labels the month selector itself (RES-435). The column heading names the
+  // file; this names the choice being made inside it, which is what the reader
+  // was left to infer.
+  reportMonthLabel: "Mes a reportar",
+  reportMonthsLoading: "Cargando meses disponibles…",
+  reportNoMonths: "Todavía no hay meses con mediciones.",
+  reportMonthsError:
+    "No pudimos cargar los meses disponibles. Se descargará el último mes cerrado.",
 
   // --- Contact -------------------------------------------------------------
   contactTitle: "Tu contacto en Respira",
@@ -342,20 +405,6 @@ const en: Translation = {
   historyChartLabel:
     "{days} days with readings, between {min} and {max} daily AQI.",
 
-  // --- Alerts --------------------------------------------------------------
-  alertsTitle: "Alerts",
-  alertsOn: "On",
-  alertsOff: "Off",
-  alertsThresholdSuffix: "AQI or above",
-  alertsThresholdHelp: "We'll let you know when the sensor goes above this.",
-  alertsNoThreshold: "No threshold configured.",
-  alertsDisabledBody:
-    "Your institution doesn't have alerts turned on. Write to us if you'd like to enable them.",
-  alertsGroupsTitle: "Sensitive groups",
-  alertsNoGroups: "No sensitive groups configured yet.",
-  alertsRequestChanges: "Request changes",
-  alertsRequestSubject: "Changes to the alert settings",
-
   // --- Action log ----------------------------------------------------------
   actionsTitle: "Logged actions",
   actionsEmptyTitle: "You haven't logged any actions yet",
@@ -370,10 +419,17 @@ const en: Translation = {
     "It will be enabled as soon as the next version of the platform ships.",
 
   actionFormTitle: "Log an action",
+  actionFormHelpToggle: "What is this section for?",
+  actionFormHelp:
+    "It's your institution's logbook: what you did when air quality got worse. For example cancelling outdoor break, closing windows, moving an activity indoors or letting families know. You can link each action to the alert that prompted it, or log one you took on your own initiative. Everything you record appears in the monthly PDF report, under \"Acciones registradas\", alongside the month's measurements.",
   actionFormSensor: "Sensor",
-  actionFormAlertLabel: "Is it in response to an alert?",
+  actionFormAlertLabel: "Alert this responds to",
   actionFormAlertOptional: "Optional",
-  actionFormAlertNone: "None — on our own initiative",
+  actionFormAlertHelp:
+    "Choose the air-quality alert that prompted this action. Each option shows the date, the AQI measured and the threshold that triggered it.",
+  actionFormAlertNone: "None — own initiative",
+  actionFormAlertOption: "{date} · {aqi} AQI · threshold {threshold}",
+  actionFormAlertOptionNoThreshold: "{date} · {aqi} AQI",
   actionFormNoteLabel: "What did you do?",
   actionFormNotePlaceholder:
     "E.g.: Outdoor recess was cancelled and families were notified.",
@@ -388,15 +444,54 @@ const en: Translation = {
   actionFormNoStation:
     "You need an assigned sensor to log actions. Write to us if you think this is a mistake.",
 
+  // --- Sensor notifications ------------------------------------------------
+  notificationsTitle: "Sensor notifications",
+  notificationsEmptyTitle: "No notifications yet",
+  notificationsEmptyBody:
+    "This is where you'll see the alerts we send about your sensor: air quality warnings and any messages we send you.",
+  notificationsLoadMore: "See more notifications",
+  notificationsLoadingMore: "Loading…",
+  notificationsUnavailableTitle: "Notifications aren't available yet",
+  notificationsUnavailableBody:
+    "They're enabled as soon as the next version of the platform ships.",
+  notificationTypeAqi: "Air quality",
+  notificationTypeGeneral: "General",
+  notificationThreshold: "Threshold",
+
   // --- Downloads -----------------------------------------------------------
   downloadsTitle: "Downloads",
   downloadMonthly: "Monthly report (PDF)",
-  downloadMonthlyNote: "Summary of the last completed month.",
-  downloadRaw: "Raw history (Excel)",
-  downloadRawNote: "Every reading since the contract started.",
+  downloadMonthlyNote:
+    "A processed report for the month: averages, peaks and recommendations, ready to share.",
+  downloadRaw: "Raw history (CSV)",
+  downloadRawNote:
+    "Unprocessed sensor readings, to analyse yourself in a spreadsheet.",
+  downloadRawUnsupported: "This download isn't available for your sensor.",
   downloadPreparing: "Generating…",
   downloadUnavailable: "This download isn't available yet.",
   downloadError: "We couldn't generate the file. Try again.",
+  downloadPartial:
+    "The file downloaded, but some periods are missing because the sensor could not provide them.",
+
+  reportDownloadPdf: "Download PDF",
+  reportDownloadCsv: "Download CSV",
+  rangeFrom: "From",
+  rangeTo: "To",
+  rangeDays: "{days}-day range.",
+  rangeDaysOne: "1-day range.",
+  rangeIncomplete: "Pick a start date and an end date.",
+  rangeInverted: "The start date cannot be after the end date.",
+  rangeTooLong: "The range cannot exceed {max} days. Choose a shorter period.",
+  downloadHelpToggle: "What's in this file?",
+  downloadMonthlyHelp:
+    "A PDF ready to read or present, with four sections: the month's summary (average, highest and lowest AQI, and how many measurements there were), how many days fell into each air-quality category, a day-by-day breakdown, and the actions your institution logged in the panel.",
+  downloadRawHelp:
+    "A spreadsheet with one row per sensor reading: date and time, PM1, PM2.5 and PM10, CO2, temperature, humidity, and the TVOC and NOX indices. Several columns come in both raw and corrected versions. This is unprocessed data, with no AQI calculated, for you to analyse yourself. Hours when the sensor was offline are not included.",
+  reportMonthLabel: "Month to report on",
+  reportMonthsLoading: "Loading available months…",
+  reportNoMonths: "No months with measurements yet.",
+  reportMonthsError:
+    "We couldn't load the available months. The last complete month will be downloaded.",
 
   // --- Contact -------------------------------------------------------------
   contactTitle: "Your contact at Respira",
@@ -536,20 +631,6 @@ const pt: Translation = {
   historyChartLabel:
     "{days} dias com medições, entre {min} e {max} de AQI diário.",
 
-  // --- Alerts --------------------------------------------------------------
-  alertsTitle: "Alertas",
-  alertsOn: "Ativos",
-  alertsOff: "Desativados",
-  alertsThresholdSuffix: "AQI ou mais",
-  alertsThresholdHelp: "Avisamos você quando o sensor passar deste valor.",
-  alertsNoThreshold: "Sem limite configurado.",
-  alertsDisabledBody:
-    "Sua instituição não tem alertas ativos. Escreva para nós se quiser ativá-los.",
-  alertsGroupsTitle: "Grupos sensíveis",
-  alertsNoGroups: "Ainda não há grupos sensíveis configurados.",
-  alertsRequestChanges: "Solicitar mudanças",
-  alertsRequestSubject: "Mudanças na configuração de alertas",
-
   // --- Action log ----------------------------------------------------------
   actionsTitle: "Ações registradas",
   actionsEmptyTitle: "Você ainda não registrou nenhuma ação",
@@ -564,10 +645,17 @@ const pt: Translation = {
     "Será habilitado assim que a próxima versão da plataforma for publicada.",
 
   actionFormTitle: "Registrar uma ação",
+  actionFormHelpToggle: "Para que serve esta seção?",
+  actionFormHelp:
+    "É o registro da sua instituição: o que fizeram quando a qualidade do ar piorou. Por exemplo suspender o recreio ao ar livre, fechar janelas, mover uma atividade para um espaço fechado ou avisar as famílias. Você pode vincular cada ação ao alerta que a motivou, ou registrá-la por iniciativa própria. Tudo o que você anotar aparece no relatório mensal em PDF, na seção «Acciones registradas», junto com as medições do mês.",
   actionFormSensor: "Sensor",
-  actionFormAlertLabel: "Responde a um alerta?",
+  actionFormAlertLabel: "Alerta a que responde",
   actionFormAlertOptional: "Opcional",
+  actionFormAlertHelp:
+    "Escolha o alerta de qualidade do ar que motivou esta ação. Cada opção mostra a data, o AQI medido e o limite que o disparou.",
   actionFormAlertNone: "Nenhum — por iniciativa própria",
+  actionFormAlertOption: "{date} · {aqi} AQI · limite {threshold}",
+  actionFormAlertOptionNoThreshold: "{date} · {aqi} AQI",
   actionFormNoteLabel: "O que vocês fizeram?",
   actionFormNotePlaceholder:
     "Ex.: O recreio ao ar livre foi suspenso e as famílias foram avisadas.",
@@ -582,15 +670,56 @@ const pt: Translation = {
   actionFormNoStation:
     "Você precisa de um sensor atribuído para registrar ações. Escreva para nós se achar que é um erro.",
 
+  // --- Sensor notifications ------------------------------------------------
+  notificationsTitle: "Notificações do sensor",
+  notificationsEmptyTitle: "Ainda não há notificações",
+  notificationsEmptyBody:
+    "Aqui você verá os avisos que enviamos sobre o seu sensor: os alertas de qualidade do ar e as mensagens que mandarmos.",
+  notificationsLoadMore: "Ver mais notificações",
+  notificationsLoadingMore: "Carregando…",
+  notificationsUnavailableTitle: "As notificações ainda não estão disponíveis",
+  notificationsUnavailableBody:
+    "Elas são habilitadas assim que a próxima versão da plataforma for publicada.",
+  notificationTypeAqi: "Qualidade do ar",
+  notificationTypeGeneral: "Geral",
+  notificationThreshold: "Limite",
+
   // --- Downloads -----------------------------------------------------------
   downloadsTitle: "Downloads",
   downloadMonthly: "Relatório mensal (PDF)",
-  downloadMonthlyNote: "Resumo do último mês fechado.",
-  downloadRaw: "Histórico bruto (Excel)",
-  downloadRawNote: "Todas as medições desde o início do contrato.",
+  downloadMonthlyNote:
+    "Relatório processado do mês: médias, picos e recomendações, pronto para compartilhar.",
+  downloadRaw: "Histórico bruto (CSV)",
+  downloadRawNote:
+    "Medições sem processar do sensor, para analisar por conta própria em uma planilha.",
+  downloadRawUnsupported:
+    "Este download não está disponível para o seu sensor.",
   downloadPreparing: "Gerando…",
   downloadUnavailable: "Este download ainda não está disponível.",
   downloadError: "Não conseguimos gerar o arquivo. Tente de novo.",
+  downloadPartial:
+    "Baixamos o arquivo, mas faltam alguns períodos que o sensor não conseguiu entregar.",
+
+  reportDownloadPdf: "Baixar PDF",
+  reportDownloadCsv: "Baixar CSV",
+  rangeFrom: "De",
+  rangeTo: "Até",
+  rangeDays: "Intervalo de {days} dias.",
+  rangeDaysOne: "Intervalo de 1 dia.",
+  rangeIncomplete: "Escolha uma data inicial e uma data final.",
+  rangeInverted: "A data inicial não pode ser posterior à final.",
+  rangeTooLong:
+    "O intervalo não pode exceder {max} dias. Escolha um período menor.",
+  downloadHelpToggle: "O que este arquivo inclui?",
+  downloadMonthlyHelp:
+    "Um PDF pronto para ler ou apresentar, com quatro seções: o resumo do mês (AQI médio, máximo e mínimo, e quantas medições houve), quantos dias ficaram em cada categoria de qualidade do ar, o detalhe dia a dia, e as ações que sua instituição registrou no painel.",
+  downloadRawHelp:
+    "Uma planilha com uma linha por medição do sensor: data e hora, PM1, PM2.5 e PM10, CO2, temperatura, umidade e os índices TVOC e NOX. Várias colunas vêm em versão bruta e corrigida. São dados sem processar, sem AQI calculado, para analisar por conta própria. As horas em que o sensor esteve off-line não aparecem.",
+  reportMonthLabel: "Mês a reportar",
+  reportMonthsLoading: "Carregando meses disponíveis…",
+  reportNoMonths: "Ainda não há meses com medições.",
+  reportMonthsError:
+    "Não conseguimos carregar os meses disponíveis. Será baixado o último mês fechado.",
 
   // --- Contact -------------------------------------------------------------
   contactTitle: "Seu contato na Respira",

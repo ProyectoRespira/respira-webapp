@@ -13,9 +13,9 @@ import {
 import { INSTITUTION_LOGIN_PATH } from "../../../utils/institution-session";
 import { ActionLogPanel } from "./ActionLogPanel";
 import { AirQualityPanel } from "./AirQualityPanel";
-import { AlertConfigCard } from "./AlertConfigCard";
 import { DownloadCard } from "./DownloadCard";
 import { HistoryChart } from "./HistoryChart";
+import { NotificationsPanel } from "./NotificationsPanel";
 import { SensorStatusCard } from "./SensorStatusCard";
 import { Button, Card, CardSkeleton, ErrorState, StateBlock } from "./ui";
 
@@ -38,12 +38,10 @@ export type InitialDashboardState =
 export function DashboardSections({
   initial,
   contract,
-  contactMail,
   lang,
 }: {
   initial: InitialDashboardState;
   contract: InstitutionContract | null;
-  contactMail: string;
   lang: Lang;
 }) {
   const copy = useInstitutionCopy(lang);
@@ -126,14 +124,20 @@ export function DashboardSections({
   const { dashboard } = state;
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* Today first: what the air is doing, and whether the sensor saying so
-          is actually reporting. The two have to be read together. */}
+    <div className="flex flex-col gap-8">
+      {/* `gap-8` between sections, against the `gap-5` used *inside* a row: an
+          even rhythm throughout gave the page no grouping, so a pair meant to
+          be read together sat as far apart as two unrelated sections. The wider
+          outer gap is what separates one subject from the next.
+
+          Today first: what the air is doing, and whether the sensor saying so
+          is actually reporting — the standing facts about the sensor, read
+          together. */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
         <div className="lg:col-span-8">
           <AirQualityPanel airQuality={dashboard.air_quality} lang={lang} />
         </div>
-        <div className="lg:col-span-4">
+        <div className="flex flex-col gap-5 lg:col-span-4">
           <SensorStatusCard
             sensor={dashboard.sensor}
             contract={contract}
@@ -141,6 +145,13 @@ export function DashboardSections({
           />
         </div>
       </div>
+
+      {/* Full width rather than beside the AQI panel (RES-433): the two exports
+          now sit in two columns, and in the 4-column slot they had before there
+          was no room for that — the date range alone wants the better part of
+          it. On its own row each download gets a readable column, and the pair
+          can be compared side by side. */}
+      <DownloadCard lang={lang} contract={contract} sensor={dashboard.sensor} />
 
       <HistoryChart
         history={dashboard.history}
@@ -154,14 +165,12 @@ export function DashboardSections({
         lang={lang}
       />
 
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-        <AlertConfigCard
-          alertConfig={dashboard.alert_config}
-          contactMail={contactMail}
-          lang={lang}
-        />
-        <DownloadCard lang={lang} />
-      </div>
+      {/* What the platform sent about the sensor, as against what the action
+          log holds — what the institution did about it. The alert rule behind
+          those notifications is not restated here: institutions cannot change
+          it from the dashboard, and it already reaches them as the threshold
+          line on the history chart above. */}
+      <NotificationsPanel lang={lang} />
     </div>
   );
 }

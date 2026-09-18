@@ -142,6 +142,11 @@ MAX_FOLLOWS_PER_INSTALLATION = _env_int("BACKEND_MAX_FOLLOWS_PER_INSTALLATION", 
 # offers --dry-run and --force.
 SENSOR_ALERTS_ENABLED = _env_bool("BACKEND_SENSOR_ALERTS_ENABLED", False)
 
+# Token for the AirGradient public API, which serves the institutional raw
+# export (api.airgradient). Unset by default: without it the export returns a
+# clear error instead of an empty spreadsheet.
+AIRGRADIENT_API_TOKEN = _env_str("BACKEND_AIRGRADIENT_API_TOKEN", "")
+
 SPECTACULAR_SETTINGS = {
     "TITLE": "RespiraAPI",
     "DESCRIPTION": "This is the Respira API",
@@ -232,19 +237,39 @@ if all(postgres_config.values()):
         }
     }
 
-    db_schemas = [
+    # search_path is a FIXED contract, not a configurable one: django_admin
+    # (Django-owned tables: auth, admin, accounts, and every operational
+    # model in api/models.py) always resolves before respira_gold (tables
+    # the data pipeline owns and writes — dbt SQL for
+    # stations/regions/*_readings_gold, the Prefect inference flow for
+    # inference_runs/inference_results; see api.gold.ReadOnlyGoldModel,
+    # which blocks writes to these from the backend regardless of
+    # search_path). `public` stays last for extensions and any table this
+    # project does not itself define.
+    #
+    # This order can never create ambiguity: django_admin and respira_gold
+    # do not share a single table name (verified — see the regression test
+    # in api/tests_schema_ownership.py), so which one search_path checks
+    # first cannot change which table a query resolves to. That test is
+    # exactly what would fail if a future table name collided.
+    #
+    # BACKEND_POSTGRES_SCHEMA no longer controls resolution order — it used
+    # to, and that was the bug: an operator-configurable order is exactly
+    # what let an unqualified table name resolve to the wrong schema. It is
+    # kept only so extra, unrelated schemas (custom Postgres extensions,
+    # say) can still be appended after the fixed prefix.
+    _fixed_schemas = {"django_admin", "respira_gold", "public"}
+    extra_schemas = [
         schema.strip()
-        for schema in os.getenv("BACKEND_POSTGRES_SCHEMA", "respira_gold").split(",")
-        if schema.strip()
+        for schema in os.getenv("BACKEND_POSTGRES_SCHEMA", "").split(",")
+        if schema.strip() and schema.strip().lower() not in _fixed_schemas
     ]
-
-    if db_schemas:
-        quoted_schemas = [_quote_postgres_identifier(schema) for schema in db_schemas]
-        if "public" not in {schema.lower() for schema in db_schemas}:
-            quoted_schemas.append("public")
-        default_db = DATABASES["default"]
-        db_options_map = default_db.setdefault("OPTIONS", {})
-        db_options_map["options"] = f"-c search_path={','.join(quoted_schemas)}"
+    quoted_schemas = ['"django_admin"', '"respira_gold"', '"public"'] + [
+        _quote_postgres_identifier(schema) for schema in extra_schemas
+    ]
+    default_db = DATABASES["default"]
+    db_options_map = default_db.setdefault("OPTIONS", {})
+    db_options_map["options"] = f"-c search_path={','.join(quoted_schemas)}"
 else:
     DATABASES = {
         "default": {
@@ -300,12 +325,18 @@ LOGIN_URL = "admin:login"
 LOGIN_REDIRECT_URL = "admin:index"
 
 # Session management (environment-aware).
-# Default session lifetime: 8 hours. Sessions are stored in the database.
-SESSION_COOKIE_AGE = _env_int("BACKEND_SESSION_COOKIE_AGE", 60 * 60 * 8)
+# Default session lifetime: 24 hours. Sessions are stored in the database, so
+# expiry and logout are enforced server-side, not just by dropping the cookie.
+SESSION_COOKIE_AGE = _env_int("BACKEND_SESSION_COOKIE_AGE", 60 * 60 * 24)
 SESSION_EXPIRE_AT_BROWSER_CLOSE = _env_bool(
     "BACKEND_SESSION_EXPIRE_AT_BROWSER_CLOSE", False
 )
-SESSION_SAVE_EVERY_REQUEST = _env_bool("BACKEND_SESSION_SAVE_EVERY_REQUEST", False)
+# Sliding sessions: every request pushes the expiry back to a full
+# SESSION_COOKIE_AGE, so the 24 hours count from the last activity rather than
+# from login. Without this, an admin or institutional user is logged out
+# mid-task once the window that started at login runs out, however recently
+# they clicked something.
+SESSION_SAVE_EVERY_REQUEST = _env_bool("BACKEND_SESSION_SAVE_EVERY_REQUEST", True)
 
 # Secure cookie settings. Secure cookies (HTTPS-only) are enabled by default
 # whenever DEBUG is off (i.e. in production) and can be overridden per

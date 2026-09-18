@@ -54,7 +54,9 @@ All five core vars must be set together to enable PostgreSQL. If any is missing 
 | `BACKEND_POSTGRES_PASSWORD` | Yes (PostgreSQL) | —              | `backend/backend/settings.py` | Database password.                                                      |
 | `BACKEND_POSTGRES_HOST`     | Yes (PostgreSQL) | —              | `backend/backend/settings.py` | Database host.                                                          |
 | `BACKEND_POSTGRES_PORT`     | Yes (PostgreSQL) | —              | `backend/backend/settings.py` | Database port.                                                          |
-| `BACKEND_POSTGRES_SCHEMA`   | No               | `respira_gold` | `backend/backend/settings.py` | Comma-separated schemas for `search_path`. `public` is always appended. |
+| `BACKEND_POSTGRES_SCHEMA`   | No               | (empty)        | `backend/backend/settings.py` | Extra schemas appended to `search_path`, after the fixed `django_admin, respira_gold, public` prefix. Does **not** control table resolution — see below. |
+
+Table ownership between Django-owned data (`django_admin`) and the data pipeline's tables (`respira_gold`) is a fixed contract, not something `BACKEND_POSTGRES_SCHEMA` can change: `search_path` always resolves `django_admin` first, then `respira_gold`, then `public`, regardless of what this variable is set to. Every gold model (`Regions`, `Stations`, `StationReadingsGold`, `RegionReadings`, `InferenceRuns`, `InferenceResults`) additionally mixes in `api.gold.ReadOnlyGoldModel`, which rejects writes from the backend ORM outright — the pipeline (dbt, or the Prefect inference flow) is the only writer. `BACKEND_POSTGRES_SCHEMA` exists only to append unrelated extra schemas (e.g. a Postgres extension's schema) after that fixed prefix.
 
 ---
 
@@ -140,9 +142,9 @@ in production. See `docs/admin-auth-configuration.md`.
 | Variable                                  | Required                | Default              | Where used                    | Notes                                                                     |
 | ----------------------------------------- | ----------------------- | -------------------- | ----------------------------- | ------------------------------------------------------------------------- |
 | `BACKEND_CSRF_TRUSTED_ORIGINS`            | Yes behind HTTPS proxy  | `""` (empty)         | `backend/backend/settings.py` | Comma-separated HTTPS origins trusted for admin POSTs. Required behind the proxy or login is rejected. |
-| `BACKEND_SESSION_COOKIE_AGE`              | No                      | `28800` (8h)         | `backend/backend/settings.py` | Session lifetime in seconds.                                              |
+| `BACKEND_SESSION_COOKIE_AGE`              | No                      | `86400` (24h)        | `backend/backend/settings.py` | Session lifetime in seconds.                                              |
 | `BACKEND_SESSION_EXPIRE_AT_BROWSER_CLOSE` | No                      | `false`              | `backend/backend/settings.py` | Delete the session cookie when the browser closes.                       |
-| `BACKEND_SESSION_SAVE_EVERY_REQUEST`      | No                      | `false`              | `backend/backend/settings.py` | Refresh session expiry on every request (sliding session).              |
+| `BACKEND_SESSION_SAVE_EVERY_REQUEST`      | No                      | `true`               | `backend/backend/settings.py` | Refresh session expiry on every request (sliding session).              |
 | `BACKEND_SESSION_COOKIE_SECURE`           | No                      | `true` when not DEBUG | `backend/backend/settings.py` | Send the session cookie over HTTPS only.                                 |
 | `BACKEND_CSRF_COOKIE_SECURE`              | No                      | `true` when not DEBUG | `backend/backend/settings.py` | Send the CSRF cookie over HTTPS only.                                    |
 | `BACKEND_SESSION_COOKIE_SAMESITE`         | No                      | `Lax`                | `backend/backend/settings.py` | SameSite policy for the session cookie.                                  |

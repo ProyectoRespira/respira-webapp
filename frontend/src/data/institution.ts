@@ -5,6 +5,8 @@
 // consumes a handful of endpoints, not the whole schema — but they must be kept
 // in step with those serializers when the backend changes.
 
+import type { AQILevelId } from "./cards";
+
 /** Paths under the API root (`BACKEND_URL`, e.g. `/api`). */
 export const INSTITUTION_ENDPOINTS = {
   // Implemented: RES-368 (auth) and RES-369 (dashboard).
@@ -30,6 +32,13 @@ export const INSTITUTION_ENDPOINTS = {
   // platform, never authored by an institution.
   alerts: "/institution/alerts/",
 
+  // What the platform sent *about* the sensor, as opposed to what the
+  // institution did about it. Merges the AQI-triggered alerts and the manual
+  // announcements server-side, so this is one paginated, ordered feed.
+  notifications: "/institution/notifications/",
+
+  // The months that actually have readings, for the report's month selector.
+  reportMonths: "/institution/report/months/",
   monthlyReport: "/institution/report/monthly/",
   rawExport: "/institution/export/",
 } as const;
@@ -81,6 +90,16 @@ export type DashboardSensor = {
   status: "online" | "offline";
   location: DashboardLocation;
   last_measurement_at: string | null;
+  /**
+   * Whether the raw CSV export exists for this sensor.
+   *
+   * The export is read live from the AirGradient API, so sensors from the other
+   * networks (FIUNA, MADES) have no raw history to serve and the endpoint can
+   * only 404 for them. Optional because a backend that predates the field sends
+   * nothing; treat a missing value as `true` so the download does not vanish
+   * from panels served by an older deployment.
+   */
+  supports_raw_export?: boolean;
 };
 
 export type DashboardAirQuality = {
@@ -159,6 +178,41 @@ export type ActionLogDraft = {
   alert?: number | null;
 };
 
+// --- Sensor notifications ---------------------------------------------------
+
+/** Which feed a notification came from; see `InstitutionNotification`. */
+export type NotificationType = "aqi" | "general";
+
+/**
+ * One notification the platform sent about the institution's sensor.
+ *
+ * Mirrors `InstitutionNotificationSerializer`, which normalises two backend
+ * models into this one shape: `InstitutionAlert` for the AQI-triggered ones and
+ * `PushBroadcast` for the manual announcements.
+ *
+ * Everything AQI-specific is nullable, because a manual announcement has no
+ * reading behind it. Read `type` rather than testing those fields for presence.
+ */
+export type InstitutionNotification = {
+  /** Prefixed by source (`"alert-12"`, `"broadcast-7"`): the two tables number rows independently. */
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  sent_at: string;
+  /** Null on an institution-wide announcement, which names no single station. */
+  station: number | null;
+  station_name: string | null;
+  /** Null on every general notification. */
+  aqi: number | null;
+  /** A key of `CATEGORY_EMOJI` / `AQI_LEVELS`, e.g. `"unhealthy"`. */
+  aqi_category: string | null;
+  aqi_category_label: string | null;
+  alert_threshold: number | null;
+  /** The `InstitutionAlert` behind it, so it can be tied to an action's alert. */
+  alert: number | null;
+};
+
 export type Paginated<T> = {
   count: number;
   next: string | null;
@@ -188,3 +242,25 @@ const CATEGORY_EMOJI: Record<string, string> = {
 
 export const emojiForCategory = (category: string): string =>
   CATEGORY_EMOJI[category] ?? "";
+
+// The backend sends `category_label`, `message` and `recommendations` in
+// Spanish only (`AQI_LEVELS` has no translations), so the panel renders them
+// from the site dictionary instead, keyed by the category. Same table, same
+// wording as the public AQI cards — only the language follows the reader.
+const CATEGORY_LEVEL_ID: Record<string, AQILevelId> = {
+  good: "good",
+  moderate: "moderate",
+  unhealthy_sensitive: "unhealthySensitive",
+  unhealthy: "unhealthy",
+  very_unhealthy: "veryUnhealthy",
+  hazardous: "hazardous",
+};
+
+/**
+ * The AQI level id for a backend category, or `null` for one we don't know.
+ *
+ * A null means the backend grew a level the frontend hasn't learned yet; the
+ * caller falls back to the Spanish text the API sent rather than showing a gap.
+ */
+export const levelIdForCategory = (category: string): AQILevelId | null =>
+  CATEGORY_LEVEL_ID[category] ?? null;
