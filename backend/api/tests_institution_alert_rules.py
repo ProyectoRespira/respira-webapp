@@ -35,6 +35,7 @@ from .models import (
     Stations,
 )
 from .push import rearm_threshold, rule_transition, send_institution_alerts
+from .tests_window_helpers import UnrestrictedWindowMixin
 
 INSTALLATION_ID = "8f14e45f-ceea-467e-bd97-1a2b3c4d5e6f"
 OTHER_INSTALLATION_ID = "2c1f9b4a-77d3-4e21-9a5c-6b0e8d3f1a2b"
@@ -85,7 +86,7 @@ class RuleTransitionTests(TestCase):
         self.assertAlmostEqual(rearm_threshold(150), 132.0)
 
 
-class SendInstitutionAlertsTests(TestCase):
+class SendInstitutionAlertsTests(UnrestrictedWindowMixin, TestCase):
     def setUp(self):
         self.region = Regions.seed_for_tests(name="Gran Asunción", region_code="GA")
         self.station = Stations.seed_for_tests(
@@ -339,7 +340,7 @@ class SendInstitutionAlertsTests(TestCase):
 
 
 @override_settings(SENSOR_ALERTS_ENABLED=True)
-class EscalatingAlertTests(TestCase):
+class EscalatingAlertTests(UnrestrictedWindowMixin, TestCase):
     """Several alerts on one sensor, each with its own threshold and wording.
 
     Air-quality guidance escalates — a caution, then a stronger instruction —
@@ -597,7 +598,7 @@ class ContractedStationLookupTests(TestCase):
         self.assertNotEqual(response.status_code, 200)
 
 
-class EvaluateOnSaveTests(TestCase):
+class EvaluateOnSaveTests(UnrestrictedWindowMixin, TestCase):
     """Configuring an alert for air that is already bad notifies now.
 
     The scheduled sender reacts to readings changing, so without this a rule

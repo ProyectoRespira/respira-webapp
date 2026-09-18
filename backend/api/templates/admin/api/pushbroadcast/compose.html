@@ -1,6 +1,13 @@
 {% extends "admin/base_site.html" %}
 {% load i18n admin_urls %}
 
+{% comment %}
+  This page extends `base_site.html`, which — unlike `change_form.html` — does
+  not emit the form's media on its own. Without this the companion script never
+  loads, so nothing would narrow the sensor list or hide the irrelevant fields.
+{% endcomment %}
+{% block extrahead %}{{ block.super }}{{ media }}{% endblock %}
+
 {% block breadcrumbs %}
 <div class="breadcrumbs">
   <a href="{% url 'admin:index' %}">{% translate "Home" %}</a>
@@ -20,8 +27,8 @@
 
 {% if not may_send_to_everyone %}
   <p class="help">
-    Sending to every follower on the platform needs an additional permission,
-    which this account does not have.
+    Notifying all users needs an additional permission, which this account does
+    not have.
   </p>
 {% endif %}
 
@@ -30,9 +37,15 @@
     <p class="errornote">{{ form.non_field_errors }}</p>
   {% endif %}
 
+  {% comment %}
+    `data-field` is what lets the companion script hide a whole row — label and
+    help text included — for a scope that has no use for it. Hiding the input
+    alone would leave an orphan label behind.
+  {% endcomment %}
   <fieldset class="module aligned">
     {% for field in form %}
-      <div class="form-row{% if field.errors %} errors{% endif %}">
+      <div class="form-row{% if field.errors %} errors{% endif %}"
+           data-field="{{ field.name }}">
         {{ field.errors }}
         <div>
           <label class="{% if field.field.required %}required{% endif %}"

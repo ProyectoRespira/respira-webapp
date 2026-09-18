@@ -89,6 +89,33 @@ class InstitutionAlertRuleForm(forms.ModelForm):
         return cleaned
 
 
+def institution_stations(institution):
+    """The stations one institution may be notified about, newest naming first.
+
+    A queryset rather than a single station even though
+    ``InstitutionContract.station`` is currently OneToOne, so an institution
+    has at most one. The picker and its lookup are written against *the set*
+    because that is the promise being made — an institution's notifications go
+    to an institution's sensors — and a contract that grows to several stations
+    then needs no change here.
+    """
+    return Stations.objects.filter(
+        institution_contract__institution=institution
+    ).order_by("name")
+
+
+def _station_choices(stations):
+    """Select options for a station queryset, with the usual empty choice.
+
+    The empty label doubles as the explanation when an institution has nothing
+    under contract, so the operator reads why the list is short rather than
+    meeting a blank select.
+    """
+    options = [(station.pk, station.name) for station in stations]
+    empty = "---------" if options else "(no sensor under contract)"
+    return [("", empty), *options]
+
+
 class PushBroadcastForm(forms.Form):
     """The manual notification an operator composes on the confirmation page.
 
@@ -96,26 +123,52 @@ class PushBroadcastForm(forms.Form):
     record that a send was *attempted*, so it is created at send time rather
     than existing as an editable draft that could be submitted twice.
 
-    ``scope`` decides which of ``institution`` / ``station`` is required, which
-    is checked here rather than shown — Django admin cannot hide one field
-    based on another without JavaScript, so the constraint is enforced instead
-    of presented.
+    ``scope`` decides which of ``institution`` / ``station`` is required, and
+    the two are enforced independently of how they are shown: a JavaScript
+    companion hides the field a scope has no use for, and ``clean`` rejects a
+    missing one regardless. Hiding alone would be no constraint at all — with
+    scripting off every field is visible — and validating alone would leave an
+    operator picking a sensor for a send that ignores it.
+
+    The station picker narrows to the chosen institution's own sensors, for the
+    same reason ``InstitutionAlertRuleForm`` does: a list of every station on
+    the platform offers one right answer and many wrong ones, and each wrong
+    one sends an institution's announcement to somebody else's followers —
+    a push that cannot be recalled, and is visible only to the people who
+    should never have received it.
+
+    Narrowing only applies once an institution is chosen. With none, the field
+    keeps every station, because a station-scoped send is also how an outage on
+    a public sensor under no contract at all — FIUNA, AireLibre, MADES — is
+    announced to the people following it.
+
+    Unlike ``InstitutionAlertRuleForm``, the narrowing here is *not* imposed on
+    the field's queryset for validation, only for what the select renders. The
+    scope decides whether the pairing matters at all — ``ALL`` deliberately
+    discards a leftover institution *and* station — and a field-level queryset
+    would reject the pair before ``clean`` ever learns the scope. So the
+    boundary is enforced in ``clean``, which also lets the refusal name the
+    mismatch instead of emitting "not one of the available choices".
     """
 
     scope = forms.ChoiceField(
         choices=PushBroadcast.SCOPE_CHOICES,
-        label="Send to",
+        label="Recipients",
         help_text="Who receives this notification.",
     )
     institution = forms.ModelChoiceField(
         queryset=Institution.objects.order_by("legal_name"),
         required=False,
-        help_text="Required when sending to all of an institution's stations.",
+        help_text=(
+            "Whose followers to notify. Choosing one also narrows the sensor "
+            "list below to that institution's own sensors."
+        ),
     )
     station = forms.ModelChoiceField(
         queryset=Stations.objects.order_by("name"),
         required=False,
-        help_text="Required when sending to a single station's followers.",
+        label="Sensor",
+        help_text="The sensor whose followers to notify.",
     )
     push_title = forms.CharField(
         max_length=100,
@@ -129,13 +182,46 @@ class PushBroadcastForm(forms.Form):
         help_text="The notification body. Plain text — no {station} substitution here.",
     )
 
+    class Media:
+        # Repopulates the station select when the institution changes, so the
+        # narrowing is visible while composing rather than only enforced on
+        # submit. Progressive enhancement: the rules below hold without it.
+        js = ("admin/js/push_broadcast_compose.js",)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        institution = self._posted_institution()
+        if institution is not None:
+            # Only what the widget renders, so a redisplay after a validation
+            # error shows the narrowed list the operator should have seen. The
+            # field still accepts any station; `clean` is what judges the pair,
+            # because only it knows the scope.
+            self.fields["station"].widget.choices = _station_choices(
+                institution_stations(institution)
+            )
+
+    def _posted_institution(self):
+        """The institution this submission is about, read from the raw POST.
+
+        ``__init__`` runs before validation, so ``cleaned_data`` does not exist
+        yet. A GET has no data at all and leaves the full list, which is what
+        the composer opens with.
+        """
+        if not self.data:
+            return None
+        raw = self.data.get(self.add_prefix("institution"))
+        if not raw:
+            return None
+        return Institution.objects.filter(pk=raw).first()
+
     def clean(self):
         cleaned = super().clean()
         scope = cleaned.get("scope")
 
         if scope == PushBroadcast.SCOPE_STATION and not cleaned.get("station"):
             raise forms.ValidationError(
-                {"station": "Choose the station whose followers should be notified."}
+                {"station": "Choose the sensor whose followers should be notified."}
             )
         if scope == PushBroadcast.SCOPE_INSTITUTION and not cleaned.get("institution"):
             raise forms.ValidationError(
@@ -143,10 +229,51 @@ class PushBroadcastForm(forms.Form):
             )
         if scope == PushBroadcast.SCOPE_ALL:
             # Cleared rather than rejected: a selection left over from switching
-            # scope must not quietly narrow a send meant for the whole platform.
+            # scope must not quietly narrow a send meant for every user. This is
+            # also what "All users needs no institution or sensor" amounts to in
+            # practice — a leftover pair is discarded, never demanded.
             cleaned["institution"] = None
             cleaned["station"] = None
+            return cleaned
+
+        if scope == PushBroadcast.SCOPE_INSTITUTION:
+            # Same reasoning, one field along: this scope derives its audience
+            # from the institution's contracts, so a sensor left selected from
+            # before the scope changed had no part in choosing the recipients.
+            # Storing it anyway would leave the log naming a sensor that did
+            # not determine who was notified — and the companion script hides
+            # this field here, so the browser posts a value the operator can no
+            # longer see.
+            cleaned["station"] = None
+            return cleaned
+
+        self._reject_foreign_station(cleaned)
         return cleaned
+
+    def _reject_foreign_station(self, cleaned):
+        """Refuses a station that belongs to somebody other than the institution.
+
+        This is the actual enforcement, not a second line of defence: the
+        narrowing in ``__init__`` only shapes the select, so a posted pair — a
+        hand-edited POST, a stale page, scripting off — is judged here. Running
+        after the ``ALL`` branch has returned is what lets that scope keep
+        discarding a leftover pair instead of erroring on it.
+
+        An institution with no station under contract is caught by the same
+        check: a station-scoped send for it can only name somebody else's
+        sensor.
+        """
+        institution = cleaned.get("institution")
+        station = cleaned.get("station")
+        if institution is None or station is None:
+            return
+
+        if not institution_stations(institution).filter(pk=station.pk).exists():
+            self.add_error(
+                "station",
+                f"{station.name} does not belong to {institution}. An "
+                "institution's notification can only go to its own sensors.",
+            )
 
 
 class StationStatusOverrideForm(forms.Form):

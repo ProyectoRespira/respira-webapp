@@ -8,6 +8,7 @@ real run *would* do before enabling delivery.
 
 from django.core.management.base import BaseCommand
 
+from api.models import PushNotificationWindow
 from api.push import is_configured, send_sensor_alerts
 
 
@@ -50,6 +51,17 @@ class Command(BaseCommand):
             f"{result.messages_sent} message(s) accepted, "
             f"{result.tokens_cleared} dead token(s) cleared."
         )
+
+        if result.deferred_stations:
+            # Said out loud, because a run at 03:00 finding real changes and
+            # sending nothing is otherwise indistinguishable from a run that
+            # found nothing at all. Not an error: these are picked up by the
+            # first run after the window opens.
+            window = PushNotificationWindow.current()
+            self.stdout.write(
+                f"{prefix}{result.deferred_stations} station(s) held until the "
+                f"notification window ({window}) opens."
+            )
 
         for error in result.errors:
             self.stdout.write(self.style.ERROR(f"  failed: {error}"))

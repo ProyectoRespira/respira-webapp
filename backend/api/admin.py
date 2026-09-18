@@ -15,6 +15,7 @@ from .forms import (
     InstitutionAlertRuleForm,
     PushBroadcastForm,
     StationStatusOverrideForm,
+    institution_stations,
 )
 from .models import (
     ActionLog,
@@ -30,6 +31,7 @@ from .models import (
     InstitutionContract,
     InstitutionUser,
     PushBroadcast,
+    PushNotificationWindow,
     Regions,
     SensitiveGroup,
     SensorAlert,
@@ -883,7 +885,7 @@ class PushBroadcastAdmin(ReadOnlyModelAdmin):
     change_list_template = "admin/api/pushbroadcast/change_list.html"
 
     def get_urls(self):
-        """Adds the compose page under this model's own admin URLs.
+        """Adds the compose page and its station lookup under this model's URLs.
 
         Before ``super()``'s patterns, since those end in a catch-all for object
         ids that would otherwise swallow ``send/``.
@@ -894,8 +896,42 @@ class PushBroadcastAdmin(ReadOnlyModelAdmin):
                 self.admin_site.admin_view(self.send_view),
                 name="api_pushbroadcast_send",
             ),
+            path(
+                "send/institution-stations/",
+                self.admin_site.admin_view(self.institution_stations_view),
+                name="api_pushbroadcast_institution_stations",
+            ),
             *super().get_urls(),
         ]
+
+    def institution_stations_view(self, request):
+        """One institution's own stations, as JSON, for the composer's select.
+
+        Gated on the same permission as the page it serves: which sensors an
+        institution leases is not public information, and this is reachable
+        only by somebody already allowed to send on their behalf.
+
+        Always a list, never "the station": an institution has one sensor under
+        contract today, and the picker is written so that it keeps working when
+        one has several.
+        """
+        if not self.has_send_permission(request):
+            return JsonResponse({"detail": "Not permitted."}, status=403)
+
+        institution = Institution.objects.filter(
+            pk=request.GET.get("institution") or 0
+        ).first()
+        if institution is None:
+            return JsonResponse({"stations": []})
+
+        return JsonResponse(
+            {
+                "stations": [
+                    {"id": station.pk, "name": station.name}
+                    for station in institution_stations(institution)
+                ]
+            }
+        )
 
     def has_send_permission(self, request):
         """Whether this user may send to one station's or one institution's followers."""
@@ -958,7 +994,7 @@ class PushBroadcastAdmin(ReadOnlyModelAdmin):
         ):
             self.message_user(
                 request,
-                "You do not have permission to notify every follower on the platform.",
+                "You do not have permission to notify all users.",
                 messages.ERROR,
             )
             return
@@ -1251,3 +1287,104 @@ class ContactAdmin(RoleBasedModelAdmin):
         """First line of the description, so the changelist stays one row."""
         first_line = obj.description.strip().splitlines()[0] if obj.description else ""
         return first_line if len(first_line) <= 80 else f"{first_line[:77]}…"
+
+
+@admin.register(PushNotificationWindow)
+class PushNotificationWindowAdmin(RoleBasedModelAdmin):
+    """The hours AQI notifications may be delivered in.
+
+    A single row, so this page behaves as a settings screen rather than a list:
+    adding a second window is refused, deleting the only one is refused, and
+    the changelist redirects straight to the row an operator came to edit.
+    Without that, "configure the notification window" would mean first noticing
+    there is a list, then noticing it has exactly one entry.
+
+    Editable here rather than set in ``settings.py`` because the whole point is
+    changing the hours without a deploy — which is also why the sender reads
+    this table on every run instead of caching it.
+    """
+
+    list_display = (
+        "window",
+        "is_enabled",
+        "timezone_name",
+        "current_state",
+        "updated_at",
+    )
+    readonly_fields = ("updated_at",)
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": ("is_enabled",),
+                "description": (
+                    "Turn this off to deliver notifications at any hour. The "
+                    "times below are then ignored."
+                ),
+            },
+        ),
+        (
+            "Delivery window",
+            {
+                "fields": ("start_time", "end_time"),
+                "description": (
+                    "Notifications are delivered from the start time "
+                    "(inclusive) until the end time (exclusive). An AQI change "
+                    "during the quiet period is not discarded: the next run "
+                    "after the window opens re-reads the sensor, so air that is "
+                    "still unhealthy notifies then — and air that recovered "
+                    "overnight does not send a stale warning."
+                ),
+            },
+        ),
+        (
+            "Timezone",
+            {
+                "fields": ("timezone_name",),
+                "description": (
+                    "The zone the times are read in. The server clock runs on "
+                    "UTC, so this is what makes them local hours — leave it as "
+                    "America/Asuncion unless the sensors move country."
+                ),
+            },
+        ),
+        ("Audit", {"fields": ("updated_at",)}),
+    )
+
+    @admin.display(description="Window")
+    def window(self, obj):
+        return str(obj)
+
+    @admin.display(description="Right now", boolean=True)
+    def current_state(self, obj):
+        """Whether a notification would be delivered at this moment.
+
+        The one question an operator actually has when they open this page, and
+        the quickest way to catch a window that reads plausibly but is set in
+        the wrong timezone.
+        """
+        return obj.allows()
+
+    def changelist_view(self, request, extra_context=None):
+        """Sends the operator to the single row instead of a one-item list."""
+        window = PushNotificationWindow.current()
+        return redirect(
+            reverse("admin:api_pushnotificationwindow_change", args=[window.pk])
+        )
+
+    def has_add_permission(self, request):
+        """One window, created on demand by ``current()``.
+
+        A second row would make "which one does the sender use?" a real
+        question with no answer visible on this page.
+        """
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        """Never: deleting the configuration is not a way to disable it.
+
+        ``current()`` would recreate it with the default 06:00–22:00 on the
+        next run, so a delete meant as "stop restricting delivery" would
+        silently restore the restriction. ``is_enabled`` is that switch.
+        """
+        return False

@@ -32,6 +32,7 @@ from .models import (
     InstitutionAlertRule,
     InstitutionAlertRuleState,
     PushBroadcast,
+    PushNotificationWindow,
     SensorAlert,
     SensorAlertState,
     StationReadingsGold,
@@ -136,6 +137,11 @@ class SendResult:
     # Counted apart from `alerted_stations` so a run that only stood people
     # down is not reported as a run that warned them.
     recovered_stations: int = 0
+    # Stations that warranted a notification but were inside the quiet period.
+    # Reported separately because "nothing sent" and "held until morning" are
+    # different outcomes, and an operator checking a 03:00 run needs to see
+    # which one happened.
+    deferred_stations: int = 0
     messages_sent: int = 0
     tokens_cleared: int = 0
     errors: list[str] = field(default_factory=list)
@@ -435,6 +441,14 @@ def catch_up_follower(installation: DeviceInstallation, station: Stations) -> bo
     stay silent for its newest follower while actively firing for everybody
     else — the leased sensor notifying *less* than a public one.
 
+    Deliberately outside :class:`PushNotificationWindow`. The window exists to
+    stop a *scheduled* job waking people over air they cannot act on until
+    morning; this fires because somebody just tapped "follow" on their phone,
+    so they are awake and asking. Gating it would also lose the message for
+    good rather than defer it: this path advances no state, so there is no
+    later run that would pick it up — only a new follow would, and a repeated
+    follow returns early without reaching here.
+
     Returns whether a message was accepted, and raises nothing the caller has
     to handle: a follow must succeed even when the push service does not.
     """
@@ -501,13 +515,49 @@ def _broadcast_station_codes(broadcast: PushBroadcast) -> list[str] | None:
     if broadcast.scope == PushBroadcast.SCOPE_ALL:
         return None
     if broadcast.scope == PushBroadcast.SCOPE_STATION:
-        return [broadcast.station.station_code] if broadcast.station else []
+        if broadcast.station is None:
+            return []
+        if not _station_belongs_to_institution(broadcast):
+            # The last gate before delivery. `PushBroadcastForm` already
+            # refuses this combination, so reaching here means the row was
+            # written by something other than the composer — a shell, a
+            # script, a data migration. An empty audience is the safe reading:
+            # an institution's announcement addressed to somebody else's sensor
+            # has no correct set of recipients, and a push cannot be recalled.
+            logger.error(
+                "Broadcast %s names station %s outside institution %s; nothing sent",
+                broadcast.pk,
+                broadcast.station_id,
+                broadcast.institution_id,
+            )
+            return []
+        return [broadcast.station.station_code]
     if broadcast.institution is None:
         return []
     stations = Stations.objects.filter(
         institution_contract__institution=broadcast.institution
     ).values_list("station_code", flat=True)
     return [code for code in stations if code]
+
+
+def _station_belongs_to_institution(broadcast: PushBroadcast) -> bool:
+    """Whether a station-scoped broadcast's station is the institution's own.
+
+    Vacuously true when no institution is named: a station-scoped send without
+    one is a notice about that sensor itself — an outage on a public station
+    under no contract at all — and has no institutional boundary to cross.
+
+    Also true with no station, which is not a boundary this can judge — the
+    caller has already returned an empty audience for that. Checked here anyway
+    rather than relying on that: both fields are nullable, so a function that
+    reads them has to say what it does with a null.
+    """
+    if broadcast.institution_id is None or broadcast.station_id is None:
+        return True
+    return Stations.objects.filter(
+        pk=broadcast.station_id,
+        institution_contract__institution_id=broadcast.institution_id,
+    ).exists()
 
 
 def broadcast_tokens(broadcast: PushBroadcast) -> list[str]:
@@ -711,9 +761,29 @@ def evaluate_rule(rule: InstitutionAlertRule) -> Delivery | None:
         if transition == "rearm":
             # Silent, but recorded: clearing the flag is what lets the next
             # genuine crossing notify instead of being suppressed forever.
+            #
+            # Deliberately *not* gated on the notification window: a rearm
+            # sends nothing, and holding it until morning would leave the rule
+            # marked as firing over air that has already come back down —
+            # suppressing the next real crossing rather than deferring a push.
             state.is_firing = False
             state.last_aqi = aqi
             state.save(update_fields=["is_firing", "last_aqi", "updated_at"])
+            return None
+
+        if not PushNotificationWindow.current().allows():
+            # Quiet hours. `is_firing` stays false, so this crossing is still
+            # outstanding and the first run inside the window judges it against
+            # the reading it takes then: above the threshold still means notify,
+            # and a level that fell back below it rearms silently instead of
+            # announcing air that has passed.
+            state.last_aqi = aqi
+            state.save(update_fields=["last_aqi", "updated_at"])
+            logger.info(
+                "Outside the notification window; holding rule %s (AQI %.0f)",
+                rule.id,
+                aqi,
+            )
             return None
 
         delivery = notify_followers(
@@ -759,6 +829,17 @@ def evaluate_rule(rule: InstitutionAlertRule) -> Delivery | None:
         return delivery
 
 
+def _rule_is_firing(rule: InstitutionAlertRule) -> bool:
+    """Whether this rule currently holds an episode open.
+
+    Read without locking, for reporting only: the authoritative read happens
+    under ``select_for_update`` inside :func:`evaluate_rule`, which is what
+    actually decides whether to notify.
+    """
+    state = InstitutionAlertRuleState.objects.filter(rule=rule).first()
+    return state.is_firing if state else False
+
+
 def send_institution_alerts(dry_run: bool = False) -> SendResult:
     """Evaluates every active institutional rule and notifies on the crossings.
 
@@ -776,8 +857,14 @@ def send_institution_alerts(dry_run: bool = False) -> SendResult:
     trigger rather than a health level, so there is no meaningful all-clear to
     announce; the recovery notifications belong to the level path, which knows
     what the air actually became.
+
+    Firing is confined to :class:`PushNotificationWindow`, enforced inside
+    :func:`evaluate_rule` so the immediate evaluation on save obeys it too.
+    Rearming is not: it sends nothing, and deferring it would leave a rule
+    marked as firing over air that has already recovered.
     """
     result = SendResult()
+    window = PushNotificationWindow.current()
 
     rules = (
         InstitutionAlertRule.objects.filter(is_active=True)
@@ -799,18 +886,37 @@ def send_institution_alerts(dry_run: bool = False) -> SendResult:
 
         result.considered += 1
 
+        would_fire = (
+            rule_transition(
+                _rule_is_firing(rule),
+                aqi,
+                rule.threshold,
+            )
+            == "fire"
+        )
+
         if dry_run:
-            state = InstitutionAlertRuleState.objects.filter(rule=rule).first()
-            firing = state.is_firing if state else False
-            if rule_transition(firing, aqi, rule.threshold) == "fire":
-                result.alerted_stations += 1
+            if would_fire:
+                # Held rather than alerted when the window is shut, so a dry
+                # run predicts the real run instead of promising a push the
+                # quiet period would withhold.
+                if window.allows():
+                    result.alerted_stations += 1
+                else:
+                    result.deferred_stations += 1
             continue
+
+        # Counted here rather than inside `evaluate_rule`, which answers
+        # `None` for "nothing to do" and for "held" alike — indistinguishable
+        # to a caller that needs to report the difference.
+        if would_fire and not window.allows():
+            result.deferred_stations += 1
 
         try:
             delivery = evaluate_rule(rule)
             if delivery is None:
-                # Nothing to notify: unchanged, or a silent rearm. Either way
-                # `evaluate_rule` has already recorded what it saw.
+                # Nothing to notify: unchanged, a silent rearm, or held for the
+                # window. Either way `evaluate_rule` has recorded what it saw.
                 continue
         except requests.RequestException as error:
             # One rule's delivery failing must not stop the others, and the
@@ -852,8 +958,18 @@ def send_sensor_alerts(dry_run: bool = False) -> SendResult:
     :class:`SensorAlertState`, notified or not — that record of the safe
     readings is what lets the sender tell a station that has recovered from one
     still sitting at the level it last warned about.
+
+    Delivery is confined to :class:`PushNotificationWindow`. Nothing is queued
+    for later: the window is checked *after* the reading is taken, so a station
+    whose air moved during the quiet period simply goes un-notified and is
+    judged again on the next run. Since the sender always compares the current
+    reading against what followers were last told, the first run after the
+    window opens is what decides — an episode still burning at 06:00 warns, and
+    one that recovered at 04:00 says nothing, because by then there is no
+    warning outstanding to follow up on.
     """
     result = SendResult()
+    window = PushNotificationWindow.current()
 
     followed_codes = (
         DeviceFollower.objects.values_list("station_code", flat=True)
@@ -880,9 +996,16 @@ def send_sensor_alerts(dry_run: bool = False) -> SendResult:
         if dry_run:
             state = SensorAlertState.objects.filter(station_code=station_code).first()
             trend = notification_for(level, state.last_alerted_level if state else "")
-            if trend == WORSENING:
+            if trend is None:
+                continue
+            if not window.allows():
+                # Reported as held rather than as an alert, so a dry run at
+                # 03:00 predicts what the real run would actually do instead of
+                # promising a notification the window would withhold.
+                result.deferred_stations += 1
+            elif trend == WORSENING:
                 result.alerted_stations += 1
-            elif trend == IMPROVING:
+            else:
                 result.recovered_stations += 1
             continue
 
@@ -899,6 +1022,27 @@ def send_sensor_alerts(dry_run: bool = False) -> SendResult:
                     # readings, which is what tells a station that recovered
                     # from one still sitting where it was last warned about.
                     _remember(state, level, notified=False)
+                    continue
+
+                if not window.allows():
+                    # Quiet hours. `last_alerted_level` is deliberately left
+                    # untouched — it is what followers *believe*, and nothing
+                    # was sent, so pretending otherwise is what would lose the
+                    # alert. The next run inside the window recomputes `trend`
+                    # from the reading it takes then, which is what makes an
+                    # episode still burning at 06:00 notify and one that
+                    # recovered overnight stay quiet.
+                    #
+                    # `last_level` is written, because it is the record of what
+                    # was *read*, not of what was announced.
+                    _remember(state, level, notified=False)
+                    result.deferred_stations += 1
+                    logger.info(
+                        "Outside the notification window; holding %s (%s) for %s",
+                        station_code,
+                        trend,
+                        window,
+                    )
                     continue
 
                 delivery = notify_followers(station, level, aqi, trend)

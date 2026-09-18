@@ -1,12 +1,17 @@
+import logging
 import os
 import uuid
+from datetime import time
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.conf import settings
 from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
 from .gold import ReadOnlyGoldModel
+
+logger = logging.getLogger(__name__)
 
 
 def _column_env_or_default(key: str, default: str) -> str:
@@ -571,19 +576,31 @@ class PushBroadcast(models.Model):
     submit twice, and ``sent_at`` is stamped on creation. That is what stops
     the same announcement going out repeatedly.
 
-    ``scope`` is the audience. ``ALL`` reaches every follower of every station
-    and is not an institutional alert at all — it is a platform announcement,
-    which is why this model has no required institution and why the admin gates
-    that scope behind a permission of its own.
+    ``scope`` is the audience, and each value names a set of *people*:
+    ``ALL`` is every user following any sensor, ``STATION`` the followers of one
+    named sensor, ``INSTITUTION`` the followers of the sensors one institution
+    has under contract. ``ALL`` is not an institutional alert at all — it is a
+    platform announcement, which is why this model has no required institution
+    and why the admin gates that scope behind a permission of its own.
     """
 
     SCOPE_STATION = "station"
     SCOPE_INSTITUTION = "institution"
     SCOPE_ALL = "all"
+    # Worded as *who receives this*, because that is the question an operator is
+    # actually answering and a push cannot be recalled once it is wrong. The
+    # earlier labels described the audience obliquely — "All of an institution's
+    # stations" names stations when the recipients are people, and it read as
+    # though the institution's own staff were the audience rather than whoever
+    # follows its sensors.
+    #
+    # `ALL` leads: it is the widest audience, so listing it first is what makes
+    # a narrower choice a deliberate one rather than a default fallen into.
+    # The stored values are untouched — only the labels move.
     SCOPE_CHOICES = (
-        (SCOPE_STATION, "One station's followers"),
-        (SCOPE_INSTITUTION, "All of an institution's stations"),
-        (SCOPE_ALL, "Every follower on the platform"),
+        (SCOPE_ALL, "All users"),
+        (SCOPE_STATION, "Followers of a specific sensor"),
+        (SCOPE_INSTITUTION, "Followers of an institution"),
     )
 
     scope = models.CharField(max_length=16, choices=SCOPE_CHOICES)
@@ -593,7 +610,9 @@ class PushBroadcast(models.Model):
         blank=True,
         null=True,
         related_name="broadcasts",
-        help_text="Set for institution-scoped sends; blank for a platform-wide one.",
+        help_text=(
+            "Set when notifying an institution's followers; blank for all users."
+        ),
     )
     station = models.ForeignKey(
         "Stations",
@@ -602,7 +621,7 @@ class PushBroadcast(models.Model):
         blank=True,
         null=True,
         related_name="broadcasts",
-        help_text="Set for station-scoped sends.",
+        help_text="Set when notifying one sensor's followers.",
     )
     push_title = models.CharField(max_length=100)
     push_body = models.TextField(max_length=500)
@@ -1324,3 +1343,127 @@ class Contact(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class PushNotificationWindow(models.Model):
+    """The hours of day AQI push notifications may be delivered in.
+
+    Exists because air quality does not keep office hours. Vallemí and
+    Concepción swing overnight, and a warning that wakes somebody at 03:00 is
+    worse than useless: they cannot act on it until morning, and the next one
+    they can act on has already been muted along with it.
+
+    A single row, held by :meth:`current`. Configuration that is edited in the
+    admin and read by a scheduled job has to be *somewhere* both can name, and
+    a settings variable would mean a deploy per change — which is exactly what
+    "notification hours can be changed without a code deployment" rules out.
+
+    ``timezone_name`` is stored rather than assumed. ``settings.TIME_ZONE`` is
+    UTC on these hosts, so a naively-read "06:00" would fire at 03:00 in
+    Asunción — the middle of the quiet period this model exists to protect.
+    Paraguay abolished DST in 2024 and now sits at UTC-3 year round, so the
+    offset happens to be stable today; the zone is still resolved through
+    ``ZoneInfo`` on every call rather than stored as a fixed offset, which is
+    what keeps this correct if that changes or the sensors move country.
+
+    What this model deliberately does *not* hold is a queue of alerts deferred
+    overnight. The sender re-reads each station's current AQI on every run, so
+    the run after the window opens evaluates the air as it is *then*: still bad
+    and nobody was told yet means notify, already recovered means stay quiet.
+    A stored queue would instead replay the night's readings and announce air
+    that no longer exists. See ``api.push.send_sensor_alerts``.
+    """
+
+    DEFAULT_START = time(6, 0)
+    DEFAULT_END = time(22, 0)
+    # Paraguay, where every sensor is. Named explicitly so the window does not
+    # silently follow `settings.TIME_ZONE` if that ever changes.
+    DEFAULT_TIMEZONE = "America/Asuncion"
+
+    is_enabled = models.BooleanField(
+        default=True,
+        help_text=(
+            "When off, notifications are delivered at any hour and the times "
+            "below are ignored."
+        ),
+    )
+    start_time = models.TimeField(
+        default=DEFAULT_START,
+        help_text="Earliest hour a notification may be delivered (inclusive).",
+    )
+    end_time = models.TimeField(
+        default=DEFAULT_END,
+        help_text="Latest hour a notification may be delivered (exclusive).",
+    )
+    timezone_name = models.CharField(
+        max_length=64,
+        default=DEFAULT_TIMEZONE,
+        help_text=(
+            "The zone the times above are read in. The server clock runs on "
+            "UTC, so this is what makes them local hours."
+        ),
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "push_notification_window"
+        verbose_name = "Push notification window"
+        verbose_name_plural = "Push notification window"
+
+    def __str__(self):
+        if not self.is_enabled:
+            return "Any hour (restriction off)"
+        return f"{self.start_time:%H:%M}–{self.end_time:%H:%M} {self.timezone_name}"
+
+    @classmethod
+    def current(cls) -> "PushNotificationWindow":
+        """The one configuration row, created with the agreed defaults if absent.
+
+        Created rather than returned as an unsaved instance, so an operator
+        opening the admin finds a row to edit instead of an empty changelist
+        with nothing explaining what the job is using.
+        """
+        window, _ = cls.objects.get_or_create(pk=1)
+        return window
+
+    def tzinfo(self):
+        """The configured zone, falling back to UTC if it is not a real one.
+
+        A bad zone name must not stop delivery altogether: the fallback is
+        ``settings.TIME_ZONE``, which still applies *a* window rather than
+        crashing the run or silently notifying at every hour.
+        """
+        try:
+            return ZoneInfo(self.timezone_name)
+        except (ZoneInfoNotFoundError, ValueError):
+            logger.warning(
+                "Push window has an unknown timezone %r; falling back to %s",
+                self.timezone_name,
+                settings.TIME_ZONE,
+            )
+            return ZoneInfo(settings.TIME_ZONE)
+
+    def allows(self, moment=None) -> bool:
+        """Whether a notification may be delivered at ``moment``.
+
+        ``start`` is inclusive and ``end`` exclusive, so a window ending at
+        22:00 permits 21:59 and refuses 22:00 exactly — one reading of the
+        boundary, applied the same way at both ends.
+
+        A window whose end is *before* its start is read as crossing midnight
+        (22:00–06:00 means the night), because that is the only reading under
+        which such a row is not simply broken. Equal times are the degenerate
+        case and allow nothing, which is what an operator who set them that way
+        asked for.
+        """
+        if not self.is_enabled:
+            return True
+
+        local = (moment or timezone.now()).astimezone(self.tzinfo()).time()
+
+        if self.start_time == self.end_time:
+            return False
+        if self.start_time < self.end_time:
+            return self.start_time <= local < self.end_time
+        # Crosses midnight: inside the window means late evening or early hours.
+        return local >= self.start_time or local < self.end_time

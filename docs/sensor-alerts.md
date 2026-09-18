@@ -67,6 +67,63 @@ outside should do.
 An episode closes when the station reads `good` or `moderate` again, which is
 what lets the next bad episode alert from its first reading.
 
+### The delivery window (quiet hours)
+
+Nothing is delivered outside the hours configured in **Push notification
+window** in the admin (`api.PushNotificationWindow`, one row, default
+**06:00–22:00 America/Asuncion**). Air quality does not keep office hours —
+Vallemí and Concepción swing overnight — and a 03:00 warning cannot be acted on
+until morning.
+
+Editable from the admin without a deploy, which is the point: the sender reads
+the row on every run rather than caching it. Three fields:
+
+| Field | Meaning |
+| --- | --- |
+| `is_enabled` | Off delivers at any hour and ignores the times |
+| `start_time` / `end_time` | Start inclusive, end exclusive — 21:59 sends, 22:00 does not |
+| `timezone_name` | The zone the times are read in |
+
+**The timezone matters.** `TIME_ZONE` is UTC on these hosts, so a naively-read
+06:00 would fire at 03:00 local. Paraguay sits at UTC-3 year round (DST was
+abolished in 2024), which makes the local 22:00–06:00 quiet period
+**01:00–09:00 UTC** — worth remembering when reading `journalctl`, which stamps
+in UTC.
+
+**Nothing is queued.** A change during quiet hours simply goes un-notified and
+`last_alerted_level` is left alone — it records what followers *believe*, and
+they were told nothing. The next run after the window opens then compares the
+reading it takes *then* against that same state, which gives the wanted
+behaviour without any special case:
+
+| Overnight | At 06:25 | Result |
+| --- | --- | --- |
+| Rose to `unhealthy` | still `unhealthy` | Warning, describing the morning's AQI |
+| Rose to `unhealthy` | recovered to `good` | Nothing — no stale warning |
+| Improved while an episode was open | still improved | All-clear |
+
+A run inside the quiet period reports what it held:
+
+```
+[dry run] 12 followed station(s) read, 0 worsened, 0 improved, …
+3 station(s) held until the notification window (06:00–22:00 America/Asuncion) opens.
+```
+
+Two things are deliberately **outside** the window:
+
+- **The catch-up on a new follow** (`catch_up_follower`). Somebody who just
+  tapped "follow" is awake and asking, and that path advances no state — so
+  gating it would lose the message rather than defer it.
+- **Rearming an institutional rule.** It sends nothing; deferring it would
+  leave the rule marked as firing over air that has already recovered, which
+  would suppress the *next* genuine crossing.
+
+Because delivery now depends on the wall clock, tests that assert a
+notification was sent mix in `UnrestrictedWindowMixin`
+(`api/tests_window_helpers.py`). Without it the alerting suite would pass by
+day and fail overnight — and CI runs on UTC, where the small hours in Asunción
+are ordinary working hours.
+
 Notifications that Expo did not accept leave the state untouched, so the next
 run makes the same announcement again rather than treating it as delivered.
 
