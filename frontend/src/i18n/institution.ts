@@ -216,6 +216,12 @@ const es = {
   downloadRaw: "Historial crudo (CSV)",
   downloadRawNote:
     "Mediciones sin procesar del sensor, para analizar por tu cuenta en una planilla.",
+  // Shown in place of the date pickers when the sensor has no raw history to
+  // serve. Deliberately short: it names the sensor as the reason, which is
+  // enough to stop anyone hunting for a setting that would enable it, and the
+  // monthly report sitting enabled in the next column already shows that only
+  // this half is affected — no need to say so in words.
+  downloadRawUnsupported: "Esta descarga no está disponible para tu sensor.",
   downloadPreparing: "Generando…",
   downloadUnavailable: "Esta descarga todavía no está disponible.",
   downloadError: "No pudimos generar el archivo. Intentá de nuevo.",
@@ -460,6 +466,7 @@ const en: Translation = {
   downloadRaw: "Raw history (CSV)",
   downloadRawNote:
     "Unprocessed sensor readings, to analyse yourself in a spreadsheet.",
+  downloadRawUnsupported: "This download isn't available for your sensor.",
   downloadPreparing: "Generating…",
   downloadUnavailable: "This download isn't available yet.",
   downloadError: "We couldn't generate the file. Try again.",
@@ -685,6 +692,8 @@ const pt: Translation = {
   downloadRaw: "Histórico bruto (CSV)",
   downloadRawNote:
     "Medições sem processar do sensor, para analisar por conta própria em uma planilha.",
+  downloadRawUnsupported:
+    "Este download não está disponível para o seu sensor.",
   downloadPreparing: "Gerando…",
   downloadUnavailable: "Este download ainda não está disponível.",
   downloadError: "Não conseguimos gerar o arquivo. Tente de novo.",

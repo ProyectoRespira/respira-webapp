@@ -75,11 +75,14 @@ const DOWNLOAD_COLUMNS_CSS = `
  * report and can come back with gaps; both cases surface under the button that
  * caused them.
  *
- * The raw column is dropped entirely for a sensor that has no raw history to
- * serve — see `supports_raw_export`. Hidden rather than disabled: a greyed-out
- * download invites the reader to work out what would enable it, and nothing
- * they can do would. The monthly report is built from the warehouse and works
- * for every network, so that half of the card is unaffected.
+ * For a sensor with no raw history to serve — see `supports_raw_export` — the
+ * column stays where it is and only its controls are replaced by a line saying
+ * why. Dropping the column outright was tried and reverted: the card then
+ * rendered as a single half-width report against empty space, which reads as a
+ * layout bug rather than as a deliberate absence, and it left the reader with
+ * no account of a download they may have seen elsewhere. The monthly report is
+ * built from the warehouse and works for every network, so that half of the
+ * card is unaffected either way.
  */
 export function DownloadCard({
   lang,
@@ -94,20 +97,6 @@ export function DownloadCard({
   // Absent on a backend that predates the field: keep offering the download
   // rather than hiding it from every panel the moment the frontend ships first.
   const hasRawExport = sensor?.supports_raw_export !== false;
-
-  if (!hasRawExport) {
-    return (
-      <Card className="downloads-card">
-        <CardHead>
-          <CardTitle>{copy.downloadsTitle}</CardTitle>
-        </CardHead>
-        {/* One download left, so no grid and no dividing rule — the container
-            query below exists to split a pair, and a lone column needs neither
-            the split nor the border that separates it from a neighbour. */}
-        <MonthlyReport lang={lang} />
-      </Card>
-    );
-  }
 
   return (
     <Card className="downloads-card">
@@ -138,7 +127,11 @@ export function DownloadCard({
             without it `mt-auto` has no slack to take up and the buttons stop
             lining up. */}
         <div className="downloads-second h-full border-t border-bg-gray pt-4">
-          <RawExport lang={lang} contract={contract} />
+          {hasRawExport ? (
+            <RawExport lang={lang} contract={contract} />
+          ) : (
+            <RawExportUnsupported lang={lang} />
+          )}
         </div>
       </div>
     </Card>
@@ -206,6 +199,43 @@ const addDays = (isoDate: string, days: number): string => {
   date.setDate(date.getDate() + days);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 };
+
+/**
+ * The raw column for a sensor whose readings cannot be exported.
+ *
+ * Same heading and same note as the working column, so the reader sees what the
+ * download *is* before being told they cannot have it; only the pickers and the
+ * button are replaced, by a line naming the reason. The "what's in this file?"
+ * disclosure is dropped: there is no file to describe here, and leaving it would
+ * offer detail about something unobtainable.
+ *
+ * `mt-auto` on the notice keeps it at the bottom of the column, where the button
+ * sits in the other one, so the two halves still read as a pair rather than as
+ * one column that ran short.
+ */
+function RawExportUnsupported({ lang }: { lang: Lang }) {
+  const copy = useInstitutionCopy(lang);
+
+  return (
+    <div className="flex h-full flex-col gap-3">
+      <div className="flex flex-col gap-1.5">
+        <h3 className="m-0 text-xs font-semibold text-gray">
+          {copy.downloadRaw}
+        </h3>
+        <p className="text-[12px] leading-snug text-gray">
+          {copy.downloadRawNote}
+        </p>
+      </div>
+      {/* Dashed and muted, the same treatment the month selector's "no months
+          yet" placeholder uses: it reads as a space that stays empty, not as a
+          control that failed to load. Not `role="alert"` — nothing just went
+          wrong, it is the standing state of this panel. */}
+      <p className="mt-auto rounded-md border border-dashed border-basedark px-3 py-2.5 text-[12px] leading-snug text-gray">
+        {copy.downloadRawUnsupported}
+      </p>
+    </div>
+  );
+}
 
 /**
  * The raw sensor export, over a date range the visitor picks.
