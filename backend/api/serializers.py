@@ -24,6 +24,7 @@ from .models import (
     UserProfile,
     UserRole,
     faq_localized_map,
+    get_institution_contracts,
     get_institution_for_user,
     get_institution_station_ids,
     user_role,
@@ -347,6 +348,7 @@ class InstitutionSerializer(serializers.ModelSerializer):
     """
 
     contract = serializers.SerializerMethodField()
+    contracts = serializers.SerializerMethodField()
 
     class Meta:
         model = Institution
@@ -361,13 +363,33 @@ class InstitutionSerializer(serializers.ModelSerializer):
             "address",
             "city",
             "contract",
+            "contracts",
         ]
         read_only_fields = fields
 
     @extend_schema_field(InstitutionContractSerializer(allow_null=True))
     def get_contract(self, obj):
-        contract = getattr(obj, "contract", None)
+        """The first contract, kept for clients written against one sensor.
+
+        An institution may now hold several, but dropping this field would
+        break every caller that reads `institution.contract` — so it keeps
+        answering with one: the same one `resolve_institution_station` picks by
+        default, which is the sensor a client showing a single contract would
+        want. Clients aware of several sensors read `contracts` instead.
+        """
+        contract = get_institution_contracts(obj).first()
         return InstitutionContractSerializer(contract).data if contract else None
+
+    @extend_schema_field(InstitutionContractSerializer(many=True))
+    def get_contracts(self, obj):
+        """Every sensor the institution leases, ordered by station name.
+
+        What the dashboard's sensor selector is built from, and the only
+        list a client should trust for "which sensors may I ask about".
+        """
+        return InstitutionContractSerializer(
+            get_institution_contracts(obj), many=True
+        ).data
 
 
 class InstitutionLoginSerializer(serializers.Serializer):
@@ -714,10 +736,24 @@ class InstitutionAlertConfigSerializer(serializers.Serializer):
     sensitive_groups = SensitiveGroupSerializer(many=True)
 
 
+class DashboardAvailableSensorSerializer(serializers.Serializer):
+    """One option in the dashboard's sensor selector."""
+
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+
+
 class InstitutionDashboardSerializer(serializers.Serializer):
-    """Consolidated payload for the institutional dashboard's single request."""
+    """Consolidated payload for the institutional dashboard's single request.
+
+    ``sensor`` is the one being reported on; ``available_sensors`` is every
+    sensor the institution may switch to, always including the current one. It
+    holds a single entry for an institution leasing one sensor, which is what
+    lets a client hide the selector without a second request to find out.
+    """
 
     sensor = DashboardSensorSerializer()
+    available_sensors = DashboardAvailableSensorSerializer(many=True)
     air_quality = DashboardAirQualitySerializer(allow_null=True)
     history = DashboardHistoryPointSerializer(many=True)
     alert_config = InstitutionAlertConfigSerializer()

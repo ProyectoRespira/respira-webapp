@@ -72,7 +72,14 @@ from .airgradient import (
     location_type,
 )
 from .aqi import AQI_LEVELS, classify_aqi
-from .models import ActionLog, StationReadingsGold, get_institution_for_user
+from .models import (
+    ActionLog,
+    StationReadingsGold,
+    get_institution_contracts,
+    get_institution_for_user,
+    get_institution_station_ids,
+    resolve_institution_station,
+)
 from .permissions import IsInstitutionUser
 
 logger = logging.getLogger(__name__)
@@ -117,16 +124,42 @@ DEFAULT_EXPORT_DAYS = 90
 
 
 def _contract_for_request(request):
-    """The caller's contract, or 404 when their institution has no sensor.
+    """The contract this request is about, or 404 when there is no such sensor.
 
-    Mirrors the dashboard endpoint: an institution with no contract is a real
-    stage of onboarding, reported the same way in both places.
+    Mirrors the dashboard endpoint in both respects. An institution with no
+    contract is a real stage of onboarding, reported the same way in both
+    places — and the optional `station` parameter is *resolved* against the
+    institution's own contracts rather than looked up, so a report can only
+    ever be produced for a sensor the caller actually leases. An id belonging
+    to another institution is the same 404 as no sensor at all.
+
+    With no `station` given the first contracted sensor answers, which is what
+    keeps every single-sensor caller working unchanged.
     """
     institution = get_institution_for_user(request.user)
-    contract = getattr(institution, "contract", None)
+    requested = request.query_params.get("station")
+    station = resolve_institution_station(institution, requested)
+    if station is None:
+        raise NotFound("This institution does not have an assigned sensor.")
+
+    contract = get_institution_contracts(institution).filter(station=station).first()
     if contract is None:
         raise NotFound("This institution does not have an assigned sensor.")
     return institution, contract
+
+
+# Documented once and reused by all three export endpoints, which take the same
+# parameter for the same reason.
+STATION_PARAMETER = OpenApiParameter(
+    name="station",
+    type=OpenApiTypes.INT,
+    location=OpenApiParameter.QUERY,
+    required=False,
+    description=(
+        "Which of the institution's contracted sensors this covers. Defaults "
+        "to the first one."
+    ),
+)
 
 
 def _localise(value: datetime | None) -> datetime | None:
@@ -211,9 +244,32 @@ def _readings(station_id: int, start: datetime, end: datetime):
     )
 
 
-def _filename(prefix: str, institution, suffix: str, extension: str) -> str:
+def _filename(
+    prefix: str, institution, suffix: str, extension: str, station=None
+) -> str:
+    """The download's filename, naming the sensor when there is a choice of one.
+
+    An institution leasing several sensors would otherwise get the same name
+    for every one of them — download the report for two sensors and the second
+    lands as "… (1).pdf", with nothing in either file's name saying which
+    sensor it covers. The station is left out for a single-sensor institution,
+    whose filenames then stay exactly as they were.
+    """
     name = slugify(institution.display_name or institution.legal_name) or "institucion"
-    return f"{prefix}-{name}-{suffix}.{extension}"
+    parts = [prefix, name]
+
+    if station is not None and len(get_institution_station_ids(institution)) > 1:
+        # Slugified from the station name, which already carries the
+        # institution ("Colegio San José — patio"); the redundant prefix is
+        # dropped so the filename does not say the name twice.
+        station_slug = slugify(station.name)
+        if station_slug.startswith(f"{name}-"):
+            station_slug = station_slug[len(name) + 1 :]
+        if station_slug:
+            parts.append(station_slug)
+
+    parts.append(suffix)
+    return f"{'-'.join(parts)}.{extension}"
 
 
 def _airgradient_filename(station, start: date, end: date) -> str:
@@ -578,7 +634,8 @@ def build_monthly_report_pdf(institution, contract, stats, threshold, actions) -
             location=OpenApiParameter.QUERY,
             required=False,
             description="Month to report on, as YYYY-MM. Defaults to last month.",
-        )
+        ),
+        STATION_PARAMETER,
     ],
     responses={(200, "application/pdf"): OpenApiTypes.BINARY},
 )
@@ -613,7 +670,11 @@ class InstitutionMonthlyReportView(APIView):
         return _attachment(
             pdf,
             _filename(
-                "reporte-mensual", institution, month_start.strftime("%Y-%m"), "pdf"
+                "reporte-mensual",
+                institution,
+                month_start.strftime("%Y-%m"),
+                "pdf",
+                station=contract.station,
             ),
             "application/pdf",
         )
@@ -630,6 +691,7 @@ class InstitutionMonthlyReportView(APIView):
         "its contract start. Returns 404 when the institution has no assigned "
         "sensor."
     ),
+    parameters=[STATION_PARAMETER],
     responses={200: OpenApiTypes.OBJECT},
 )
 class InstitutionReportMonthsView(APIView):
@@ -856,6 +918,7 @@ def build_raw_export_csv(location_type: str, rows) -> bytes:
             required=False,
             description="Last day to include (YYYY-MM-DD, inclusive). Defaults to today.",
         ),
+        STATION_PARAMETER,
     ],
     responses={
         (

@@ -1,10 +1,12 @@
 /**
- * Keeps the sensor select showing only the chosen institution's own sensor.
+ * Keeps the sensor select showing only the chosen institution's own sensors.
  *
  * The form already narrows the field server-side, so a wrong station cannot be
  * saved with or without this file. What this adds is seeing the narrowing while
  * filling the form instead of discovering it on submit: pick an institution and
- * its sensor appears, already selected, because there is only ever one.
+ * its sensors appear. An institution leasing exactly one gets it preselected,
+ * which is the common case; one leasing several gets a real choice, with the
+ * empty option kept so nothing is picked on its behalf.
  *
  * The institution field is an autocomplete, which the admin upgrades to Select2
  * — and Select2 replaces the element's own change events with jQuery ones. Two
@@ -33,22 +35,43 @@
     // what keeps this working under a mounted admin prefix.
     var base = window.location.pathname.replace(/(add|\d+\/change)\/$/, '');
 
-    function setOptions(station) {
-      // Rebuilt rather than filtered: the previous institution's sensor must
+    function setOptions(stations) {
+      // Rebuilt rather than filtered: the previous institution's sensors must
       // not stay selectable, and an empty list is the honest state when the
       // institution has no contract.
+      //
+      // The selection is read before the rebuild and restored after it, so
+      // redisplaying a form after a validation error — or opening an existing
+      // rule — does not silently move the rule to another sensor.
+      var previous = stationField.value;
       stationField.innerHTML = '';
 
-      var option = document.createElement('option');
-      if (!station) {
-        option.value = '';
-        option.textContent = '(no sensor under contract)';
-      } else {
+      if (!stations || !stations.length) {
+        var empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = '(no sensor under contract)';
+        stationField.appendChild(empty);
+        return;
+      }
+
+      // Only with a real choice to make: with one sensor the blank option is
+      // noise, since that sensor is the sole valid answer.
+      if (stations.length > 1) {
+        var blank = document.createElement('option');
+        blank.value = '';
+        blank.textContent = '---------';
+        stationField.appendChild(blank);
+      }
+
+      stations.forEach(function (station) {
+        var option = document.createElement('option');
         option.value = station.id;
         option.textContent = station.name;
-        option.selected = true;
-      }
-      stationField.appendChild(option);
+        if (stations.length === 1 || String(station.id) === previous) {
+          option.selected = true;
+        }
+        stationField.appendChild(option);
+      });
     }
 
     function refresh() {
@@ -62,10 +85,12 @@
         credentials: 'same-origin',
       })
         .then(function (response) {
-          return response.ok ? response.json() : { station: null };
+          return response.ok ? response.json() : { stations: [] };
         })
         .then(function (data) {
-          setOptions(data.station);
+          // `station` is the older single-sensor shape, still sent alongside
+          // the list; falling back to it keeps this working against either.
+          setOptions(data.stations || (data.station ? [data.station] : []));
         })
         .catch(function () {
           // Leaving the select as it stands is safer than emptying it: the

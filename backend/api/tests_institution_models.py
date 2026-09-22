@@ -136,20 +136,29 @@ class InstitutionContractModelTests(TestCase):
 
         self.assertGreater(contract.updated_at, first_updated_at)
 
-    def test_an_institution_cannot_have_two_contracts(self):
-        InstitutionContract.objects.create(
+    def test_an_institution_can_lease_several_sensors(self):
+        """One contract per sensor, so an institution may hold several.
+
+        The inverse of what this asserted while an institution was limited to
+        one sensor: the unique index on `institution_id` is gone, and each
+        contract carries its own term.
+        """
+        first = InstitutionContract.objects.create(
             institution=self.institution,
             station=self.station,
             start_date=date(2026, 1, 1),
         )
+        second = InstitutionContract.objects.create(
+            institution=self.institution,
+            station=self.other_station,
+            start_date=date(2026, 6, 1),
+        )
 
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                InstitutionContract.objects.create(
-                    institution=self.institution,
-                    station=self.other_station,
-                    start_date=date(2026, 1, 1),
-                )
+        self.assertEqual(self.institution.contracts.count(), 2)
+        self.assertCountEqual(
+            [first.station_id, second.station_id],
+            [self.station.id, self.other_station.id],
+        )
 
     def test_a_station_cannot_be_bound_to_two_contracts(self):
         InstitutionContract.objects.create(
