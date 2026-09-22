@@ -257,7 +257,11 @@ class MonthlyReportActionsTests(InstitutionAlertsTests):
         rl_config.pageCompression = 0
         try:
             pdf = build_monthly_report_pdf(
-                self.institution, self.institution.contract, stats, 100, actions
+                self.institution,
+                self.institution.contracts.first(),
+                stats,
+                100,
+                actions,
             )
         finally:
             rl_config.pageCompression = previous

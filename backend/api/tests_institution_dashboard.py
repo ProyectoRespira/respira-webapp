@@ -425,7 +425,14 @@ class InstitutionDashboardDataTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         body = response.json()
         self.assertEqual(
-            set(body.keys()), {"sensor", "air_quality", "history", "alert_config"}
+            set(body.keys()),
+            {
+                "sensor",
+                "available_sensors",
+                "air_quality",
+                "history",
+                "alert_config",
+            },
         )
         self.assertEqual(
             set(body["sensor"].keys()),
@@ -574,3 +581,175 @@ class InstitutionDashboardDataTests(APITestCase):
             {group["key"] for group in alert_config["sensitive_groups"]},
             {"children", "infants"},
         )
+
+
+class InstitutionMultiSensorDashboardTests(APITestCase):
+    """The dashboard for an institution leasing more than one sensor (RES-459).
+
+    Three shapes have to keep working, and they are what these tests are
+    organised around: an institution with no sensor, with exactly one, and with
+    several. The first two are the pre-existing experience and must be
+    unchanged; the third is the new one.
+    """
+
+    def setUp(self):
+        self.client = APIClient()
+        self.now = timezone.now()
+        region = Regions.seed_for_tests(name="Gran Asuncion", region_code="GA")
+
+        # Named so the expected selector order (by station name) differs from
+        # creation order — otherwise an unordered queryset would pass by luck.
+        self.institution = Institution.objects.create(legal_name="Hospital Bautista")
+        self.station_b = Stations.seed_for_tests(
+            name="Respira: Zeta", region=region, is_station_on=True
+        )
+        self.station_a = Stations.seed_for_tests(
+            name="Respira: Alfa", region=region, is_station_on=True
+        )
+        InstitutionContract.objects.create(
+            institution=self.institution,
+            station=self.station_b,
+            start_date=date(2026, 1, 1),
+        )
+        InstitutionContract.objects.create(
+            institution=self.institution,
+            station=self.station_a,
+            start_date=date(2026, 6, 1),
+        )
+        self.user = User.objects.create_user(
+            username="contact@hospitalbautista.org.py",
+            email="contact@hospitalbautista.org.py",
+            password="S3ed!Pass99",
+        )
+        InstitutionUser.objects.create(user=self.user, institution=self.institution)
+
+        # A second institution whose sensor the first must never reach.
+        self.other_institution = Institution.objects.create(legal_name="Colegio Uno")
+        self.foreign_station = Stations.seed_for_tests(
+            name="Respira: Centro", region=region, is_station_on=True
+        )
+        InstitutionContract.objects.create(
+            institution=self.other_institution,
+            station=self.foreign_station,
+            start_date=date(2026, 1, 1),
+        )
+
+        StationReadingsGold.seed_for_tests(
+            station=self.station_a, date_utc=self.now, aqi_pm2_5=30.0
+        )
+        StationReadingsGold.seed_for_tests(
+            station=self.station_b, date_utc=self.now, aqi_pm2_5=150.0
+        )
+        StationReadingsGold.seed_for_tests(
+            station=self.foreign_station, date_utc=self.now, aqi_pm2_5=90.0
+        )
+
+        self.dashboard_url = reverse("institution-dashboard")
+
+    # --- The selector's own contents ---------------------------------------
+
+    def test_available_sensors_lists_every_contracted_sensor_by_name(self):
+        self.client.force_authenticate(self.user)
+        body = self.client.get(self.dashboard_url).json()
+
+        self.assertEqual(
+            [sensor["name"] for sensor in body["available_sensors"]],
+            ["Respira: Alfa", "Respira: Zeta"],
+        )
+
+    def test_available_sensors_excludes_other_institutions_sensors(self):
+        self.client.force_authenticate(self.user)
+        body = self.client.get(self.dashboard_url).json()
+
+        self.assertNotIn(
+            self.foreign_station.id,
+            [sensor["id"] for sensor in body["available_sensors"]],
+        )
+
+    # --- Selecting one ------------------------------------------------------
+
+    def test_without_a_station_the_first_sensor_answers(self):
+        self.client.force_authenticate(self.user)
+        body = self.client.get(self.dashboard_url).json()
+
+        self.assertEqual(body["sensor"]["id"], self.station_a.id)
+
+    def test_selecting_a_sensor_changes_the_reported_air_quality(self):
+        self.client.force_authenticate(self.user)
+
+        first = self.client.get(self.dashboard_url, {"station": self.station_a.id})
+        second = self.client.get(self.dashboard_url, {"station": self.station_b.id})
+
+        self.assertEqual(first.json()["sensor"]["name"], "Respira: Alfa")
+        self.assertEqual(first.json()["air_quality"]["aqi"], 30.0)
+        self.assertEqual(second.json()["sensor"]["name"], "Respira: Zeta")
+        self.assertEqual(second.json()["air_quality"]["aqi"], 150.0)
+
+    def test_history_follows_the_selected_sensor(self):
+        self.client.force_authenticate(self.user)
+
+        body = self.client.get(
+            self.dashboard_url, {"station": self.station_b.id}
+        ).json()
+
+        self.assertTrue(body["history"])
+        self.assertEqual({point["aqi"] for point in body["history"]}, {150.0})
+
+    # --- The authorization boundary ----------------------------------------
+
+    def test_another_institutions_station_is_a_404(self):
+        """A forged id is refused, not honoured — the DoD's central claim."""
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(
+            self.dashboard_url, {"station": self.foreign_station.id}
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_an_unknown_station_id_is_a_404(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.dashboard_url, {"station": 99999})
+        self.assertEqual(response.status_code, 404)
+
+    def test_a_malformed_station_id_is_a_404_not_a_500(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.dashboard_url, {"station": "not-a-number"})
+        self.assertEqual(response.status_code, 404)
+
+    # --- The shapes that must not regress ----------------------------------
+
+    def test_a_single_sensor_institution_needs_no_selection(self):
+        solo = Institution.objects.create(legal_name="Colegio Solo")
+        region = Regions.objects.first()
+        station = Stations.seed_for_tests(
+            name="Respira: Solo", region=region, is_station_on=True
+        )
+        InstitutionContract.objects.create(
+            institution=solo, station=station, start_date=date(2026, 1, 1)
+        )
+        user = User.objects.create_user(
+            username="solo@colegio.edu.py",
+            email="solo@colegio.edu.py",
+            password="S3ed!Pass99",
+        )
+        InstitutionUser.objects.create(user=user, institution=solo)
+
+        self.client.force_authenticate(user)
+        body = self.client.get(self.dashboard_url).json()
+
+        self.assertEqual(body["sensor"]["id"], station.id)
+        self.assertEqual(len(body["available_sensors"]), 1)
+
+    def test_an_institution_with_no_sensor_still_gets_404(self):
+        contractless = Institution.objects.create(legal_name="Colegio Nuevo")
+        user = User.objects.create_user(
+            username="nuevo@colegio.edu.py",
+            email="nuevo@colegio.edu.py",
+            password="S3ed!Pass99",
+        )
+        InstitutionUser.objects.create(user=user, institution=contractless)
+
+        self.client.force_authenticate(user)
+
+        self.assertEqual(self.client.get(self.dashboard_url).status_code, 404)

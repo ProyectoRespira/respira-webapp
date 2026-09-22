@@ -641,3 +641,116 @@ class InstitutionAlertAdminTests(ActionLogTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(list(response.context["cl"].queryset), [self.alert])
+
+
+class ActionLogMultiSensorTests(APITestCase):
+    """The action history of an institution leasing several sensors (RES-459).
+
+    The panel shows one sensor at a time, so the history it shows has to be
+    that sensor's. Without the `station` filter the two sensors' actions come
+    back merged, which reads as if things were done to the sensor on screen
+    that were in fact done to another.
+    """
+
+    def setUp(self):
+        self.client = APIClient()
+        self.url = reverse("action-logs-list")
+        region = Regions.seed_for_tests(name="Gran Asuncion", region_code="GA")
+
+        self.institution = Institution.objects.create(legal_name="Colegio Dos")
+        self.station_a = Stations.seed_for_tests(
+            name="Respira: Alfa", region=region, is_station_on=True
+        )
+        self.station_b = Stations.seed_for_tests(
+            name="Respira: Zeta", region=region, is_station_on=True
+        )
+        for station in (self.station_a, self.station_b):
+            InstitutionContract.objects.create(
+                institution=self.institution,
+                station=station,
+                start_date=date(2026, 1, 1),
+            )
+
+        self.user = User.objects.create_user(
+            username="dos@colegio.edu.py",
+            email="dos@colegio.edu.py",
+            password="S3ed!Pass99",
+        )
+        InstitutionUser.objects.create(user=self.user, institution=self.institution)
+
+        ActionLog.objects.create(
+            institution=self.institution, station=self.station_a, note="Cerramos Alfa"
+        )
+        ActionLog.objects.create(
+            institution=self.institution, station=self.station_b, note="Cerramos Zeta"
+        )
+
+        # A separate institution, whose history must stay out of reach.
+        self.other_institution = Institution.objects.create(legal_name="Colegio Otro")
+        self.foreign_station = Stations.seed_for_tests(
+            name="Respira: Centro", region=region, is_station_on=True
+        )
+        InstitutionContract.objects.create(
+            institution=self.other_institution,
+            station=self.foreign_station,
+            start_date=date(2026, 1, 1),
+        )
+        ActionLog.objects.create(
+            institution=self.other_institution,
+            station=self.foreign_station,
+            note="Ajeno",
+        )
+
+    def _notes(self, response):
+        body = response.json()
+        results = body["results"] if isinstance(body, dict) else body
+        return [item["note"] for item in results]
+
+    def test_without_a_station_every_sensors_actions_are_listed(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertCountEqual(
+            self._notes(response), ["Cerramos Alfa", "Cerramos Zeta"]
+        )
+
+    def test_selecting_a_sensor_limits_the_history_to_it(self):
+        self.client.force_authenticate(self.user)
+
+        first = self.client.get(self.url, {"station": self.station_a.id})
+        second = self.client.get(self.url, {"station": self.station_b.id})
+
+        self.assertEqual(self._notes(first), ["Cerramos Alfa"])
+        self.assertEqual(self._notes(second), ["Cerramos Zeta"])
+
+    def test_another_institutions_station_matches_nothing(self):
+        """Never the unfiltered list: a forged id must not be rewarded."""
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(self.url, {"station": self.foreign_station.id})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self._notes(response), [])
+
+    def test_an_action_can_be_recorded_against_either_sensor(self):
+        self.client.force_authenticate(self.user)
+
+        for station in (self.station_a, self.station_b):
+            response = self.client.post(
+                self.url, {"station": station.id, "note": "Nueva acción"}, format="json"
+            )
+            self.assertEqual(response.status_code, 201, response.content)
+            self.assertEqual(response.json()["station"], station.id)
+
+    def test_an_action_cannot_be_recorded_against_another_institutions_sensor(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.post(
+            self.url,
+            {"station": self.foreign_station.id, "note": "No debería entrar"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("station", response.json())

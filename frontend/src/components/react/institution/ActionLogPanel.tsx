@@ -57,7 +57,12 @@ export function ActionLogPanel({
   stationName,
   lang,
 }: {
-  /** The institution's own station; the form has nothing to choose between. */
+  /**
+   * The sensor this panel is about: the one the form records against, and the
+   * one the history is limited to. With several sensors under contract it is
+   * whichever the selector has chosen, so the actions listed here are that
+   * sensor's rather than every sensor's merged together.
+   */
   stationId: number | null;
   stationName: string;
   lang: Lang;
@@ -74,7 +79,9 @@ export function ActionLogPanel({
   const load = useCallback(async () => {
     setList({ status: "loading" });
     try {
-      const page = await fetchActionLogs(1);
+      // Reloaded from page one whenever the sensor changes: paging on into a
+      // list built for another sensor would interleave the two histories.
+      const page = await fetchActionLogs(1, undefined, stationId);
       setList({
         status: "ready",
         items: page.results,
@@ -84,25 +91,28 @@ export function ActionLogPanel({
     } catch (error) {
       setList(stateForError(error));
     }
-  }, []);
+  }, [stationId]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   useEffect(() => {
-    fetchInstitutionAlerts()
+    // Asked for by sensor rather than filtered client-side: with several
+    // sensors the unfiltered first page could be filled by another sensor's
+    // alerts, leaving this one's selector empty though it has events.
+    fetchInstitutionAlerts(undefined, stationId)
       .then(setAlerts)
       .catch((error) => {
         console.error("Could not load the institution's alerts", error);
       });
-  }, []);
+  }, [stationId]);
 
   const loadMore = async () => {
     if (list.status !== "ready" || loadingMore) return;
     setLoadingMore(true);
     try {
-      const next = await fetchActionLogs(list.page + 1);
+      const next = await fetchActionLogs(list.page + 1, undefined, stationId);
       setList({
         status: "ready",
         items: [...list.items, ...next.results],

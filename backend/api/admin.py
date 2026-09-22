@@ -395,15 +395,50 @@ class InstitutionUserInline(admin.TabularInline):
     verbose_name_plural = "Dashboard users"
 
 
+class InstitutionContractInline(admin.TabularInline):
+    """The sensors this institution leases, one row per contract.
+
+    Here as well as on its own changelist: adding a second sensor to a client
+    is a thing an operator does *while looking at that client*, and an inline
+    is what makes "which sensors does this institution have" answerable at a
+    glance. Duplicates need no validation here — ``station`` is OneToOne, so
+    attaching a sensor already under contract is refused by the unique index
+    with a field error on the row that caused it.
+    """
+
+    model = InstitutionContract
+    extra = 0
+    autocomplete_fields = ("station",)
+    fields = ("station", "contract_status", "start_date", "end_date", "monthly_fee")
+    verbose_name = "Contracted sensor"
+    verbose_name_plural = "Contracted sensors"
+    show_change_link = True
+
+
 @admin.register(Institution)
 class InstitutionAdmin(RoleBasedModelAdmin):
     """Client organizations in the Sensor Leasing program."""
 
-    list_display = ("legal_name", "display_name", "institution_type", "city")
+    list_display = (
+        "legal_name",
+        "display_name",
+        "institution_type",
+        "city",
+        "sensor_count",
+    )
     list_filter = ("institution_type", "city")
     search_fields = ("legal_name", "display_name", "contact_name", "contact_email")
     ordering = ("legal_name",)
-    inlines = (InstitutionUserInline,)
+    inlines = (InstitutionContractInline, InstitutionUserInline)
+
+    def get_queryset(self, request):
+        # Annotated so `sensor_count` costs one query for the whole changelist
+        # rather than one per row.
+        return super().get_queryset(request).annotate(_sensor_count=Count("contracts"))
+
+    @admin.display(description="Sensors", ordering="_sensor_count")
+    def sensor_count(self, obj):
+        return obj._sensor_count
     fieldsets = (
         (None, {"fields": ("legal_name", "display_name", "institution_type")}),
         (
@@ -428,9 +463,15 @@ class SensitiveGroupAdmin(RoleBasedModelAdmin):
 class InstitutionContractAdmin(RoleBasedModelAdmin):
     """Leasing contracts binding an Institution to a station.
 
-    ``institution`` and ``station`` are each OneToOne, so the admin's own
-    unique index (not custom validation) is what prevents an institution or a
-    station from being attached to more than one contract.
+    One row per leased sensor, so an institution appears as many times as it
+    has sensors. ``station`` is still OneToOne, so the model's own unique index
+    (not custom validation) is what prevents the same sensor from being
+    attached to two contracts — which is also what keeps one institution's
+    readings out of another's dashboard.
+
+    Also reachable as an inline on the Institution page, which is where adding
+    a sensor to an existing client naturally happens; this changelist is the
+    contract-first view of the same rows.
     """
 
     list_display = (
@@ -738,29 +779,37 @@ class InstitutionAlertRuleAdmin(RoleBasedModelAdmin):
         ]
 
     def contracted_station_view(self, request):
-        """The station under contract to one institution, as JSON.
+        """The stations under contract to one institution, as JSON.
 
         Wrapped in ``admin_view`` so it is behind the admin login like every
         other page here, and gated on the same permission as the form it
-        serves: this reports which sensor an institution leases, which is not
+        serves: this reports which sensors an institution leases, which is not
         public information.
+
+        Answers with a ``stations`` list — an institution may lease several.
+        ``station`` is still sent alongside it, holding the first one, so the
+        response keeps working for anything written against the single-sensor
+        shape.
         """
         if not (
             self.has_add_permission(request) or self.has_change_permission(request)
         ):
             return JsonResponse({"detail": "Not permitted."}, status=403)
 
-        contract = (
+        contracts = (
             InstitutionContract.objects.filter(
                 institution_id=request.GET.get("institution") or 0
             )
             .select_related("station")
-            .first()
+            .order_by("station__name", "pk")
         )
-        if contract is None or contract.station is None:
-            return JsonResponse({"station": None})
+        stations = [
+            {"id": contract.station_id, "name": contract.station.name}
+            for contract in contracts
+            if contract.station is not None
+        ]
         return JsonResponse(
-            {"station": {"id": contract.station_id, "name": contract.station.name}}
+            {"stations": stations, "station": stations[0] if stations else None}
         )
 
     @admin.display(description="State", ordering="state__is_firing")

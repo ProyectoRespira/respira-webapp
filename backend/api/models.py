@@ -178,12 +178,19 @@ class Institution(models.Model):
 class InstitutionContract(models.Model):
     """The leasing contract binding an :class:`Institution` to a station.
 
-    ``institution`` is OneToOne so an institution has at most one contract.
-    ``station`` mirrors :class:`StationDetails`: a plain ``OneToOneField`` with
-    ``db_constraint=False``, since dbt drops and recreates ``stations`` on
-    every gold run and a physical FOREIGN KEY would not survive that. The
-    relationship (and its unique index) is enforced at the Django level, which
-    is what guarantees a station is bound to at most one contract.
+    One row per leased sensor: ``institution`` is a plain FK, so an institution
+    holds as many contracts as it has sensors, while ``station`` stays
+    OneToOne, which is what guarantees a station is bound to at most one
+    contract — and therefore that no two institutions can ever reach the same
+    sensor's data. The per-sensor fields below (``start_date``,
+    ``monthly_fee``, ``signed_contract_url``) are why this is modelled as N
+    contracts rather than one contract listing N stations: each sensor is
+    leased on its own terms and its own date.
+
+    ``station`` mirrors :class:`StationDetails`: ``db_constraint=False``, since
+    dbt drops and recreates ``stations`` on every gold run and a physical
+    FOREIGN KEY would not survive that. The relationship (and its unique index)
+    is enforced at the Django level.
     """
 
     class ContractStatus(models.TextChoices):
@@ -192,8 +199,8 @@ class InstitutionContract(models.Model):
         EXPIRED = "expired", "Expired"
         CANCELLED = "cancelled", "Cancelled"
 
-    institution = models.OneToOneField(
-        "Institution", on_delete=models.CASCADE, related_name="contract"
+    institution = models.ForeignKey(
+        "Institution", on_delete=models.CASCADE, related_name="contracts"
     )
     station = models.OneToOneField(
         "Stations",
@@ -260,19 +267,62 @@ def get_institution_for_user(user) -> "Institution | None":
     return link.institution if link else None
 
 
+def get_institution_contracts(institution):
+    """An institution's contracts, one per leased sensor, by station name.
+
+    Ordered by station name rather than by signing date: this drives the
+    dashboard's sensor selector, where an operator looks for a sensor by name
+    and not by when it happened to be contracted.
+    """
+    if institution is None:
+        return InstitutionContract.objects.none()
+    return (
+        InstitutionContract.objects.filter(institution=institution)
+        .select_related("station")
+        .order_by("station__name", "pk")
+    )
+
+
 def get_institution_station_ids(institution) -> set[int]:
     """Station ids an institution is entitled to act on.
 
-    Today that is the single station bound by its :class:`InstitutionContract`
-    — an institution leases at most one sensor. Centralized here (like
-    :func:`get_institution_for_user`) so every institutional endpoint resolves
-    "which stations are mine" identically, and so widening the rule later
-    (several contracts per institution) is a one-place change.
+    The single authority on "which sensors are mine": every institutional
+    endpoint answers that question here rather than querying contracts itself,
+    so a caller-supplied station id is always checked against the same set.
     """
     if institution is None:
         return set()
-    contract = getattr(institution, "contract", None)
-    return {contract.station_id} if contract is not None else set()
+    return set(
+        InstitutionContract.objects.filter(institution=institution).values_list(
+            "station_id", flat=True
+        )
+    )
+
+
+def resolve_institution_station(institution, requested_id=None):
+    """The station an institutional request is about, or ``None``.
+
+    The one place a caller-supplied station id is allowed to influence what
+    gets read, and it is a *filter*, never a lookup: the id is matched against
+    the institution's own contracts, so a forged or borrowed id resolves to
+    nothing instead of reaching another institution's sensor.
+
+    With no id — the single-sensor case, and any first load — the first
+    contracted station stands in, which is what lets a one-sensor institution
+    use the dashboard without ever choosing anything.
+    """
+    contracts = get_institution_contracts(institution)
+
+    if requested_id is not None:
+        try:
+            requested_id = int(requested_id)
+        except (TypeError, ValueError):
+            return None
+        contract = contracts.filter(station_id=requested_id).first()
+        return contract.station if contract is not None else None
+
+    contract = contracts.first()
+    return contract.station if contract is not None else None
 
 
 class SensitiveGroup(models.Model):

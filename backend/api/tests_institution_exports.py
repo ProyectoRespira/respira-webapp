@@ -653,3 +653,97 @@ class RawExportTests(InstitutionExportTestCase):
             "export_Respira:_Villa_Morra_2026-07-01_2026-07-03.csv",
             response["Content-Disposition"],
         )
+
+
+class MultiSensorDownloadTests(InstitutionExportTestCase):
+    """Downloads for an institution leasing several sensors (RES-459).
+
+    Two things have to hold: a download covers the *selected* sensor, and the
+    file it produces is distinguishable from the other sensor's — the reports
+    are otherwise saved side by side as "… .pdf" and "… (1).pdf", with nothing
+    naming which sensor each one covers.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # A second sensor for the same institution, with its own readings.
+        self.second_contract = InstitutionContract.objects.create(
+            institution=self.institution,
+            station=self.other_station,
+            contract_status=InstitutionContract.ContractStatus.ACTIVE,
+            start_date=date(2026, 6, 1),
+        )
+        for day in self.july_days:
+            StationReadingsGold.seed_for_tests(
+                station=self.other_station,
+                date_utc=datetime.combine(
+                    day, time(12), tzinfo=dt_timezone.utc
+                ),
+                aqi_pm2_5=20.0,
+            )
+        self.report_url = reverse("institution-monthly-report")
+
+    def test_each_sensor_gets_its_own_report_filename(self):
+        self.client.force_authenticate(self.user)
+
+        first = self.client.get(
+            self.report_url, {"month": "2026-07", "station": self.station.id}
+        )
+        second = self.client.get(
+            self.report_url, {"month": "2026-07", "station": self.other_station.id}
+        )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertNotEqual(
+            first["Content-Disposition"], second["Content-Disposition"]
+        )
+        self.assertIn("villa-morra", first["Content-Disposition"])
+        self.assertIn("sajonia", second["Content-Disposition"])
+
+    def test_report_content_differs_per_sensor(self):
+        """Not just the name: the two sensors recorded different readings."""
+        self.client.force_authenticate(self.user)
+
+        first = self.client.get(
+            self.report_url, {"month": "2026-07", "station": self.station.id}
+        )
+        second = self.client.get(
+            self.report_url, {"month": "2026-07", "station": self.other_station.id}
+        )
+
+        self.assertNotEqual(first.content, second.content)
+
+    def test_a_report_cannot_be_downloaded_for_another_institutions_sensor(self):
+        foreign_institution = Institution.objects.create(legal_name="Colegio Ajeno")
+        foreign_station = Stations.seed_for_tests(
+            name="Respira: Ajeno",
+            station_code="respira_199999",
+            region=self.station.region,
+            is_station_on=True,
+        )
+        InstitutionContract.objects.create(
+            institution=foreign_institution,
+            station=foreign_station,
+            start_date=date(2026, 6, 1),
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get(
+            self.report_url, {"month": "2026-07", "station": foreign_station.id}
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_a_single_sensor_institution_keeps_its_plain_filename(self):
+        """The name only grows a sensor segment when there is a choice to make."""
+        self.second_contract.delete()
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.report_url, {"month": "2026-07"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            "reporte-mensual-hospital-bautista-2026-07.pdf",
+            response["Content-Disposition"],
+        )
