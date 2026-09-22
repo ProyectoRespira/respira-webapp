@@ -676,9 +676,7 @@ class MultiSensorDownloadTests(InstitutionExportTestCase):
         for day in self.july_days:
             StationReadingsGold.seed_for_tests(
                 station=self.other_station,
-                date_utc=datetime.combine(
-                    day, time(12), tzinfo=dt_timezone.utc
-                ),
+                date_utc=datetime.combine(day, time(12), tzinfo=dt_timezone.utc),
                 aqi_pm2_5=20.0,
             )
         self.report_url = reverse("institution-monthly-report")
@@ -695,9 +693,7 @@ class MultiSensorDownloadTests(InstitutionExportTestCase):
 
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 200)
-        self.assertNotEqual(
-            first["Content-Disposition"], second["Content-Disposition"]
-        )
+        self.assertNotEqual(first["Content-Disposition"], second["Content-Disposition"])
         self.assertIn("villa-morra", first["Content-Disposition"])
         self.assertIn("sajonia", second["Content-Disposition"])
 

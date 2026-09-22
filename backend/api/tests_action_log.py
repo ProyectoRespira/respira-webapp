@@ -711,9 +711,7 @@ class ActionLogMultiSensorTests(APITestCase):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, 200)
-        self.assertCountEqual(
-            self._notes(response), ["Cerramos Alfa", "Cerramos Zeta"]
-        )
+        self.assertCountEqual(self._notes(response), ["Cerramos Alfa", "Cerramos Zeta"])
 
     def test_selecting_a_sensor_limits_the_history_to_it(self):
         self.client.force_authenticate(self.user)

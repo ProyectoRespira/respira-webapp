@@ -17,15 +17,18 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('api', '0027_push_notification_window'),
+        ("api", "0027_push_notification_window"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='institutioncontract',
-            name='institution',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='contracts', to='api.institution'),
+            model_name="institutioncontract",
+            name="institution",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="contracts",
+                to="api.institution",
+            ),
         ),
     ]

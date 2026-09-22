@@ -430,15 +430,6 @@ class InstitutionAdmin(RoleBasedModelAdmin):
     search_fields = ("legal_name", "display_name", "contact_name", "contact_email")
     ordering = ("legal_name",)
     inlines = (InstitutionContractInline, InstitutionUserInline)
-
-    def get_queryset(self, request):
-        # Annotated so `sensor_count` costs one query for the whole changelist
-        # rather than one per row.
-        return super().get_queryset(request).annotate(_sensor_count=Count("contracts"))
-
-    @admin.display(description="Sensors", ordering="_sensor_count")
-    def sensor_count(self, obj):
-        return obj._sensor_count
     fieldsets = (
         (None, {"fields": ("legal_name", "display_name", "institution_type")}),
         (
@@ -448,6 +439,15 @@ class InstitutionAdmin(RoleBasedModelAdmin):
         ("Location", {"fields": ("address", "city")}),
         ("Notes", {"fields": ("notes",)}),
     )
+
+    def get_queryset(self, request):
+        # Annotated so `sensor_count` costs one query for the whole changelist
+        # rather than one per row.
+        return super().get_queryset(request).annotate(_sensor_count=Count("contracts"))
+
+    @admin.display(description="Sensors", ordering="_sensor_count")
+    def sensor_count(self, obj):
+        return obj._sensor_count
 
 
 @admin.register(SensitiveGroup)
