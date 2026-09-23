@@ -128,6 +128,12 @@ REST_FRAMEWORK = {
         "password_reset_confirm": _env_str(
             "BACKEND_PASSWORD_RESET_CONFIRM_THROTTLE", "30/hour"
         ),
+        # The public historical export (api.public_exports). Unauthenticated by
+        # design, so this is what stops the endpoint being scripted in a loop:
+        # each request walks a range of upstream calls, and the data is free
+        # but not free to serve. Generous enough that a citizen comparing a few
+        # periods, or a classroom on one connection, never notices it.
+        "public_export": _env_str("BACKEND_PUBLIC_EXPORT_THROTTLE", "10/hour"),
     },
 }
 

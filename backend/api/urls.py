@@ -8,6 +8,7 @@ from .exports import (
     InstitutionRawExportView,
     InstitutionReportMonthsView,
 )
+from .public_exports import PublicStationExportView
 from .views import (
     ActionLogViewSet,
     AdminUserViewSet,
@@ -50,6 +51,14 @@ urlpatterns = [
     ),
     path(r"map/nearest-region/", NearestRegionView.as_view(), name="nearest-region"),
     path(r"stations/nearest/", NearestStationView.as_view(), name="nearest-station"),
+    # Ahead of the router for the same reason as the institution routes below:
+    # the stations router maps `stations/<pk>/` and would otherwise treat this
+    # path's own segments as a lookup.
+    path(
+        r"stations/<int:station_id>/export/",
+        PublicStationExportView.as_view(),
+        name="public-station-export",
+    ),
     # Ahead of the router on purpose: it maps `institution/<pk>/` with a
     # permissive pk pattern, so registered after these it would swallow
     # `institution/export/` as a lookup for an institution called "export".
