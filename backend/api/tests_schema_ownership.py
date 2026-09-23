@@ -19,12 +19,13 @@ from django.apps import apps
 from django.db import connection, transaction
 from django.test import TestCase, TransactionTestCase
 
-from .gold import GoldTableWriteError, ReadOnlyGoldModel
+from .gold import WRITABLE_GOLD_TABLES, GoldTableWriteError, ReadOnlyGoldModel
 from .models import (
     InferenceResults,
     InferenceRuns,
     RegionReadings,
     Regions,
+    StationOverride,
     StationReadingsGold,
     Stations,
 )
@@ -43,9 +44,15 @@ def _owned_tables_by_schema():
     """(django_admin tables, respira_gold tables), from every installed model.
 
     Ownership here is *not* read from search_path — it is derived the same
-    way settings.py's migrations move tables: gold models are the ones
-    mixing in ReadOnlyGoldModel, everything else managed by this project's
-    apps is django_admin.
+    way 0019 moves tables: a table belongs to respira_gold when the pipeline
+    provisions it, which is usually signalled by the model mixing in
+    ReadOnlyGoldModel, and otherwise by being listed in WRITABLE_GOLD_TABLES.
+
+    Those two are not the same question. Read-only-ness is about who writes
+    the *rows*; schema ownership is about who owns the *DDL*. They coincide
+    for every pipeline-produced table, and come apart for station_overrides,
+    which respira-data provisions but the backoffice alone writes (see
+    api/gold.py).
     """
     django_admin_tables = set()
     respira_gold_tables = set()
@@ -53,10 +60,11 @@ def _owned_tables_by_schema():
         if app_config.name not in {"api", "accounts"}:
             continue
         for model in app_config.get_models():
-            if issubclass(model, ReadOnlyGoldModel):
-                respira_gold_tables.add(model._meta.db_table)
+            table = model._meta.db_table
+            if issubclass(model, ReadOnlyGoldModel) or table in WRITABLE_GOLD_TABLES:
+                respira_gold_tables.add(table)
             else:
-                django_admin_tables.add(model._meta.db_table)
+                django_admin_tables.add(table)
     return django_admin_tables, respira_gold_tables
 
 
@@ -87,6 +95,49 @@ class SchemaOwnershipContractTests(TestCase):
         for model in GOLD_MODELS:
             with self.subTest(model=model.__name__):
                 self.assertTrue(issubclass(model, ReadOnlyGoldModel))
+
+    def test_station_overrides_is_gold_but_writable(self):
+        # The one table where DDL ownership and row ownership come apart:
+        # respira-data provisions it, the backoffice writes it. If it ever
+        # became read-only the admin's activate/deactivate workflow would
+        # break; if it left WRITABLE_GOLD_TABLES, 0019 would stop moving it to
+        # respira_gold and dbt's `respira_webapp` source would not find it.
+        self.assertIn(StationOverride._meta.db_table, WRITABLE_GOLD_TABLES)
+        self.assertFalse(issubclass(StationOverride, ReadOnlyGoldModel))
+
+        _, respira_gold_tables = _owned_tables_by_schema()
+        self.assertIn(StationOverride._meta.db_table, respira_gold_tables)
+
+    def test_station_overrides_accepts_backend_writes(self):
+        override = StationOverride.objects.create(
+            station_code="test_station",
+            field=StationOverride.STATUS_FIELD,
+            value=StationOverride.Status.INACTIVE,
+            note="Written by the backoffice, not the pipeline.",
+        )
+        override.value = StationOverride.Status.ACTIVE
+        override.save()
+        self.assertEqual(
+            StationOverride.objects.get(pk=override.pk).value,
+            StationOverride.Status.ACTIVE,
+        )
+        override.delete()
+
+    @requires_postgres
+    def test_writable_gold_tables_live_in_respira_gold(self):
+        with connection.cursor() as cursor:
+            for table_name in WRITABLE_GOLD_TABLES:
+                cursor.execute(
+                    """
+                    SELECT table_schema FROM information_schema.tables
+                    WHERE table_name = %s
+                      AND table_schema NOT IN ('pg_catalog', 'information_schema')
+                    """,
+                    [table_name],
+                )
+                schemas = {row[0] for row in cursor.fetchall()}
+                with self.subTest(table=table_name):
+                    self.assertEqual(schemas, {"respira_gold"})
 
     @requires_postgres
     def test_gold_tables_actually_live_in_respira_gold(self):

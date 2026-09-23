@@ -18,13 +18,24 @@ that safe by actually moving every table into the schema search_path always
 checks for it:
 
 * ``django_admin``: every Django-owned model (auth, admin, accounts, and the
-  operational models in api/models.py — institutions, station overrides,
-  device followers, sensor alerts, FAQs, ...).
-* ``respira_gold``: every model backed by a data-pipeline table — dbt SQL for
+  operational models in api/models.py — institutions, device followers,
+  sensor alerts, FAQs, ...).
+* ``respira_gold``: every model backed by a table the data pipeline
+  provisions — dbt SQL for
   ``regions``/``stations``/``station_readings_gold``/``region_readings_gold``,
   the Prefect inference flow for ``inference_runs``/``inference_results``.
-  These are additionally marked ``ReadOnlyGoldModel`` (api/gold.py), which
+  Most are additionally marked ``ReadOnlyGoldModel`` (api/gold.py), which
   blocks writes to them from the backend ORM regardless of search_path.
+
+  ``station_overrides`` is the exception: respira-data provisions it (its
+  warehouse_bootstrap flow creates it as ``dbtuser``, because the pipeline
+  reads it through the ``respira_webapp`` dbt source and must be able to
+  establish its own runtime dependencies), but the Django backoffice is its
+  sole writer, so it is *not* read-only. DDL ownership and row ownership sit
+  on opposite sides for that one table — see ``WRITABLE_GOLD_TABLES`` in
+  api/gold.py. Moving it here is also what keeps dbt able to find it: the
+  source resolves to ``respira_gold``, so leaving it in ``django_admin``
+  would break the pipeline.
 
 Because no ``django_admin`` table shares a name with a ``respira_gold``
 table (see the regression test in api/tests_schema_ownership.py, which fails
@@ -82,7 +93,6 @@ DJANGO_ADMIN_TABLES = [
     "sensor_alert",
     "sensor_alert_state",
     "station_details",
-    "station_overrides",
     "user_profile",
 ]
 
@@ -91,6 +101,9 @@ RESPIRA_GOLD_TABLES = [
     "inference_runs",
     "region_readings_gold",
     "regions",
+    # Provisioned by respira-data, written by this backend — the one table
+    # here that is not read-only. See api/gold.py WRITABLE_GOLD_TABLES.
+    "station_overrides",
     "station_readings_gold",
     "stations",
 ]
