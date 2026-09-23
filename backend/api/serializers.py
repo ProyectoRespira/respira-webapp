@@ -8,6 +8,7 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
+from .airgradient import AirGradientError, location_id_for_station
 from .models import (
     ActionLog,
     DeviceFollower,
@@ -50,6 +51,7 @@ class StationSerializer(serializers.ModelSerializer):
     region = RegionSerializer(allow_null=True)
     coordinates = serializers.SerializerMethodField()
     aqi_pm2_5 = serializers.SerializerMethodField()
+    supports_public_export = serializers.SerializerMethodField()
 
     class Meta:
         model = Stations
@@ -61,6 +63,7 @@ class StationSerializer(serializers.ModelSerializer):
             "is_station_on",
             "is_pattern_station",
             "aqi_pm2_5",
+            "supports_public_export",
         ]
 
     @extend_schema_field(
@@ -81,6 +84,26 @@ class StationSerializer(serializers.ModelSerializer):
             .first()
         )
         return last_reading.aqi_pm2_5 if last_reading else None
+
+    @extend_schema_field(OpenApiTypes.BOOL)
+    def get_supports_public_export(self, obj) -> bool:
+        """Whether this sensor's history can be downloaded from its public page.
+
+        True for the sensors Respira operates, which are the only ones whose
+        raw measurements we can serve; stations from the other networks reach
+        gold through the pipeline but have no raw history behind them.
+
+        Deliberately named for what the visitor gets rather than for how it is
+        decided: the public API says a sensor offers a download, not which
+        provider stands behind it. The export endpoint makes the same check for
+        itself, so this only spares the page from offering a button that would
+        404 — it is not what enforces eligibility.
+        """
+        try:
+            location_id_for_station(obj)
+        except AirGradientError:
+            return False
+        return True
 
 
 class HealthSerializer(serializers.Serializer):

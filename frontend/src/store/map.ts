@@ -16,6 +16,15 @@ export type STATION = {
   region: {
     name: string;
   };
+  /**
+   * Whether this sensor's history can be downloaded from its public page
+   * (RES-439) — true for the sensors Respira operates.
+   *
+   * Optional so a frontend deployed ahead of the backend still type-checks;
+   * the export section treats a missing value as "no", since offering a
+   * download that 404s is worse than not offering one.
+   */
+  supports_public_export?: boolean;
 };
 
 export type STATION_FORECAST = {

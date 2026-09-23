@@ -11,6 +11,7 @@ import PlaceHolderMap from "../../components/react/PlaceholderMap";
 import BackTop from "../../components/atoms/BackTop.astro";
 import { CharacteristicsStation } from "../../components/react/statistics/Characteristics";
 import { HeaderStatistics } from "../../components/react/statistics/Header";
+import { HistoryExport } from "../../components/react/statistics/HistoryExport";
 import { getLangFromLocals, useTranslations } from "../../i18n/utils";
 
 const t = useTranslations(getLangFromLocals(Astro.locals));
@@ -33,6 +34,15 @@ statisticsStationId.set(stationId);
       </div>
       <CharacteristicsStation client:only="react" />
     </div>
+  </section>
+  {
+    /* Ahead of the statistics on purpose: someone who came for the data itself
+      should not have to scroll past every chart to find the download. The
+      island renders nothing for a sensor with no public export, so the page
+      closes up around it rather than leaving a gap. */
+  }
+  <section class="flex flex-col md:px-20 px-8 pt-12">
+    <HistoryExport client:only="react" />
   </section>
   <section class="flex flex-col md:px-20 px-8 pt-12">
     <Typography variant="h2">{t("stats.title")}</Typography>

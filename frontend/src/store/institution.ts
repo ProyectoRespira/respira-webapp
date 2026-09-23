@@ -23,6 +23,7 @@ import {
   type InstitutionNotification,
   type Paginated,
 } from "../data/institution";
+import { saveResponseAsFile } from "../utils/download";
 import { getBackendUrl } from "./runtime-config";
 
 export type InstitutionApiErrorCode =
@@ -464,39 +465,7 @@ export const downloadInstitutionFile = async (
     response.headers.get("X-Respira-Partial-Export") ?? 0,
   );
 
-  const blob = await response.blob();
-  const filename = filenameFromResponse(response, kind);
-
-  // `msSaveOrOpenBlob` is the only path that works in embedded WebViews which
-  // block navigation to blob: URLs (VS Code's Simple Browser among them); the
-  // anchor click below silently does nothing there.
-  const legacySave = (
-    navigator as Navigator & {
-      msSaveOrOpenBlob?: (blob: Blob, filename: string) => boolean;
-    }
-  ).msSaveOrOpenBlob;
-  if (typeof legacySave === "function") {
-    legacySave.call(navigator, blob, filename);
-    return {
-      missingRanges: Number.isFinite(missingRanges) ? missingRanges : 0,
-    };
-  }
-
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  // `rel=noopener` matters for the fallback below, where a blocked download can
-  // fall back to opening the blob in a tab.
-  link.rel = "noopener";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  // Revoking in the same tick can invalidate the URL before the browser has
-  // started reading it — the download then fails silently, with no error to
-  // catch. One minute is far longer than any handoff needs and still bounds the
-  // memory the blob holds.
-  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  await saveResponseAsFile(response, FALLBACK_FILENAME[kind]);
 
   return { missingRanges: Number.isFinite(missingRanges) ? missingRanges : 0 };
 };
@@ -504,24 +473,4 @@ export const downloadInstitutionFile = async (
 const FALLBACK_FILENAME: Record<DownloadKind, string> = {
   monthlyReport: "reporte-mensual.pdf",
   rawExport: "historial-mediciones.xlsx",
-};
-
-const filenameFromResponse = (
-  response: Response,
-  kind: DownloadKind,
-): string => {
-  const disposition = response.headers.get("Content-Disposition") ?? "";
-  // Prefer RFC 5987 (`filename*=UTF-8''…`) when present; fall back to the plain
-  // `filename="…"` form, and to a sensible default when the header is absent.
-  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i);
-  if (encoded) {
-    try {
-      return decodeURIComponent(encoded[1]);
-    } catch {
-      // Malformed percent-encoding: fall through to the plain form.
-    }
-  }
-  const plain = disposition.match(/filename="?([^";]+)"?/i);
-  if (plain) return plain[1];
-  return FALLBACK_FILENAME[kind];
 };

@@ -304,6 +304,39 @@ const es = {
   "stats.boxplot.mean": "Media",
   "stats.boxplot.quantiles": "Cuantiles",
 
+  // Public historical export (RES-439)
+  "stats.export.title": "Descargar datos históricos",
+  "stats.export.subtitle":
+    "Elegí un período y descargá las mediciones de este sensor. No hace falta crear una cuenta.",
+  "stats.export.help":
+    "El archivo incluye una fila por medición, con la fecha y hora en horario de Paraguay y en UTC, y los valores de PM1, PM2.5, PM10, CO2, temperatura, humedad e índices VOC y NOx.",
+  "stats.export.helpToggle": "¿Qué contiene el archivo?",
+  "stats.export.from": "Desde",
+  "stats.export.to": "Hasta",
+  "stats.export.format": "Formato",
+  "stats.export.formatXlsx": "Excel (.xlsx)",
+  "stats.export.formatJson": "JSON",
+  "stats.export.download": "Descargar",
+  "stats.export.preparing": "Preparando…",
+  // The chosen range and the tier limit on one line: as two stacked grey notes
+  // of the same size they read as one indistinct block, and the reader has to
+  // work out that they are saying different things.
+  "stats.export.rangeDays": "Período de {days} días · máximo {max}",
+  "stats.export.rangeDaysOne": "Período de 1 día · máximo {max}",
+  "stats.export.rangeIncomplete": "Elegí una fecha de inicio y una de fin.",
+  "stats.export.rangeInverted":
+    "La fecha de inicio no puede ser posterior a la de fin.",
+  "stats.export.rangeTooOld":
+    "Solo podés descargar los últimos {days} días. Elegí una fecha de inicio más reciente.",
+  "stats.export.noData":
+    "Este sensor no registró mediciones en el período elegido. Probá con otras fechas.",
+  "stats.export.partial":
+    "Descargamos el archivo, pero faltan algunos tramos del período.",
+  "stats.export.throttled":
+    "Hiciste muchas descargas seguidas. Esperá un rato y volvé a intentar.",
+  "stats.export.error":
+    "No pudimos generar la descarga. Por favor intentá de nuevo en unos minutos.",
+
   // Map / Card / Modals (React islands)
   "common.recommendations": "Recomendaciones",
   "card.howIsAir": "¿Cómo está el aire ahora?",
@@ -648,6 +681,34 @@ const en: Dictionary = {
   "stats.boxplot.mean": "Mean",
   "stats.boxplot.quantiles": "Quantiles",
 
+  "stats.export.title": "Download historical data",
+  "stats.export.subtitle":
+    "Pick a period and download this sensor's measurements. No account needed.",
+  "stats.export.help":
+    "The file holds one row per measurement, with the date and time in Paraguayan local time and in UTC, plus PM1, PM2.5, PM10, CO2, temperature, humidity and the VOC and NOx indices.",
+  "stats.export.helpToggle": "What's in the file?",
+  "stats.export.from": "From",
+  "stats.export.to": "To",
+  "stats.export.format": "Format",
+  "stats.export.formatXlsx": "Excel (.xlsx)",
+  "stats.export.formatJson": "JSON",
+  "stats.export.download": "Download",
+  "stats.export.preparing": "Preparing…",
+  "stats.export.rangeDays": "{days}-day period · {max} max",
+  "stats.export.rangeDaysOne": "1-day period · {max} max",
+  "stats.export.rangeIncomplete": "Pick a start date and an end date.",
+  "stats.export.rangeInverted": "The start date cannot be after the end date.",
+  "stats.export.rangeTooOld":
+    "You can only download the last {days} days. Pick a more recent start date.",
+  "stats.export.noData":
+    "This sensor recorded no measurements in the selected period. Try other dates.",
+  "stats.export.partial":
+    "The file downloaded, but some stretches of the period are missing.",
+  "stats.export.throttled":
+    "That's a lot of downloads in a row. Please wait a while and try again.",
+  "stats.export.error":
+    "We couldn't generate the download. Please try again in a few minutes.",
+
   "common.recommendations": "Recommendations",
   "card.howIsAir": "How is the air right now?",
   "card.forecast": "Forecast",
@@ -983,6 +1044,35 @@ const pt: Dictionary = {
   "stats.boxplot.summary": "Resumo",
   "stats.boxplot.mean": "Média",
   "stats.boxplot.quantiles": "Quantis",
+
+  "stats.export.title": "Baixar dados históricos",
+  "stats.export.subtitle":
+    "Escolha um período e baixe as medições deste sensor. Não é preciso criar uma conta.",
+  "stats.export.help":
+    "O arquivo traz uma linha por medição, com a data e hora no horário do Paraguai e em UTC, além de PM1, PM2.5, PM10, CO2, temperatura, umidade e os índices VOC e NOx.",
+  "stats.export.helpToggle": "O que contém o arquivo?",
+  "stats.export.from": "De",
+  "stats.export.to": "Até",
+  "stats.export.format": "Formato",
+  "stats.export.formatXlsx": "Excel (.xlsx)",
+  "stats.export.formatJson": "JSON",
+  "stats.export.download": "Baixar",
+  "stats.export.preparing": "Preparando…",
+  "stats.export.rangeDays": "Período de {days} dias · máximo {max}",
+  "stats.export.rangeDaysOne": "Período de 1 dia · máximo {max}",
+  "stats.export.rangeIncomplete": "Escolha uma data inicial e uma data final.",
+  "stats.export.rangeInverted":
+    "A data inicial não pode ser posterior à data final.",
+  "stats.export.rangeTooOld":
+    "Você só pode baixar os últimos {days} dias. Escolha uma data inicial mais recente.",
+  "stats.export.noData":
+    "Este sensor não registrou medições no período escolhido. Tente outras datas.",
+  "stats.export.partial":
+    "O arquivo foi baixado, mas faltam alguns trechos do período.",
+  "stats.export.throttled":
+    "Você fez muitos downloads seguidos. Aguarde um pouco e tente de novo.",
+  "stats.export.error":
+    "Não conseguimos gerar o download. Tente novamente em alguns minutos.",
 
   "common.recommendations": "Recomendações",
   "card.howIsAir": "Como está o ar agora?",
