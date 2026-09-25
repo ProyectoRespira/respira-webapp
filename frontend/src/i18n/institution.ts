@@ -107,6 +107,13 @@ const es = {
   pageTitle: "Estado de tu sensor",
   updatedAt: "Actualizado",
 
+  // --- Sensor selector -----------------------------------------------------
+  // Only rendered when the institution leases more than one sensor; with a
+  // single one there is nothing to choose and the whole control is hidden.
+  sensorPickerLabel: "Sensor",
+  sensorPickerHint: "Todo el panel muestra el sensor elegido.",
+  sensorPickerLoading: "Cambiando de sensor…",
+
   // --- Sensor --------------------------------------------------------------
   sensorTitle: "Tu sensor",
   sensorOnline: "En línea",
@@ -371,6 +378,11 @@ const en: Translation = {
   pageTitle: "Your sensor's status",
   updatedAt: "Updated",
 
+  // --- Sensor selector -----------------------------------------------------
+  sensorPickerLabel: "Sensor",
+  sensorPickerHint: "The whole panel shows the selected sensor.",
+  sensorPickerLoading: "Switching sensor…",
+
   // --- Sensor --------------------------------------------------------------
   sensorTitle: "Your sensor",
   sensorOnline: "Online",
@@ -596,6 +608,11 @@ const pt: Translation = {
   // --- Page ----------------------------------------------------------------
   pageTitle: "Estado do seu sensor",
   updatedAt: "Atualizado",
+
+  // --- Sensor selector -----------------------------------------------------
+  sensorPickerLabel: "Sensor",
+  sensorPickerHint: "Todo o painel mostra o sensor escolhido.",
+  sensorPickerLoading: "Trocando de sensor…",
 
   // --- Sensor --------------------------------------------------------------
   sensorTitle: "Seu sensor",
