@@ -72,20 +72,20 @@ if not readings.exists():
         "empty. Pick a station that is reporting."
     )
 
-# A station is leased by at most one institution (`InstitutionContract.station`
-# is a OneToOne). Caught here so picking an already-leased station fails with
-# something readable instead of a unique-constraint traceback from Postgres.
-taken = (
+# A station may now be leased by several institutions at once, so sharing one
+# is no longer an error — but on a demo database it is usually a mistake
+# (a second run with a stale LEGAL_NAME), so say so and carry on rather than
+# letting it pass silently.
+sharing_with = (
     InstitutionContract.objects.filter(station_id=station.id)
     .exclude(institution__legal_name=LEGAL_NAME)
     .select_related("institution")
-    .first()
 )
-if taken is not None:
-    raise SystemExit(
-        f"Station {station.name} is already under contract to "
-        f"'{taken.institution}'. Pick another station, or reuse that "
-        "institution instead of creating a second one."
+for other in sharing_with:
+    print(
+        f"Note: station {station.name} is also under contract to "
+        f"'{other.institution}'. Both dashboards will show it; that is "
+        "allowed. Pick another station if this was not intended."
     )
 
 institution, _ = Institution.objects.update_or_create(
