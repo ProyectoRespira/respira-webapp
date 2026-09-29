@@ -535,7 +535,7 @@ def _broadcast_station_codes(broadcast: PushBroadcast) -> list[str] | None:
     if broadcast.institution is None:
         return []
     stations = Stations.objects.filter(
-        institution_contract__institution=broadcast.institution
+        institution_contracts__institution=broadcast.institution
     ).values_list("station_code", flat=True)
     return [code for code in stations if code]
 
@@ -556,7 +556,7 @@ def _station_belongs_to_institution(broadcast: PushBroadcast) -> bool:
         return True
     return Stations.objects.filter(
         pk=broadcast.station_id,
-        institution_contract__institution_id=broadcast.institution_id,
+        institution_contracts__institution_id=broadcast.institution_id,
     ).exists()
 
 
