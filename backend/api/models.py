@@ -178,14 +178,28 @@ class Institution(models.Model):
 class InstitutionContract(models.Model):
     """The leasing contract binding an :class:`Institution` to a station.
 
-    One row per leased sensor: ``institution`` is a plain FK, so an institution
-    holds as many contracts as it has sensors, while ``station`` stays
-    OneToOne, which is what guarantees a station is bound to at most one
-    contract — and therefore that no two institutions can ever reach the same
-    sensor's data. The per-sensor fields below (``start_date``,
-    ``monthly_fee``, ``signed_contract_url``) are why this is modelled as N
-    contracts rather than one contract listing N stations: each sensor is
-    leased on its own terms and its own date.
+    One row per leased sensor *per institution*: both sides are plain FKs, so
+    an institution holds as many contracts as it has sensors, and a sensor may
+    be leased by several institutions at once — a shared sensor, where one
+    physical device is contracted by, say, a school and the municipality that
+    installed it. The per-sensor fields below (``start_date``, ``monthly_fee``,
+    ``signed_contract_url``) are why this is modelled as N contracts rather
+    than one contract listing N stations: each sensor is leased on its own
+    terms and its own date, and two institutions sharing a sensor each sign
+    their own.
+
+    ``station`` used to be OneToOne, and that unique index was what kept one
+    institution's data out of another's dashboard. With sharing allowed, that
+    guarantee is gone and isolation rests entirely on every institutional
+    endpoint resolving its sensors through
+    :func:`get_institution_station_ids` / :func:`resolve_institution_station`,
+    which filter by the caller's *own* contracts. A caller-supplied station id
+    is therefore never trusted as a lookup — see those functions.
+
+    ``unique_together`` on ``(institution, station)`` replaces it, in the one
+    sense still worth enforcing: the same institution should not hold two
+    contracts over the same sensor, which would double it in the dashboard's
+    selector and in every notification fan-out.
 
     ``station`` mirrors :class:`StationDetails`: ``db_constraint=False``, since
     dbt drops and recreates ``stations`` on every gold run and a physical
@@ -202,11 +216,11 @@ class InstitutionContract(models.Model):
     institution = models.ForeignKey(
         "Institution", on_delete=models.CASCADE, related_name="contracts"
     )
-    station = models.OneToOneField(
+    station = models.ForeignKey(
         "Stations",
         on_delete=models.DO_NOTHING,
         db_constraint=False,
-        related_name="institution_contract",
+        related_name="institution_contracts",
     )
     contract_status = models.CharField(
         max_length=20,
@@ -224,6 +238,12 @@ class InstitutionContract(models.Model):
 
     class Meta:
         db_table = "institution_contract"
+        constraints = [
+            models.UniqueConstraint(
+                fields=("institution", "station"),
+                name="unique_institution_station_contract",
+            )
+        ]
 
     def __str__(self):
         return f"{self.institution} — {self.station.name}"
@@ -349,10 +369,10 @@ class SensitiveGroup(models.Model):
 class InstitutionAlertConfig(models.Model):
     """An institution's own configuration for institutional air-quality alerts.
 
-    OneToOne, like ``InstitutionContract``: an institution has at most one
-    alert configuration. Absent entirely for institutions that never opted
-    into alerts — callers resolve that case to a controlled default instead
-    of treating it as an error.
+    OneToOne: an institution has at most one alert configuration, covering
+    every sensor it leases rather than one config per contract. Absent
+    entirely for institutions that never opted into alerts — callers resolve
+    that case to a controlled default instead of treating it as an error.
     """
 
     institution = models.OneToOneField(

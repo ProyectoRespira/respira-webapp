@@ -44,7 +44,7 @@ class InstitutionAlertRuleForm(forms.ModelForm):
             self.fields["station"].queryset = Stations.objects.none()
         else:
             self.fields["station"].queryset = Stations.objects.filter(
-                institution_contract__institution=institution
+                institution_contracts__institution=institution
             )
         self.fields["station"].required = False
         self.fields[
@@ -106,15 +106,18 @@ class InstitutionAlertRuleForm(forms.ModelForm):
 def institution_stations(institution):
     """The stations one institution may be notified about, newest naming first.
 
-    A queryset rather than a single station even though
-    ``InstitutionContract.station`` is currently OneToOne, so an institution
-    has at most one. The picker and its lookup are written against *the set*
-    because that is the promise being made — an institution's notifications go
-    to an institution's sensors — and a contract that grows to several stations
-    then needs no change here.
+    A queryset because that is the promise being made — an institution's
+    notifications go to an institution's sensors — and it has held through
+    both widenings of the contract: an institution leasing several sensors,
+    and a sensor shared by several institutions. The filter runs from *this*
+    institution's contracts, so a shared sensor reaches this institution's
+    audience only, never the co-tenant's.
+
+    Cannot repeat a station: ``(institution, station)`` is unique, so the join
+    matches at most one contract row per station for a given institution.
     """
     return Stations.objects.filter(
-        institution_contract__institution=institution
+        institution_contracts__institution=institution
     ).order_by("name")
 
 

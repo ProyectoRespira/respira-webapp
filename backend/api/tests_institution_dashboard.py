@@ -753,3 +753,127 @@ class InstitutionMultiSensorDashboardTests(APITestCase):
         self.client.force_authenticate(user)
 
         self.assertEqual(self.client.get(self.dashboard_url).status_code, 404)
+
+
+class SharedSensorDashboardTests(APITestCase):
+    """The dashboard when one sensor is leased by several institutions.
+
+    The access rules these pin down are the ones that used to be structural:
+    while `InstitutionContract.station` was OneToOne, no query could reach
+    another institution's sensor because no such row could exist. With sharing
+    allowed, isolation rests on `resolve_institution_station` filtering by the
+    caller's own contracts — so it is asserted here rather than assumed.
+    """
+
+    def setUp(self):
+        self.client = APIClient()
+        self.now = timezone.now()
+        region = Regions.seed_for_tests(name="Gran Asuncion", region_code="GA")
+
+        # One device in a school's yard, paid for by the school and the city.
+        self.shared = Stations.seed_for_tests(
+            name="Respira: Patio", region=region, is_station_on=True
+        )
+        # A second sensor the school alone leases — the co-tenant must not
+        # reach it just because the two share the first one.
+        self.school_only = Stations.seed_for_tests(
+            name="Respira: Aula", region=region, is_station_on=True
+        )
+
+        self.school = Institution.objects.create(legal_name="Colegio San Jose")
+        self.city = Institution.objects.create(legal_name="Municipalidad")
+
+        InstitutionContract.objects.create(
+            institution=self.school, station=self.shared, start_date=date(2026, 1, 1)
+        )
+        InstitutionContract.objects.create(
+            institution=self.school,
+            station=self.school_only,
+            start_date=date(2026, 1, 1),
+        )
+        InstitutionContract.objects.create(
+            institution=self.city, station=self.shared, start_date=date(2026, 6, 1)
+        )
+
+        self.school_user = User.objects.create_user(
+            username="school@colegio.edu.py",
+            email="school@colegio.edu.py",
+            password="S3ed!Pass99",
+        )
+        InstitutionUser.objects.create(user=self.school_user, institution=self.school)
+        self.city_user = User.objects.create_user(
+            username="city@muni.gov.py",
+            email="city@muni.gov.py",
+            password="S3ed!Pass99",
+        )
+        InstitutionUser.objects.create(user=self.city_user, institution=self.city)
+
+        StationReadingsGold.seed_for_tests(
+            station=self.shared, date_utc=self.now, aqi_pm2_5=165.0
+        )
+        StationReadingsGold.seed_for_tests(
+            station=self.school_only, date_utc=self.now, aqi_pm2_5=30.0
+        )
+
+        self.dashboard_url = reverse("institution-dashboard")
+
+    def test_both_institutions_see_the_shared_sensor(self):
+        for user in (self.school_user, self.city_user):
+            with self.subTest(user=user.username):
+                self.client.force_authenticate(user)
+                body = self.client.get(
+                    self.dashboard_url, {"station": self.shared.id}
+                ).json()
+
+                self.assertEqual(body["sensor"]["id"], self.shared.id)
+
+    def test_both_institutions_read_the_same_measurement(self):
+        """One physical device reports one air quality, whoever is asking."""
+        readings = []
+        for user in (self.school_user, self.city_user):
+            self.client.force_authenticate(user)
+            body = self.client.get(
+                self.dashboard_url, {"station": self.shared.id}
+            ).json()
+            readings.append(body["air_quality"]["aqi"])
+
+        self.assertEqual(readings[0], readings[1])
+
+    def test_each_selector_lists_only_that_institutions_sensors(self):
+        self.client.force_authenticate(self.school_user)
+        school_body = self.client.get(self.dashboard_url).json()
+        self.client.force_authenticate(self.city_user)
+        city_body = self.client.get(self.dashboard_url).json()
+
+        self.assertCountEqual(
+            [s["id"] for s in school_body["available_sensors"]],
+            [self.shared.id, self.school_only.id],
+        )
+        self.assertEqual(
+            [s["id"] for s in city_body["available_sensors"]], [self.shared.id]
+        )
+
+    def test_sharing_one_sensor_grants_no_access_to_the_others(self):
+        """The rule the dropped unique index used to enforce for free.
+
+        The city shares the yard sensor with the school, which is exactly the
+        case where a naive "is this station contracted at all?" check would
+        leak: the classroom sensor is contracted — just not to the city.
+        """
+        self.client.force_authenticate(self.city_user)
+
+        response = self.client.get(self.dashboard_url, {"station": self.school_only.id})
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_detaching_one_institution_leaves_the_other_working(self):
+        InstitutionContract.objects.filter(
+            institution=self.city, station=self.shared
+        ).delete()
+
+        self.client.force_authenticate(self.school_user)
+        body = self.client.get(self.dashboard_url, {"station": self.shared.id}).json()
+        self.assertEqual(body["sensor"]["id"], self.shared.id)
+
+        self.client.force_authenticate(self.city_user)
+        self.assertEqual(self.client.get(self.dashboard_url).status_code, 404)
