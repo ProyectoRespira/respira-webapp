@@ -46,19 +46,45 @@ const institution =
 
 let initial: InitialDashboardState = { status: "error" };
 
+// Which sensor to open on, for an institution leasing several. Read from the
+// URL so a reload, a bookmark or a link pasted to a colleague lands on the
+// sensor that was being looked at rather than the default one. The value is
+// never trusted: the backend resolves it against the caller's own contracts
+// and 404s on anything else.
+const requestedStation = Number.parseInt(
+  Astro.url.searchParams.get("station") ?? "",
+  10,
+);
+const stationParam = Number.isNaN(requestedStation)
+  ? undefined
+  : requestedStation;
+
 if (institution) {
   const cookie = Astro.request.headers.get("cookie") ?? undefined;
   try {
-    initial = { status: "ready", dashboard: await fetchDashboard(cookie) };
+    initial = {
+      status: "ready",
+      dashboard: await fetchDashboard(cookie, stationParam),
+    };
   } catch (error) {
-    // 404 from this endpoint means "no contract, so no sensor yet" — an
-    // expected stage for a new client, not a failure.
-    initial =
-      error instanceof InstitutionApiError && error.code === "not_found"
-        ? { status: "no-sensor" }
-        : { status: "error" };
-    if (initial.status === "error") {
-      console.error("Could not load the institutional dashboard", error);
+    const notFound =
+      error instanceof InstitutionApiError && error.code === "not_found";
+
+    // A 404 while a sensor was named means *that* sensor is not available to
+    // this institution — a stale link, or someone else's id — not that the
+    // institution has none. Falling back to the default sensor opens the panel
+    // they do have, rather than telling them they have no sensor at all.
+    if (notFound && stationParam !== undefined) {
+      try {
+        initial = { status: "ready", dashboard: await fetchDashboard(cookie) };
+      } catch {
+        initial = { status: "no-sensor" };
+      }
+    } else {
+      initial = notFound ? { status: "no-sensor" } : { status: "error" };
+      if (initial.status === "error") {
+        console.error("Could not load the institutional dashboard", error);
+      }
     }
   }
 }
@@ -101,6 +127,7 @@ const lastReading =
     <DashboardSections
       initial={initial}
       contract={institution?.contract ?? null}
+      institution={institution ?? null}
       lang={lang}
       client:load
     />

@@ -14,7 +14,7 @@ from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.forms import PasswordResetForm
 from django.core.cache import cache
 from django.db import transaction
-from django.db.models import Avg, Prefetch
+from django.db.models import Avg, Prefetch, Q
 from django.db.models.functions import TruncDate, TruncMonth, TruncWeek
 from django.middleware.csrf import get_token
 from django.utils import timezone
@@ -47,7 +47,9 @@ from .models import (
     StationReadingsGold,
     Stations,
     UserRole,
+    get_institution_contracts,
     get_institution_for_user,
+    resolve_institution_station,
 )
 from .pagination import StandardResultsSetPagination
 from .permissions import IsAdminRole, IsInstitutionUser, IsOwnInstitution
@@ -784,16 +786,38 @@ def _dashboard_alert_config(institution):
     }
 
 
-def _build_institution_dashboard(institution):
-    contract = getattr(institution, "contract", None)
-    if contract is None:
+def _dashboard_available_sensors(institution):
+    """The sensors the selector may offer, in the order it shows them.
+
+    Name and id only: enough to label an option and ask for that sensor, with
+    none of the per-sensor detail the selected station's own payload carries.
+    """
+    return [
+        {"id": contract.station_id, "name": contract.station.name}
+        for contract in get_institution_contracts(institution)
+    ]
+
+
+def _build_institution_dashboard(institution, requested_station_id=None):
+    """The dashboard payload for one of the institution's sensors.
+
+    ``requested_station_id`` is whatever the caller asked for, and it is
+    resolved — not trusted — through ``resolve_institution_station``: an id
+    outside this institution's contracts resolves to nothing and is reported as
+    "no such sensor", the same 404 an institution with no contract at all gets.
+    That is deliberate: a caller probing ids learns only that the sensor is not
+    theirs, never whether it exists.
+    """
+    station = resolve_institution_station(institution, requested_station_id)
+    if station is None:
         raise NotFound("This institution does not have an assigned sensor.")
 
-    sensor, last_reading = _dashboard_sensor(contract.station)
+    sensor, last_reading = _dashboard_sensor(station)
     return {
         "sensor": sensor,
+        "available_sensors": _dashboard_available_sensors(institution),
         "air_quality": _dashboard_air_quality(last_reading),
-        "history": _dashboard_history(contract.station),
+        "history": _dashboard_history(station),
         "alert_config": _dashboard_alert_config(institution),
     }
 
@@ -865,18 +889,24 @@ def _notification_from_broadcast(broadcast):
     }
 
 
-def _institution_notifications(institution):
+def _institution_notifications(institution, station=None):
     """Both notification feeds for one institution, merged newest-first.
 
     Merged in memory rather than in the database: the two tables share no
     columns worth a UNION, and an institution's notification history is small
-    enough (one sensor, one institution) that reading both and sorting is
-    cheaper than the machinery a database-level merge would need.
+    enough that reading both and sorting is cheaper than the machinery a
+    database-level merge would need.
 
     Platform-wide broadcasts (``scope="all"``) are left out. They carry no
     institution and are announcements to every follower on the platform, so
     they are not notifications *about this sensor* — which is what this section
     promises to show.
+
+    ``station`` narrows both feeds to one of the institution's sensors. An
+    institution-scoped broadcast survives that filter even though it names no
+    station: it was sent to every sensor the institution holds, this one
+    included, so hiding it while a sensor is selected would drop a
+    notification the institution really did receive.
     """
     if institution is None:
         return []
@@ -892,6 +922,12 @@ def _institution_notifications(institution):
         .select_related("station")
         .order_by("-sent_at", "-id")
     )
+
+    if station is not None:
+        alerts = alerts.filter(station_id=station.id)
+        broadcasts = broadcasts.filter(
+            Q(station_id=station.id) | Q(station__isnull=True)
+        )
 
     notifications = [_notification_from_alert(alert) for alert in alerts]
     notifications += [
@@ -979,14 +1015,34 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
             "user — never from a request parameter — so a caller can only "
             "ever retrieve their own institution's data. Returns 404 when "
             "the institution has no assigned sensor yet; `air_quality` is "
-            "`null` when the sensor has not reported a measurement yet."
+            "`null` when the sensor has not reported a measurement yet.\n\n"
+            "An institution leasing several sensors picks one with `station`; "
+            "with none given the first contracted sensor answers, so a "
+            "single-sensor institution never has to name it. "
+            "`available_sensors` lists every sensor this institution may ask "
+            "about — what a client builds its sensor selector from. A "
+            "`station` outside the caller's own contracts is a 404, never "
+            "another institution's data."
         ),
+        parameters=[
+            OpenApiParameter(
+                name="station",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description=(
+                    "Which of the institution's contracted sensors to report "
+                    "on. Defaults to the first one."
+                ),
+            )
+        ],
         responses=InstitutionDashboardSerializer,
     )
     @action(detail=False, methods=["get"])
     def dashboard(self, request, *args, **kwargs):
         institution = get_institution_for_user(request.user)
-        payload = _build_institution_dashboard(institution)
+        payload = _build_institution_dashboard(
+            institution, request.query_params.get("station")
+        )
         serializer = InstitutionDashboardSerializer(payload)
         return Response(serializer.data)
 
@@ -997,8 +1053,20 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
             "most recent first. Read-only: alerts are produced by the "
             "platform, not authored by institutions. This is what makes "
             "`ActionLog.alert` usable from a client — without it the field is "
-            "writable but a caller has no way to discover a valid id."
+            "writable but a caller has no way to discover a valid id.\n\n"
+            "`station` narrows the feed to one of the institution's sensors; "
+            "with none given the events of every contracted sensor are "
+            "merged, which is what a single-sensor institution already saw. A "
+            "`station` outside the caller's own contracts matches nothing."
         ),
+        parameters=[
+            OpenApiParameter(
+                name="station",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description="Limit the feed to one contracted sensor.",
+            )
+        ],
         responses=InstitutionAlertSerializer(many=True),
     )
     @action(detail=False, methods=["get"], serializer_class=InstitutionAlertSerializer)
@@ -1008,6 +1076,11 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
         Registered as a router action rather than a plain path, which also
         settles the ordering problem: the router emits dynamic list routes
         before ``institution/{pk}/``, so "alerts" is never read as a pk.
+
+        The optional ``station`` filter is intersected with the institution's
+        own scope rather than applied on its own — the queryset is already
+        restricted to ``institution``, so an id belonging to somebody else
+        narrows the feed to nothing instead of widening it.
         """
         institution = get_institution_for_user(request.user)
         queryset = (
@@ -1017,6 +1090,15 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
             if institution is not None
             else InstitutionAlert.objects.none()
         )
+
+        requested_station = request.query_params.get("station")
+        if requested_station is not None:
+            station = resolve_institution_station(institution, requested_station)
+            queryset = (
+                queryset.filter(station_id=station.id)
+                if station is not None
+                else queryset.none()
+            )
 
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -1042,7 +1124,19 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
             "from a request parameter — so a caller can only ever see "
             "notifications about their own sensor. Platform-wide announcements "
             "are excluded: they belong to every follower, not to this sensor."
+            "\n\n`station` narrows the feed to one of the institution's own "
+            "sensors. Announcements sent to the whole institution stay in the "
+            "feed even then — they reached the selected sensor too. A "
+            "`station` outside the caller's own contracts matches nothing."
         ),
+        parameters=[
+            OpenApiParameter(
+                name="station",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description="Limit the feed to one contracted sensor.",
+            )
+        ],
         responses=InstitutionNotificationSerializer(many=True),
     )
     @action(
@@ -1064,10 +1158,24 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
         sources are separate tables, so the merge has to happen before the page
         is cut or a page would only ever hold one kind. ``paginate_queryset``
         takes a list just as happily as a queryset.
+
+        An unresolvable ``station`` empties the feed rather than falling back
+        to the unfiltered one: "no station given" and "a station that is not
+        yours" must not answer the same way, or a forged id would be rewarded
+        with every notification the institution has.
         """
-        notifications = _institution_notifications(
-            get_institution_for_user(request.user)
-        )
+        institution = get_institution_for_user(request.user)
+
+        requested_station = request.query_params.get("station")
+        if requested_station is None:
+            notifications = _institution_notifications(institution)
+        else:
+            station = resolve_institution_station(institution, requested_station)
+            notifications = (
+                _institution_notifications(institution, station)
+                if station is not None
+                else []
+            )
 
         page = self.paginate_queryset(notifications)
         if page is not None:
@@ -1224,15 +1332,27 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
         description=(
             "Actions recorded by the authenticated user's institution, most "
             "recent first. The institution is resolved from the session, so "
-            "the history never contains another institution's records."
+            "the history never contains another institution's records.\n\n"
+            "`station` narrows the history to one of the institution's own "
+            "sensors; with none given every sensor's actions are listed, "
+            "which is what a single-sensor institution already saw. A "
+            "`station` outside the caller's own contracts matches nothing."
         ),
+        parameters=[
+            OpenApiParameter(
+                name="station",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description="Limit the history to one contracted sensor.",
+            )
+        ],
     ),
     create=extend_schema(
         summary="Record an action taken by the caller's institution",
         description=(
             "Creates one entry in the institutional action history. "
             "`institution` and `timestamp` are assigned by the backend and "
-            "ignored if sent. `station` must be the station the institution "
+            "ignored if sent. `station` must be a station the institution "
             "holds a contract for; `alert` is optional and, when given, must "
             "belong to the same institution and station."
         ),
@@ -1250,6 +1370,12 @@ class ActionLogViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, GenericVi
     filters the list down to the caller's own institution (DRF does not run
     object-level permissions per row), and the serializer refuses a station or
     alert belonging to anyone else on the way in.
+
+    ``station`` narrows the list to one of the institution's sensors, so a
+    dashboard showing one sensor shows that sensor's history rather than every
+    sensor's merged together. As everywhere else, the id is resolved against
+    the caller's own contracts: one that is not theirs matches nothing instead
+    of widening the list.
     """
 
     serializer_class = ActionLogSerializer
@@ -1261,9 +1387,20 @@ class ActionLogViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, GenericVi
         institution = get_institution_for_user(self.request.user)
         if institution is None:
             return ActionLog.objects.none()
-        return ActionLog.objects.filter(institution=institution).select_related(
+
+        queryset = ActionLog.objects.filter(institution=institution).select_related(
             "institution", "station", "alert"
         )
+
+        requested_station = self.request.query_params.get("station")
+        if requested_station is not None:
+            station = resolve_institution_station(institution, requested_station)
+            queryset = (
+                queryset.filter(station_id=station.id)
+                if station is not None
+                else queryset.none()
+            )
+        return queryset
 
     def get_serializer_context(self):
         """Hand the caller's institution to the serializer's validation.

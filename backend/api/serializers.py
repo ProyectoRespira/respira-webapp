@@ -8,6 +8,7 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
+from .airgradient import AirGradientError, location_id_for_station
 from .models import (
     ActionLog,
     DeviceFollower,
@@ -24,6 +25,7 @@ from .models import (
     UserProfile,
     UserRole,
     faq_localized_map,
+    get_institution_contracts,
     get_institution_for_user,
     get_institution_station_ids,
     user_role,
@@ -49,6 +51,7 @@ class StationSerializer(serializers.ModelSerializer):
     region = RegionSerializer(allow_null=True)
     coordinates = serializers.SerializerMethodField()
     aqi_pm2_5 = serializers.SerializerMethodField()
+    supports_public_export = serializers.SerializerMethodField()
 
     class Meta:
         model = Stations
@@ -60,6 +63,7 @@ class StationSerializer(serializers.ModelSerializer):
             "is_station_on",
             "is_pattern_station",
             "aqi_pm2_5",
+            "supports_public_export",
         ]
 
     @extend_schema_field(
@@ -80,6 +84,26 @@ class StationSerializer(serializers.ModelSerializer):
             .first()
         )
         return last_reading.aqi_pm2_5 if last_reading else None
+
+    @extend_schema_field(OpenApiTypes.BOOL)
+    def get_supports_public_export(self, obj) -> bool:
+        """Whether this sensor's history can be downloaded from its public page.
+
+        True for the sensors Respira operates, which are the only ones whose
+        raw measurements we can serve; stations from the other networks reach
+        gold through the pipeline but have no raw history behind them.
+
+        Deliberately named for what the visitor gets rather than for how it is
+        decided: the public API says a sensor offers a download, not which
+        provider stands behind it. The export endpoint makes the same check for
+        itself, so this only spares the page from offering a button that would
+        404 — it is not what enforces eligibility.
+        """
+        try:
+            location_id_for_station(obj)
+        except AirGradientError:
+            return False
+        return True
 
 
 class HealthSerializer(serializers.Serializer):
@@ -347,6 +371,7 @@ class InstitutionSerializer(serializers.ModelSerializer):
     """
 
     contract = serializers.SerializerMethodField()
+    contracts = serializers.SerializerMethodField()
 
     class Meta:
         model = Institution
@@ -361,13 +386,33 @@ class InstitutionSerializer(serializers.ModelSerializer):
             "address",
             "city",
             "contract",
+            "contracts",
         ]
         read_only_fields = fields
 
     @extend_schema_field(InstitutionContractSerializer(allow_null=True))
     def get_contract(self, obj):
-        contract = getattr(obj, "contract", None)
+        """The first contract, kept for clients written against one sensor.
+
+        An institution may now hold several, but dropping this field would
+        break every caller that reads `institution.contract` — so it keeps
+        answering with one: the same one `resolve_institution_station` picks by
+        default, which is the sensor a client showing a single contract would
+        want. Clients aware of several sensors read `contracts` instead.
+        """
+        contract = get_institution_contracts(obj).first()
         return InstitutionContractSerializer(contract).data if contract else None
+
+    @extend_schema_field(InstitutionContractSerializer(many=True))
+    def get_contracts(self, obj):
+        """Every sensor the institution leases, ordered by station name.
+
+        What the dashboard's sensor selector is built from, and the only
+        list a client should trust for "which sensors may I ask about".
+        """
+        return InstitutionContractSerializer(
+            get_institution_contracts(obj), many=True
+        ).data
 
 
 class InstitutionLoginSerializer(serializers.Serializer):
@@ -714,10 +759,24 @@ class InstitutionAlertConfigSerializer(serializers.Serializer):
     sensitive_groups = SensitiveGroupSerializer(many=True)
 
 
+class DashboardAvailableSensorSerializer(serializers.Serializer):
+    """One option in the dashboard's sensor selector."""
+
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+
+
 class InstitutionDashboardSerializer(serializers.Serializer):
-    """Consolidated payload for the institutional dashboard's single request."""
+    """Consolidated payload for the institutional dashboard's single request.
+
+    ``sensor`` is the one being reported on; ``available_sensors`` is every
+    sensor the institution may switch to, always including the current one. It
+    holds a single entry for an institution leasing one sensor, which is what
+    lets a client hide the selector without a second request to find out.
+    """
 
     sensor = DashboardSensorSerializer()
+    available_sensors = DashboardAvailableSensorSerializer(many=True)
     air_quality = DashboardAirQualitySerializer(allow_null=True)
     history = DashboardHistoryPointSerializer(many=True)
     alert_config = InstitutionAlertConfigSerializer()

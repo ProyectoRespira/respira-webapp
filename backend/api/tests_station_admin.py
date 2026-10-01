@@ -5,6 +5,8 @@ station_status_seed.csv: the station changelist, the StationDetails inline on
 the station page, and the StationOverride module.
 """
 
+from datetime import date
+
 from django.contrib import admin
 from django.contrib.admin import helpers
 from django.contrib.auth import get_user_model
@@ -14,7 +16,14 @@ from django.test import TestCase
 from django.urls import reverse
 
 from .admin import DBT_RUN_NOTICE, StationDetailsInline
-from .models import Regions, StationDetails, StationOverride, Stations
+from .models import (
+    Institution,
+    InstitutionContract,
+    Regions,
+    StationDetails,
+    StationOverride,
+    Stations,
+)
 
 User = get_user_model()
 
@@ -48,9 +57,14 @@ class StationAdminTests(TestCase):
         self.change_url = reverse("admin:api_stations_change", args=[self.station.pk])
 
     def _inline_payload(self, **details):
-        """Management form for the StationDetails inline, plus its fields.
+        """Management forms for both of the station page's inlines.
 
-        The inline prefix is the OneToOne's related_name ("details").
+        The prefixes are the relations' related_names: "details" for the
+        StationDetails OneToOne, "institution_contracts" for the leasing
+        inline. The second one carries no rows here, but its management form
+        still has to be posted: Django validates every formset on the page,
+        and a missing one invalidates the whole POST — which silently drops
+        the details being saved, not just the contracts.
         """
         payload = {
             "details-TOTAL_FORMS": "1",
@@ -59,6 +73,10 @@ class StationAdminTests(TestCase):
             "details-MAX_NUM_FORMS": "1",
             "details-0-id": "",
             "details-0-station": str(self.station.pk),
+            "institution_contracts-TOTAL_FORMS": "0",
+            "institution_contracts-INITIAL_FORMS": "0",
+            "institution_contracts-MIN_NUM_FORMS": "0",
+            "institution_contracts-MAX_NUM_FORMS": "1000",
         }
         payload.update({f"details-0-{key}": value for key, value in details.items()})
         return payload
@@ -108,7 +126,12 @@ class StationAdminTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         inlines = response.context["inline_admin_formsets"]
-        self.assertEqual([inline.opts.model for inline in inlines], [StationDetails])
+        # Details first, then the institutions leasing this sensor: the page
+        # answers "what is this device" before "who is paying for it".
+        self.assertEqual(
+            [inline.opts.model for inline in inlines],
+            [StationDetails, InstitutionContract],
+        )
         self.assertIsInstance(inlines[0].opts, StationDetailsInline)
         self.assertIsInstance(inlines[0].opts, admin.StackedInline)
 
@@ -213,6 +236,190 @@ class StationAdminTests(TestCase):
             403,
         )
         self.assertEqual(Stations.objects.count(), 2)
+
+
+class StationLeasingInlineTests(TestCase):
+    """Managing a sensor's institutions from the station page.
+
+    The sensor-first half of the many-to-many: an operator opens a device and
+    sees (and edits) every institution leasing it. The institution-first half
+    lives on the Institution page and is covered by the institution tests.
+    """
+
+    def setUp(self):
+        self.superuser = User.objects.create_superuser(
+            email="admin@example.com", password="pw-Str0ng!42"
+        )
+        self.client.force_login(self.superuser)
+
+        region = Regions.seed_for_tests(name="Gran Asunción", region_code="GA")
+        self.station = Stations.seed_for_tests(
+            name="Respira: Villa Morra",
+            region=region,
+            latitude=-25.29,
+            longitude=-57.57,
+            is_station_on=True,
+        )
+        self.school = Institution.objects.create(legal_name="Colegio San José")
+        self.city_hall = Institution.objects.create(legal_name="Municipalidad")
+        self.change_url = reverse("admin:api_stations_change", args=[self.station.pk])
+
+    def _payload(self, rows, initial=0):
+        """The station page's two formsets, with `rows` on the leasing inline."""
+        payload = {
+            "details-TOTAL_FORMS": "1",
+            "details-INITIAL_FORMS": "0",
+            "details-MIN_NUM_FORMS": "0",
+            "details-MAX_NUM_FORMS": "1",
+            "details-0-id": "",
+            "details-0-station": str(self.station.pk),
+            "institution_contracts-TOTAL_FORMS": str(len(rows)),
+            "institution_contracts-INITIAL_FORMS": str(initial),
+            "institution_contracts-MIN_NUM_FORMS": "0",
+            "institution_contracts-MAX_NUM_FORMS": "1000",
+        }
+        for i, row in enumerate(rows):
+            payload[f"institution_contracts-{i}-station"] = str(self.station.pk)
+            for key, value in row.items():
+                payload[f"institution_contracts-{i}-{key}"] = value
+        return payload
+
+    def test_station_page_lists_every_leasing_institution(self):
+        InstitutionContract.objects.create(
+            institution=self.school, station=self.station, start_date=date(2026, 1, 1)
+        )
+        InstitutionContract.objects.create(
+            institution=self.city_hall,
+            station=self.station,
+            start_date=date(2026, 6, 1),
+        )
+
+        response = self.client.get(self.change_url)
+
+        self.assertEqual(response.status_code, 200)
+        leasing = [
+            inline
+            for inline in response.context["inline_admin_formsets"]
+            if inline.opts.model is InstitutionContract
+        ]
+        self.assertEqual(len(leasing), 1)
+        self.assertEqual(len(leasing[0].formset.forms), 2)
+        self.assertContains(response, "Colegio San José")
+        self.assertContains(response, "Municipalidad")
+
+    def test_several_institutions_can_be_attached_from_the_station_page(self):
+        response = self.client.post(
+            self.change_url,
+            self._payload(
+                [
+                    {
+                        "id": "",
+                        "institution": str(self.school.pk),
+                        "contract_status": "active",
+                        "start_date": "2026-01-01",
+                        "end_date": "",
+                        "monthly_fee": "",
+                    },
+                    {
+                        "id": "",
+                        "institution": str(self.city_hall.pk),
+                        "contract_status": "active",
+                        "start_date": "2026-06-01",
+                        "end_date": "",
+                        "monthly_fee": "90.00",
+                    },
+                ]
+            ),
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertCountEqual(
+            self.station.institution_contracts.values_list(
+                "institution__legal_name", flat=True
+            ),
+            ["Colegio San José", "Municipalidad"],
+        )
+        # The whole point: one device stays one row in the dbt-owned table.
+        self.assertEqual(Stations.objects.count(), 1)
+
+    def test_detaching_one_institution_leaves_the_others_attached(self):
+        keep = InstitutionContract.objects.create(
+            institution=self.school, station=self.station, start_date=date(2026, 1, 1)
+        )
+        drop = InstitutionContract.objects.create(
+            institution=self.city_hall,
+            station=self.station,
+            start_date=date(2026, 6, 1),
+        )
+
+        self.client.post(
+            self.change_url,
+            self._payload(
+                [
+                    {
+                        "id": str(keep.pk),
+                        "institution": str(self.school.pk),
+                        "contract_status": "active",
+                        "start_date": "2026-01-01",
+                        "end_date": "",
+                        "monthly_fee": "",
+                    },
+                    {
+                        "id": str(drop.pk),
+                        "institution": str(self.city_hall.pk),
+                        "contract_status": "active",
+                        "start_date": "2026-06-01",
+                        "end_date": "",
+                        "monthly_fee": "",
+                        "DELETE": "on",
+                    },
+                ],
+                initial=2,
+            ),
+            follow=True,
+        )
+
+        self.assertEqual(
+            list(
+                self.station.institution_contracts.values_list(
+                    "institution__legal_name", flat=True
+                )
+            ),
+            ["Colegio San José"],
+        )
+        # Detaching is about the contract, not the parties to it.
+        self.assertTrue(Institution.objects.filter(pk=self.city_hall.pk).exists())
+        self.assertEqual(Stations.objects.count(), 1)
+
+    def test_the_same_institution_cannot_be_attached_twice(self):
+        response = self.client.post(
+            self.change_url,
+            self._payload(
+                [
+                    {
+                        "id": "",
+                        "institution": str(self.school.pk),
+                        "contract_status": "active",
+                        "start_date": "2026-01-01",
+                        "end_date": "",
+                        "monthly_fee": "",
+                    },
+                    {
+                        "id": "",
+                        "institution": str(self.school.pk),
+                        "contract_status": "active",
+                        "start_date": "2026-06-01",
+                        "end_date": "",
+                        "monthly_fee": "",
+                    },
+                ]
+            ),
+        )
+
+        # Refused as a form error on the page, not an IntegrityError traceback.
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.station.institution_contracts.count(), 0)
 
 
 class StationStatusOverrideActionTests(TestCase):

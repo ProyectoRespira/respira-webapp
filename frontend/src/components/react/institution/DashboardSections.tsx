@@ -1,8 +1,13 @@
 import { useState } from "react";
 
 import type {
+  Institution,
   InstitutionContract,
   InstitutionDashboard,
+} from "../../../data/institution";
+import {
+  contractForStation,
+  dashboardSensors,
 } from "../../../data/institution";
 import type { Lang } from "../../../i18n/config";
 import { useInstitutionCopy } from "../../../i18n/institution";
@@ -16,8 +21,25 @@ import { AirQualityPanel } from "./AirQualityPanel";
 import { DownloadCard } from "./DownloadCard";
 import { HistoryChart } from "./HistoryChart";
 import { NotificationsPanel } from "./NotificationsPanel";
+import { SensorPicker } from "./SensorPicker";
 import { SensorStatusCard } from "./SensorStatusCard";
 import { Button, Card, CardSkeleton, ErrorState, StateBlock } from "./ui";
+
+/**
+ * Writes the selected sensor into the URL, without a navigation.
+ *
+ * `replaceState` rather than a push: switching sensors is changing what you
+ * are looking at, not moving somewhere new, so Back should leave the panel
+ * rather than walk through every sensor visited. The id lives in the query
+ * string so a reload — or a link pasted to a colleague — reopens the panel on
+ * the same sensor, and the SSR path reads it back on the way in.
+ */
+const rememberSensorInUrl = (stationId: number) => {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  url.searchParams.set("station", String(stationId));
+  window.history.replaceState(window.history.state, "", url);
+};
 
 /** How the page arrived: the server already tried to load the dashboard. */
 export type InitialDashboardState =
@@ -38,33 +60,69 @@ export type InitialDashboardState =
 export function DashboardSections({
   initial,
   contract,
+  institution = null,
   lang,
 }: {
   initial: InitialDashboardState;
   contract: InstitutionContract | null;
+  /**
+   * The caller's institution, for the contract line under the selected sensor.
+   * Optional so a page that has not got it still renders, falling back to the
+   * single `contract` prop.
+   */
+  institution?: Institution | null;
   lang: Lang;
 }) {
   const copy = useInstitutionCopy(lang);
   const [state, setState] = useState<
     InitialDashboardState | { status: "loading" } | { status: "expired" }
   >(initial);
+  // Separate from `state` so the panel keeps showing the sensor it has while
+  // the next one loads: blanking the whole page to a skeleton on every switch
+  // would lose the reader's place for a request that usually takes a moment.
+  const [switching, setSwitching] = useState(false);
 
-  const retry = async () => {
-    setState({ status: "loading" });
+  /**
+   * Loads one sensor's dashboard, or the default one when given nothing.
+   *
+   * The single path both the retry button and the sensor selector take, so a
+   * failure is reported the same way whichever of the two caused it.
+   */
+  const load = async (stationId?: number) => {
     try {
-      setState({ status: "ready", dashboard: await fetchDashboard() });
+      const dashboard = await fetchDashboard(undefined, stationId);
+      setState({ status: "ready", dashboard });
+      return true;
     } catch (error) {
       if (error instanceof InstitutionApiError) {
         if (error.code === "not_found") {
           setState({ status: "no-sensor" });
-          return;
+          return false;
         }
         if (error.code === "unauthenticated") {
           setState({ status: "expired" });
-          return;
+          return false;
         }
       }
       setState({ status: "error" });
+      return false;
+    }
+  };
+
+  const retry = async () => {
+    setState({ status: "loading" });
+    await load();
+  };
+
+  const selectSensor = async (stationId: number) => {
+    setSwitching(true);
+    try {
+      // The URL is updated only once the sensor actually loaded: writing it
+      // first would leave a reload pointing at a sensor the panel could not
+      // show.
+      if (await load(stationId)) rememberSensorInUrl(stationId);
+    } finally {
+      setSwitching(false);
     }
   };
 
@@ -122,9 +180,25 @@ export function DashboardSections({
   }
 
   const { dashboard } = state;
+  const sensors = dashboardSensors(dashboard);
+  // The contract of the sensor on show, not the institution's first one —
+  // with several sensors those differ, and the status card names a term.
+  const selectedContract =
+    contractForStation(institution, dashboard.sensor.id) ?? contract;
 
   return (
     <div className="flex flex-col gap-8">
+      {/* Above everything, because it governs everything below it: each
+          section reads as "for the selected sensor", which only holds if the
+          selector is read first. It renders nothing with one sensor. */}
+      <SensorPicker
+        sensors={sensors}
+        selected={dashboard.sensor.id}
+        onSelect={selectSensor}
+        busy={switching}
+        lang={lang}
+      />
+
       {/* `gap-8` between sections, against the `gap-5` used *inside* a row: an
           even rhythm throughout gave the page no grouping, so a pair meant to
           be read together sat as far apart as two unrelated sections. The wider
@@ -140,7 +214,7 @@ export function DashboardSections({
         <div className="flex flex-col gap-5 lg:col-span-4">
           <SensorStatusCard
             sensor={dashboard.sensor}
-            contract={contract}
+            contract={selectedContract}
             lang={lang}
           />
         </div>
@@ -151,7 +225,12 @@ export function DashboardSections({
           was no room for that — the date range alone wants the better part of
           it. On its own row each download gets a readable column, and the pair
           can be compared side by side. */}
-      <DownloadCard lang={lang} contract={contract} sensor={dashboard.sensor} />
+      <DownloadCard
+        lang={lang}
+        contract={selectedContract}
+        sensor={dashboard.sensor}
+        stationId={dashboard.sensor.id}
+      />
 
       <HistoryChart
         history={dashboard.history}
@@ -170,7 +249,7 @@ export function DashboardSections({
           those notifications is not restated here: institutions cannot change
           it from the dashboard, and it already reaches them as the threshold
           line on the history chart above. */}
-      <NotificationsPanel lang={lang} />
+      <NotificationsPanel lang={lang} stationId={dashboard.sensor.id} />
     </div>
   );
 }

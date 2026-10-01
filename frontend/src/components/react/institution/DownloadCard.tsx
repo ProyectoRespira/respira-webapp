@@ -88,10 +88,16 @@ export function DownloadCard({
   lang,
   contract,
   sensor,
+  stationId,
 }: {
   lang: Lang;
   contract?: InstitutionContract | null;
   sensor?: DashboardSensor | null;
+  /**
+   * The selected sensor, when the institution leases several: both downloads
+   * cover it rather than whichever sensor the backend would default to.
+   */
+  stationId?: number;
 }) {
   const copy = useInstitutionCopy(lang);
   // Absent on a backend that predates the field: keep offering the download
@@ -122,13 +128,13 @@ export function DownloadCard({
           they are stacked, a left one when they sit side by side. */}
       <style>{DOWNLOAD_COLUMNS_CSS}</style>
       <div className="downloads-grid grid grid-cols-1 gap-4">
-        <MonthlyReport lang={lang} />
+        <MonthlyReport lang={lang} stationId={stationId} />
         {/* `h-full` so the column inside can measure against the grid row —
             without it `mt-auto` has no slack to take up and the buttons stop
             lining up. */}
         <div className="downloads-second h-full border-t border-bg-gray pt-4">
           {hasRawExport ? (
-            <RawExport lang={lang} contract={contract} />
+            <RawExport lang={lang} contract={contract} stationId={stationId} />
           ) : (
             <RawExportUnsupported lang={lang} />
           )}
@@ -248,9 +254,11 @@ function RawExportUnsupported({ lang }: { lang: Lang }) {
 function RawExport({
   lang,
   contract,
+  stationId,
 }: {
   lang: Lang;
   contract?: InstitutionContract | null;
+  stationId?: number;
 }) {
   const copy = useInstitutionCopy(lang);
   const fromId = useId();
@@ -261,11 +269,26 @@ function RawExport({
   // picker cannot reach past it.
   const earliest = contract?.start_date ?? undefined;
 
-  const [to, setTo] = useState(today);
-  const [from, setFrom] = useState(() => {
+  const defaultFrom = () => {
     const thirtyDaysAgo = addDays(today, -29);
     return earliest && earliest > thirtyDaysAgo ? earliest : thirtyDaysAgo;
-  });
+  };
+
+  const [to, setTo] = useState(today);
+  const [from, setFrom] = useState(defaultFrom);
+
+  // Each sensor is leased from its own date, so switching to one contracted
+  // later can leave `from` before that sensor's contract — a date its own
+  // `min` now forbids, which the input shows as valid until it is submitted.
+  // Pulling it forward is what keeps the range answerable for the sensor on
+  // screen; `useState`'s initialiser only runs on the first render and cannot
+  // do this.
+  useEffect(() => {
+    if (earliest && from && from < earliest) setFrom(earliest);
+    // `from` is deliberately not a dependency: this corrects the range when the
+    // *sensor* changes, and must not fight the visitor as they type a date.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [earliest]);
 
   // Clearing a date input leaves the empty string, which dates as `Invalid
   // Date`: every comparison against it is false, so an unguarded range read as
@@ -343,6 +366,7 @@ function RawExport({
         lang={lang}
         from={from}
         to={to}
+        stationId={stationId}
         disabled={invalid}
         blockedMessage={
           incomplete
@@ -367,7 +391,13 @@ function RawExport({
  * skeleton holds the selector's exact height, so the button underneath does not
  * jump once it arrives.
  */
-function MonthlyReport({ lang }: { lang: Lang }) {
+function MonthlyReport({
+  lang,
+  stationId,
+}: {
+  lang: Lang;
+  stationId?: number;
+}) {
   const copy = useInstitutionCopy(lang);
   const selectId = useId();
   const [months, setMonths] = useState<ReportMonth[] | undefined>();
@@ -376,7 +406,12 @@ function MonthlyReport({ lang }: { lang: Lang }) {
 
   useEffect(() => {
     let active = true;
-    fetchReportMonths()
+    // Refetched per sensor: the months on offer are the ones *that* sensor
+    // recorded, and they start at its own contract date, so a sensor added
+    // later has a shorter list than the one it replaced in the selector.
+    setMonths(undefined);
+    setLoadFailed(false);
+    fetchReportMonths(undefined, stationId)
       .then((data) => {
         if (!active) return;
         setMonths(data.months);
@@ -391,7 +426,7 @@ function MonthlyReport({ lang }: { lang: Lang }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [stationId]);
 
   const loading = months === undefined && !loadFailed;
   const hasMonths = months !== undefined && months.length > 0;
@@ -466,6 +501,7 @@ function MonthlyReport({ lang }: { lang: Lang }) {
         variant="color"
         lang={lang}
         month={selected || undefined}
+        stationId={stationId}
         disabled={loading || noMonths}
       />
     </DownloadColumn>
@@ -481,6 +517,7 @@ function DownloadButton({
   month,
   from,
   to,
+  stationId,
   disabled = false,
   blockedMessage,
   className = "",
@@ -493,6 +530,8 @@ function DownloadButton({
   month?: string;
   from?: string;
   to?: string;
+  /** The sensor the file covers; omitted, the backend picks the default one. */
+  stationId?: number;
   disabled?: boolean;
   /** Why the button is disabled — shown in place of any download error. */
   blockedMessage?: string;
@@ -514,6 +553,7 @@ function DownloadButton({
         month,
         from,
         to,
+        station: stationId,
       });
       if (missingRanges > 0) {
         setTone("warning");

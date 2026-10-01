@@ -68,7 +68,49 @@ export type Institution = {
   contact_phone: string;
   address: string;
   city: string;
+  /**
+   * The first contracted sensor, or null when none is.
+   *
+   * Kept alongside `contracts` for the single-sensor shape the panel was built
+   * around; anything that has to account for several reads `contracts`.
+   */
   contract: InstitutionContract | null;
+  /**
+   * Every sensor the institution leases, by station name.
+   *
+   * Optional because a backend that predates multi-sensor support sends
+   * nothing, which is why the helpers below fall back to `contract` rather
+   * than reading this field directly.
+   */
+  contracts?: InstitutionContract[];
+};
+
+/**
+ * The institution's contracts, whichever shape the backend answered with.
+ *
+ * Not exported: the fallback to the older single-`contract` payload is an
+ * implementation detail of `contractForStation` below, which is what callers
+ * actually need. Widen it to an export when something needs the whole list.
+ */
+const institutionContracts = (
+  institution: Institution | null | undefined,
+): InstitutionContract[] => {
+  if (!institution) return [];
+  if (institution.contracts?.length) return institution.contracts;
+  return institution.contract ? [institution.contract] : [];
+};
+
+/** The contract covering one station, for labelling a selected sensor. */
+export const contractForStation = (
+  institution: Institution | null | undefined,
+  stationId: number | null | undefined,
+): InstitutionContract | null => {
+  if (stationId == null) return null;
+  return (
+    institutionContracts(institution).find(
+      (contract) => contract.station === stationId,
+    ) ?? null
+  );
 };
 
 /** The name to show in the top bar: `display_name` is optional in the model. */
@@ -128,13 +170,41 @@ export type InstitutionAlertConfig = {
   sensitive_groups: SensitiveGroup[];
 };
 
+/** One option in the sensor selector: enough to label it and ask for it. */
+export type DashboardAvailableSensor = {
+  id: number;
+  name: string;
+};
+
 export type InstitutionDashboard = {
   sensor: DashboardSensor;
+  /**
+   * Every sensor this institution may switch to, the current one included.
+   *
+   * Optional for the same reason as `Institution.contracts`: a backend that
+   * predates multi-sensor support sends nothing, and a panel reading it as an
+   * empty list would hide the sensor it is already showing.
+   */
+  available_sensors?: DashboardAvailableSensor[];
   /** Null until the sensor reports its first measurement. */
   air_quality: DashboardAirQuality | null;
   history: DashboardHistoryPoint[];
   alert_config: InstitutionAlertConfig;
 };
+
+/**
+ * The sensors to offer in the selector, falling back to the one on show.
+ *
+ * A single-sensor institution and an older backend both land on a one-entry
+ * list, which is what lets the selector hide itself on `length < 2` without
+ * either case having to be special-cased.
+ */
+export const dashboardSensors = (
+  dashboard: InstitutionDashboard,
+): DashboardAvailableSensor[] =>
+  dashboard.available_sensors?.length
+    ? dashboard.available_sensors
+    : [{ id: dashboard.sensor.id, name: dashboard.sensor.name }];
 
 // --- Action log -------------------------------------------------------------
 

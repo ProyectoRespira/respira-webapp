@@ -72,7 +72,19 @@ const stateForError = (error: unknown): ListState => {
  * carries neither — so every AQI-specific field is rendered only when present
  * rather than assumed.
  */
-export function NotificationsPanel({ lang }: { lang: Lang }) {
+export function NotificationsPanel({
+  lang,
+  stationId,
+}: {
+  lang: Lang;
+  /**
+   * The selected sensor, when the institution leases several. Undefined asks
+   * for every sensor's notifications, which is the single-sensor answer too.
+   * Changing it reloads from page one — paging on into a list built for
+   * another sensor would interleave the two.
+   */
+  stationId?: number;
+}) {
   const copy = useInstitutionCopy(lang);
   const [list, setList] = useState<ListState>({ status: "loading" });
   const [loadingMore, setLoadingMore] = useState(false);
@@ -80,7 +92,7 @@ export function NotificationsPanel({ lang }: { lang: Lang }) {
   const load = useCallback(async () => {
     setList({ status: "loading" });
     try {
-      const page = await fetchInstitutionNotifications(1);
+      const page = await fetchInstitutionNotifications(1, undefined, stationId);
       setList({
         status: "ready",
         items: page.results,
@@ -91,7 +103,7 @@ export function NotificationsPanel({ lang }: { lang: Lang }) {
     } catch (error) {
       setList(stateForError(error));
     }
-  }, []);
+  }, [stationId]);
 
   useEffect(() => {
     void load();
@@ -101,7 +113,11 @@ export function NotificationsPanel({ lang }: { lang: Lang }) {
     if (list.status !== "ready" || loadingMore) return;
     setLoadingMore(true);
     try {
-      const next = await fetchInstitutionNotifications(list.page + 1);
+      const next = await fetchInstitutionNotifications(
+        list.page + 1,
+        undefined,
+        stationId,
+      );
       setList({
         status: "ready",
         items: [...list.items, ...next.results],

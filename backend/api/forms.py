@@ -4,13 +4,12 @@ from .models import Institution, InstitutionAlertRule, PushBroadcast, Stations
 
 
 class InstitutionAlertRuleForm(forms.ModelForm):
-    """Offers only the sensor that belongs to the chosen institution.
+    """Offers only the sensors that belong to the chosen institution.
 
-    ``InstitutionContract.station`` is a ``OneToOneField``, so an institution
-    has exactly one sensor under contract. A picker listing every station on
-    the platform therefore offers one right answer and many wrong ones, and
-    each wrong one configures an institution's wording onto somebody else's
-    sensor — visible only when the wrong followers receive it.
+    A picker listing every station on the platform offers a handful of right
+    answers and many wrong ones, and each wrong one configures an institution's
+    wording onto somebody else's sensor — visible only when the wrong followers
+    receive it.
 
     The narrowing happens in two places, because they cover different moments:
 
@@ -18,8 +17,12 @@ class InstitutionAlertRuleForm(forms.ModelForm):
       already knows about — the one being edited, or the one just posted. This
       is what the browser renders, and what a posted value is validated
       against, so a station outside it is rejected by the field itself.
-    * ``clean`` fills the field in when it was left blank, since there is only
-      ever one valid choice and making the operator select it adds nothing.
+    * ``clean`` fills the field in when it was left blank *and the institution
+      leases exactly one sensor*, since there is then only one valid choice and
+      making the operator select it adds nothing. With several under contract
+      there is no such answer to infer, so a blank is reported instead of one
+      being guessed — silently picking a sensor would attach the rule to a
+      sensor nobody chose.
 
     A JavaScript companion (``institution_alert_rule.js``) repopulates the
     select as soon as the institution changes, so the narrowing is visible
@@ -41,12 +44,12 @@ class InstitutionAlertRuleForm(forms.ModelForm):
             self.fields["station"].queryset = Stations.objects.none()
         else:
             self.fields["station"].queryset = Stations.objects.filter(
-                institution_contract__institution=institution
+                institution_contracts__institution=institution
             )
         self.fields["station"].required = False
         self.fields[
             "station"
-        ].help_text = "The sensor under contract to the selected institution."
+        ].help_text = "A sensor under contract to the selected institution."
 
     def _known_institution(self):
         """The institution this form is about, from the POST or the instance.
@@ -69,8 +72,8 @@ class InstitutionAlertRuleForm(forms.ModelForm):
             # about the station it would have resolved is just noise.
             return cleaned
 
-        contract = getattr(institution, "contract", None)
-        if contract is None or contract.station_id is None:
+        stations = list(institution_stations(institution))
+        if not stations:
             raise forms.ValidationError(
                 {
                     "institution": (
@@ -81,26 +84,40 @@ class InstitutionAlertRuleForm(forms.ModelForm):
                 }
             )
 
-        # Blank is the ordinary case with scripting off, and the only valid
-        # answer is the contracted sensor either way.
         if cleaned.get("station") is None:
-            cleaned["station"] = contract.station
-            self.instance.station = contract.station
+            if len(stations) > 1:
+                # Nothing to infer: naming one of several on the operator's
+                # behalf would attach the rule to a sensor they never chose.
+                raise forms.ValidationError(
+                    {
+                        "station": (
+                            "This institution has several sensors under "
+                            "contract. Choose which one this alert is about."
+                        )
+                    }
+                )
+            # Blank is the ordinary case with scripting off, and with one
+            # sensor under contract it is the only valid answer anyway.
+            cleaned["station"] = stations[0]
+            self.instance.station = stations[0]
         return cleaned
 
 
 def institution_stations(institution):
     """The stations one institution may be notified about, newest naming first.
 
-    A queryset rather than a single station even though
-    ``InstitutionContract.station`` is currently OneToOne, so an institution
-    has at most one. The picker and its lookup are written against *the set*
-    because that is the promise being made — an institution's notifications go
-    to an institution's sensors — and a contract that grows to several stations
-    then needs no change here.
+    A queryset because that is the promise being made — an institution's
+    notifications go to an institution's sensors — and it has held through
+    both widenings of the contract: an institution leasing several sensors,
+    and a sensor shared by several institutions. The filter runs from *this*
+    institution's contracts, so a shared sensor reaches this institution's
+    audience only, never the co-tenant's.
+
+    Cannot repeat a station: ``(institution, station)`` is unique, so the join
+    matches at most one contract row per station for a given institution.
     """
     return Stations.objects.filter(
-        institution_contract__institution=institution
+        institution_contracts__institution=institution
     ).order_by("name")
 
 

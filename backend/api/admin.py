@@ -99,6 +99,38 @@ class StationDetailsInline(admin.StackedInline):
     )
 
 
+class StationContractInline(admin.TabularInline):
+    """The institutions leasing this sensor, one row per contract.
+
+    The sensor-first view of the same rows ``InstitutionContractInline``
+    shows institution-first. Both exist because operators arrive from both
+    directions: "add a sensor to this client" starts at the institution,
+    while "who is paying for this device" starts here — and since a sensor
+    may now be shared, that second question no longer has a single answer
+    readable from the station page without this.
+
+    Adding a row here associates the *existing* station with another
+    institution; it never creates a station, which is what keeps one physical
+    device as one ``stations`` record no matter how many institutions lease
+    it. Removing a row detaches only that institution, leaving every other
+    contract on the sensor untouched.
+    """
+
+    model = InstitutionContract
+    extra = 0
+    autocomplete_fields = ("institution",)
+    fields = (
+        "institution",
+        "contract_status",
+        "start_date",
+        "end_date",
+        "monthly_fee",
+    )
+    verbose_name = "Leasing institution"
+    verbose_name_plural = "Leasing institutions"
+    show_change_link = True
+
+
 @admin.register(Stations)
 class StationsViewer(RoleBasedModelAdmin):
     """Station page: the station itself is immutable, its details are not.
@@ -133,7 +165,7 @@ class StationsViewer(RoleBasedModelAdmin):
         ("Coordinates", {"fields": ("latitude", "longitude")}),
         ("Status", {"fields": ("is_station_on", "is_pattern_station")}),
     )
-    inlines = (StationDetailsInline,)
+    inlines = (StationDetailsInline, StationContractInline)
     actions = ("activate_stations", "deactivate_stations")
     status_override_template = "admin/api/stations/status_override_confirmation.html"
 
@@ -144,9 +176,14 @@ class StationsViewer(RoleBasedModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None):
-        # Opens the station page for editing its inline details only; the
-        # station's own fields stay read-only regardless.
-        return request.user.has_perm("api.change_stationdetails")
+        # Opens the station page for editing its inlines only; the station's
+        # own fields stay read-only regardless. Either inline is reason enough
+        # to open it: Django refuses to save an inline when the parent denies
+        # change permission, so someone who may manage contracts but not
+        # details would otherwise find the leasing inline read-only.
+        return request.user.has_perm(
+            "api.change_stationdetails"
+        ) or request.user.has_perm("api.change_institutioncontract")
 
     def save_model(self, request, obj, form, change):
         # Every station field is readonly, so this page never has a
@@ -395,15 +432,42 @@ class InstitutionUserInline(admin.TabularInline):
     verbose_name_plural = "Dashboard users"
 
 
+class InstitutionContractInline(admin.TabularInline):
+    """The sensors this institution leases, one row per contract.
+
+    Here as well as on its own changelist: adding a second sensor to a client
+    is a thing an operator does *while looking at that client*, and an inline
+    is what makes "which sensors does this institution have" answerable at a
+    glance. A sensor already contracted by *another* institution is a valid
+    choice here — sensors can be shared — while listing the same sensor twice
+    for *this* institution is refused by the ``(institution, station)`` unique
+    constraint, with a field error on the row that caused it.
+    """
+
+    model = InstitutionContract
+    extra = 0
+    autocomplete_fields = ("station",)
+    fields = ("station", "contract_status", "start_date", "end_date", "monthly_fee")
+    verbose_name = "Contracted sensor"
+    verbose_name_plural = "Contracted sensors"
+    show_change_link = True
+
+
 @admin.register(Institution)
 class InstitutionAdmin(RoleBasedModelAdmin):
     """Client organizations in the Sensor Leasing program."""
 
-    list_display = ("legal_name", "display_name", "institution_type", "city")
+    list_display = (
+        "legal_name",
+        "display_name",
+        "institution_type",
+        "city",
+        "sensor_count",
+    )
     list_filter = ("institution_type", "city")
     search_fields = ("legal_name", "display_name", "contact_name", "contact_email")
     ordering = ("legal_name",)
-    inlines = (InstitutionUserInline,)
+    inlines = (InstitutionContractInline, InstitutionUserInline)
     fieldsets = (
         (None, {"fields": ("legal_name", "display_name", "institution_type")}),
         (
@@ -413,6 +477,15 @@ class InstitutionAdmin(RoleBasedModelAdmin):
         ("Location", {"fields": ("address", "city")}),
         ("Notes", {"fields": ("notes",)}),
     )
+
+    def get_queryset(self, request):
+        # Annotated so `sensor_count` costs one query for the whole changelist
+        # rather than one per row.
+        return super().get_queryset(request).annotate(_sensor_count=Count("contracts"))
+
+    @admin.display(description="Sensors", ordering="_sensor_count")
+    def sensor_count(self, obj):
+        return obj._sensor_count
 
 
 @admin.register(SensitiveGroup)
@@ -428,9 +501,16 @@ class SensitiveGroupAdmin(RoleBasedModelAdmin):
 class InstitutionContractAdmin(RoleBasedModelAdmin):
     """Leasing contracts binding an Institution to a station.
 
-    ``institution`` and ``station`` are each OneToOne, so the admin's own
-    unique index (not custom validation) is what prevents an institution or a
-    station from being attached to more than one contract.
+    One row per leased sensor per institution, so an institution appears as
+    many times as it has sensors, and a shared sensor appears once per
+    institution leasing it. The model's ``(institution, station)`` unique
+    constraint (not custom validation) is what prevents the same institution
+    from holding the same sensor twice; two *different* institutions on one
+    sensor is now allowed on purpose.
+
+    Also reachable as an inline on the Institution page, which is where adding
+    a sensor to an existing client naturally happens; this changelist is the
+    contract-first view of the same rows.
     """
 
     list_display = (
@@ -738,29 +818,37 @@ class InstitutionAlertRuleAdmin(RoleBasedModelAdmin):
         ]
 
     def contracted_station_view(self, request):
-        """The station under contract to one institution, as JSON.
+        """The stations under contract to one institution, as JSON.
 
         Wrapped in ``admin_view`` so it is behind the admin login like every
         other page here, and gated on the same permission as the form it
-        serves: this reports which sensor an institution leases, which is not
+        serves: this reports which sensors an institution leases, which is not
         public information.
+
+        Answers with a ``stations`` list — an institution may lease several.
+        ``station`` is still sent alongside it, holding the first one, so the
+        response keeps working for anything written against the single-sensor
+        shape.
         """
         if not (
             self.has_add_permission(request) or self.has_change_permission(request)
         ):
             return JsonResponse({"detail": "Not permitted."}, status=403)
 
-        contract = (
+        contracts = (
             InstitutionContract.objects.filter(
                 institution_id=request.GET.get("institution") or 0
             )
             .select_related("station")
-            .first()
+            .order_by("station__name", "pk")
         )
-        if contract is None or contract.station is None:
-            return JsonResponse({"station": None})
+        stations = [
+            {"id": contract.station_id, "name": contract.station.name}
+            for contract in contracts
+            if contract.station is not None
+        ]
         return JsonResponse(
-            {"station": {"id": contract.station_id, "name": contract.station.name}}
+            {"stations": stations, "station": stations[0] if stations else None}
         )
 
     @admin.display(description="State", ordering="state__is_firing")

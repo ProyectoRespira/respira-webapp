@@ -232,11 +232,40 @@ class BackendEndpointTests(TestCase):
                 "is_station_on",
                 "is_pattern_station",
                 "aqi_pm2_5",
+                "supports_public_export",
             },
         )
         self.assertEqual(first_station["region"]["has_pattern_station"], False)
         self.assertEqual(first_station["coordinates"], [-25.3, -57.5])
         self.assertEqual(first_station["aqi_pm2_5"], 84.0)
+
+    def test_public_export_flag_follows_the_station_code(self):
+        """The flag the public page reads to decide whether to offer a download.
+
+        These fixtures carry no `station_code`, so none of them is one of
+        Respira's own sensors and none offers an export. It is advisory only —
+        the export endpoint checks for itself — so the page can be wrong about
+        it without anything being exportable that should not be.
+        """
+        response = self.client.get(reverse("stations-list"))
+
+        self.assertTrue(
+            all(
+                station["supports_public_export"] is False
+                for station in response.json()
+            )
+        )
+
+        self.station.station_code = "respira_191355"
+        self.station.update_for_tests()
+
+        response = self.client.get(reverse("stations-list"))
+        exportable = {
+            station["id"]: station["supports_public_export"]
+            for station in response.json()
+        }
+        self.assertTrue(exportable[self.station.id])
+        self.assertFalse(exportable[self.other_station.id])
 
     def test_station_list_is_ordered_by_id(self):
         response = self.client.get(reverse("stations-list"))

@@ -3,7 +3,7 @@
 Like StationDetails/StationOverride (see tests_station_models.py), these
 models are admin-owned rather than written by the dbt pipeline, so what
 matters here is that the schema persists every documented field and that the
-one-to-one uniqueness rules hold at the database level.
+uniqueness rules hold at the database level.
 """
 
 from datetime import date
@@ -136,7 +136,61 @@ class InstitutionContractModelTests(TestCase):
 
         self.assertGreater(contract.updated_at, first_updated_at)
 
-    def test_an_institution_cannot_have_two_contracts(self):
+    def test_an_institution_can_lease_several_sensors(self):
+        """One contract per sensor, so an institution may hold several.
+
+        The inverse of what this asserted while an institution was limited to
+        one sensor: the unique index on `institution_id` is gone, and each
+        contract carries its own term.
+        """
+        first = InstitutionContract.objects.create(
+            institution=self.institution,
+            station=self.station,
+            start_date=date(2026, 1, 1),
+        )
+        second = InstitutionContract.objects.create(
+            institution=self.institution,
+            station=self.other_station,
+            start_date=date(2026, 6, 1),
+        )
+
+        self.assertEqual(self.institution.contracts.count(), 2)
+        self.assertCountEqual(
+            [first.station_id, second.station_id],
+            [self.station.id, self.other_station.id],
+        )
+
+    def test_two_institutions_can_share_one_sensor(self):
+        """A sensor may be leased by several institutions, each on its terms.
+
+        The inverse of what this asserted while a station was limited to one
+        contract: a device installed at a school but paid for with the
+        municipality is under contract to both, and each contract carries its
+        own start date and fee.
+        """
+        first = InstitutionContract.objects.create(
+            institution=self.institution,
+            station=self.station,
+            start_date=date(2026, 1, 1),
+            monthly_fee=Decimal("150.00"),
+        )
+        second = InstitutionContract.objects.create(
+            institution=self.other_institution,
+            station=self.station,
+            start_date=date(2026, 6, 1),
+            monthly_fee=Decimal("90.00"),
+        )
+
+        self.assertEqual(self.station.institution_contracts.count(), 2)
+        self.assertCountEqual(
+            [first.institution_id, second.institution_id],
+            [self.institution.id, self.other_institution.id],
+        )
+
+    def test_one_institution_cannot_hold_the_same_sensor_twice(self):
+        # Sharing across institutions is the point; a duplicate *within* one
+        # institution would double the sensor in its selector and in every
+        # notification fan-out.
         InstitutionContract.objects.create(
             institution=self.institution,
             station=self.station,
@@ -147,23 +201,8 @@ class InstitutionContractModelTests(TestCase):
             with transaction.atomic():
                 InstitutionContract.objects.create(
                     institution=self.institution,
-                    station=self.other_station,
-                    start_date=date(2026, 1, 1),
-                )
-
-    def test_a_station_cannot_be_bound_to_two_contracts(self):
-        InstitutionContract.objects.create(
-            institution=self.institution,
-            station=self.station,
-            start_date=date(2026, 1, 1),
-        )
-
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                InstitutionContract.objects.create(
-                    institution=self.other_institution,
                     station=self.station,
-                    start_date=date(2026, 1, 1),
+                    start_date=date(2026, 6, 1),
                 )
 
     def test_contract_does_not_add_a_foreign_key_to_the_dbt_table(self):
@@ -171,7 +210,7 @@ class InstitutionContractModelTests(TestCase):
         # would break the dbt run that drops and recreates it.
         field = InstitutionContract._meta.get_field("station")
         self.assertFalse(field.db_constraint)
-        self.assertTrue(field.one_to_one)
+        self.assertTrue(field.many_to_one)
 
     def test_str_describes_the_contract(self):
         contract = InstitutionContract.objects.create(

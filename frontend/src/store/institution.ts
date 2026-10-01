@@ -23,6 +23,7 @@ import {
   type InstitutionNotification,
   type Paginated,
 } from "../data/institution";
+import { saveResponseAsFile } from "../utils/download";
 import { getBackendUrl } from "./runtime-config";
 
 export type InstitutionApiErrorCode =
@@ -304,19 +305,35 @@ export const logout = async (): Promise<void> => {
 export const fetchInstitution = (cookie?: string): Promise<Institution> =>
   requestJson<Institution>(INSTITUTION_ENDPOINTS.me, { cookie });
 
+/**
+ * Appends a station id to an endpoint, when one is selected.
+ *
+ * The id is only ever a *request*: the backend resolves it against the
+ * caller's own contracts and 404s on anything else, so passing a station here
+ * can narrow what comes back but never widen it.
+ */
+const withStation = (endpoint: string, station?: number | null): string => {
+  if (station == null) return endpoint;
+  const separator = endpoint.includes("?") ? "&" : "?";
+  return `${endpoint}${separator}station=${encodeURIComponent(station)}`;
+};
+
 export const fetchDashboard = (
   cookie?: string,
+  station?: number | null,
 ): Promise<InstitutionDashboard> =>
-  requestJson<InstitutionDashboard>(INSTITUTION_ENDPOINTS.dashboard, {
-    cookie,
-  });
+  requestJson<InstitutionDashboard>(
+    withStation(INSTITUTION_ENDPOINTS.dashboard, station),
+    { cookie },
+  );
 
 export const fetchActionLogs = (
   page = 1,
   cookie?: string,
+  station?: number | null,
 ): Promise<Paginated<ActionLog>> =>
   requestJson<Paginated<ActionLog>>(
-    `${INSTITUTION_ENDPOINTS.actionLogs}?page=${page}`,
+    withStation(`${INSTITUTION_ENDPOINTS.actionLogs}?page=${page}`, station),
     { cookie, treat404AsUnavailable: true },
   );
 
@@ -329,10 +346,14 @@ export const fetchActionLogs = (
  */
 export const fetchInstitutionAlerts = async (
   cookie?: string,
+  station?: number | null,
 ): Promise<InstitutionAlert[]> => {
   const payload = await requestJson<
     Paginated<InstitutionAlert> | InstitutionAlert[]
-  >(INSTITUTION_ENDPOINTS.alerts, { cookie, treat404AsUnavailable: true });
+  >(withStation(INSTITUTION_ENDPOINTS.alerts, station), {
+    cookie,
+    treat404AsUnavailable: true,
+  });
 
   return Array.isArray(payload) ? payload : payload.results;
 };
@@ -349,13 +370,17 @@ export const fetchInstitutionAlerts = async (
 export const fetchInstitutionNotifications = async (
   page = 1,
   cookie?: string,
+  station?: number | null,
 ): Promise<Paginated<InstitutionNotification>> => {
   const payload = await requestJson<
     Paginated<InstitutionNotification> | InstitutionNotification[]
-  >(`${INSTITUTION_ENDPOINTS.notifications}?page=${page}`, {
-    cookie,
-    treat404AsUnavailable: true,
-  });
+  >(
+    withStation(`${INSTITUTION_ENDPOINTS.notifications}?page=${page}`, station),
+    {
+      cookie,
+      treat404AsUnavailable: true,
+    },
+  );
 
   return Array.isArray(payload)
     ? { count: payload.length, next: null, previous: null, results: payload }
@@ -404,22 +429,30 @@ export type ReportMonth = { month: string; label: string };
  */
 export const fetchReportMonths = async (
   cookie?: string,
+  station?: number | null,
 ): Promise<{ months: ReportMonth[]; default: string | null }> =>
   requestJson<{ months: ReportMonth[]; default: string | null }>(
-    INSTITUTION_ENDPOINTS.reportMonths,
+    withStation(INSTITUTION_ENDPOINTS.reportMonths, station),
     { cookie, treat404AsUnavailable: true },
   );
 
 export const downloadInstitutionFile = async (
   kind: DownloadKind,
-  options: { month?: string; from?: string; to?: string } = {},
+  options: {
+    month?: string;
+    from?: string;
+    to?: string;
+    station?: number | null;
+  } = {},
 ): Promise<DownloadOutcome> => {
   // `month` belongs to the report, `from`/`to` to the raw export; the two
   // endpoints take different parameters, so whichever is set is what goes.
+  // `station` is common to both — a download covers the selected sensor.
   const params = new URLSearchParams();
   if (options.month) params.set("month", options.month);
   if (options.from) params.set("from", options.from);
   if (options.to) params.set("to", options.to);
+  if (options.station != null) params.set("station", String(options.station));
   const query = params.toString();
   const endpoint = query
     ? `${INSTITUTION_ENDPOINTS[kind]}?${query}`
@@ -432,39 +465,7 @@ export const downloadInstitutionFile = async (
     response.headers.get("X-Respira-Partial-Export") ?? 0,
   );
 
-  const blob = await response.blob();
-  const filename = filenameFromResponse(response, kind);
-
-  // `msSaveOrOpenBlob` is the only path that works in embedded WebViews which
-  // block navigation to blob: URLs (VS Code's Simple Browser among them); the
-  // anchor click below silently does nothing there.
-  const legacySave = (
-    navigator as Navigator & {
-      msSaveOrOpenBlob?: (blob: Blob, filename: string) => boolean;
-    }
-  ).msSaveOrOpenBlob;
-  if (typeof legacySave === "function") {
-    legacySave.call(navigator, blob, filename);
-    return {
-      missingRanges: Number.isFinite(missingRanges) ? missingRanges : 0,
-    };
-  }
-
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  // `rel=noopener` matters for the fallback below, where a blocked download can
-  // fall back to opening the blob in a tab.
-  link.rel = "noopener";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  // Revoking in the same tick can invalidate the URL before the browser has
-  // started reading it — the download then fails silently, with no error to
-  // catch. One minute is far longer than any handoff needs and still bounds the
-  // memory the blob holds.
-  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  await saveResponseAsFile(response, FALLBACK_FILENAME[kind]);
 
   return { missingRanges: Number.isFinite(missingRanges) ? missingRanges : 0 };
 };
@@ -472,24 +473,4 @@ export const downloadInstitutionFile = async (
 const FALLBACK_FILENAME: Record<DownloadKind, string> = {
   monthlyReport: "reporte-mensual.pdf",
   rawExport: "historial-mediciones.xlsx",
-};
-
-const filenameFromResponse = (
-  response: Response,
-  kind: DownloadKind,
-): string => {
-  const disposition = response.headers.get("Content-Disposition") ?? "";
-  // Prefer RFC 5987 (`filename*=UTF-8''…`) when present; fall back to the plain
-  // `filename="…"` form, and to a sensible default when the header is absent.
-  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i);
-  if (encoded) {
-    try {
-      return decodeURIComponent(encoded[1]);
-    } catch {
-      // Malformed percent-encoding: fall through to the plain form.
-    }
-  }
-  const plain = disposition.match(/filename="?([^";]+)"?/i);
-  if (plain) return plain[1];
-  return FALLBACK_FILENAME[kind];
 };
