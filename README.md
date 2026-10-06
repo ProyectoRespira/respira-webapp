@@ -58,7 +58,7 @@ pre-commit run --all-files
 
 ### Recommended commit flow
 
-To avoid commit-time failures from auto-fixing hooks (for example end-of-file fixes), use this sequence:
+To avoid commit-time failures from auto-fixing hooks (for example end-of-file fixes), please use this sequence:
 
 ```bash
 cd backend
