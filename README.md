@@ -18,7 +18,7 @@ For security procedures and incident response details:
 
 ## Docker Compose
 
-For local development and deployment with Docker Compose, see:
+For local development and deployment with Docker Compose, please see:
 
 - **[Docker Compose How-To Guide](docs/DOCKER_COMPOSE_HOWTO.md)** - Setup, configuration, and troubleshooting
 - Quick start: `cp docker-compose.override.yml.example docker-compose.override.yml && cp .env.example .env && docker compose up -d`
@@ -58,7 +58,7 @@ pre-commit run --all-files
 
 ### Recommended commit flow
 
-To avoid commit-time failures from auto-fixing hooks (for example end-of-file fixes), use this sequence:
+To avoid commit-time failures from auto-fixing hooks (for example end-of-file fixes), please use this sequence:
 
 ```bash
 cd backend
