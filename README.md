@@ -18,7 +18,7 @@ For security procedures and incident response details:
 
 ## Docker Compose
 
-For local development and deployment with Docker Compose, see:
+For local development and deployment with Docker Compose, please see:
 
 - **[Docker Compose How-To Guide](docs/DOCKER_COMPOSE_HOWTO.md)** - Setup, configuration, and troubleshooting
 - Quick start: `cp docker-compose.override.yml.example docker-compose.override.yml && cp .env.example .env && docker compose up -d`
