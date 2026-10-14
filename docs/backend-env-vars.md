@@ -170,6 +170,7 @@ values default from `BACKEND_DEBUG`; override only to diverge. See
 | `BACKEND_SECURE_HSTS_INCLUDE_SUBDOMAINS` | No       | `true` when not DEBUG | `backend/backend/settings.py` | Apply HSTS to subdomains.                                        |
 | `BACKEND_SECURE_HSTS_PRELOAD`            | No       | `true` when not DEBUG | `backend/backend/settings.py` | Set the HSTS preload flag.                                       |
 | `BACKEND_SECURE_PROXY_SSL_HEADER`        | No       | `true` when not DEBUG | `backend/backend/settings.py` | Trust `X-Forwarded-Proto` from the TLS-terminating proxy.        |
+| `BACKEND_TRUST_PROXY_IP_HEADER`          | No       | `true` when not DEBUG | `backend/backend/client_ip.py` | Take the client IP from nginx's `X-Real-IP` (login lockouts, IP geolocation). Turn off if clients can reach Django without nginx. |
 | `BACKEND_X_FRAME_OPTIONS`                | No       | `DENY`                | `backend/backend/settings.py` | Clickjacking protection header value.                            |
 
 ---
