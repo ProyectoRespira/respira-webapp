@@ -26,21 +26,52 @@ How it's wired in:
 
 Configuration:
 
-| Setting                   | Env var                      | Default                      | Meaning                                                                                                                                                                                        |
-| ------------------------- | ---------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AXES_ENABLED`            | `BACKEND_AXES_ENABLED`       | `true`                       | Master on/off switch.                                                                                                                                                                          |
-| `AXES_FAILURE_LIMIT`      | `BACKEND_AXES_FAILURE_LIMIT` | `5`                          | Failed attempts allowed before lockout.                                                                                                                                                        |
-| `AXES_COOLOFF_TIME`       | `BACKEND_AXES_COOLOFF_HOURS` | `1` (hour)                   | How long a lockout lasts before it auto-resets.                                                                                                                                                |
-| `AXES_RESET_ON_SUCCESS`   | — (fixed)                    | `true`                       | A successful login before hitting the limit clears the failure counter.                                                                                                                        |
-| `AXES_LOCKOUT_PARAMETERS` | — (fixed)                    | `["username", "ip_address"]` | Lockout key: the specific username+IP pair, not the IP alone (would collide behind NAT/shared proxies) nor the username alone (would let one attacker lock out a legitimate user from any IP). |
-| `AXES_LOCKOUT_TEMPLATE`   | — (fixed)                    | `None`                       | No custom lockout page; axes' default response is used (HTTP 403).                                                                                                                             |
+| Setting                                         | Env var                         | Default                        | Meaning                                                                                                                                                                                                                 |
+| ----------------------------------------------- | ------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AXES_ENABLED`                                  | `BACKEND_AXES_ENABLED`          | `true`                         | Master on/off switch.                                                                                                                                                                                                   |
+| `AXES_FAILURE_LIMIT`                            | `BACKEND_AXES_FAILURE_LIMIT`    | `5`                            | Failed attempts allowed before lockout.                                                                                                                                                                                 |
+| `AXES_COOLOFF_TIME`                             | `BACKEND_AXES_COOLOFF_HOURS`    | `1` (hour)                     | How long a lockout lasts before it auto-resets.                                                                                                                                                                         |
+| `AXES_RESET_ON_SUCCESS`                         | — (fixed)                       | `true`                         | A successful login before hitting the limit clears the failure counter.                                                                                                                                                 |
+| `AXES_LOCKOUT_PARAMETERS`                       | — (fixed)                       | `[["username", "ip_address"]]` | Lockout key: the username+IP **combination**. The nested list matters: in axes 6.x a flat `["username", "ip_address"]` is two independent criteria, so failures for any username locked out every user on that IP.     |
+| `AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT` | — (fixed)                       | `false`                        | Attempts made while locked out don't restart the cool-off, so retrying can't keep an account locked indefinitely.                                                                                                       |
+| `AXES_CLIENT_IP_CALLABLE`                       | `BACKEND_TRUST_PROXY_IP_HEADER` | `backend.client_ip.get_client_ip` | Resolves the real client IP from nginx's `X-Real-IP`; see below.                                                                                                                                                     |
+| `AXES_LOCKOUT_TEMPLATE`                         | — (fixed)                       | `None`                         | No custom lockout page; axes' default response is used (HTTP 403).                                                                                                                                                      |
 
 Behavior: after `AXES_FAILURE_LIMIT` failed attempts for the same
-username+IP, further attempts — including ones with the correct password —
-are rejected with a `403`/`429` response until `AXES_COOLOFF_TIME` elapses or
-an operator clears the record.
+username+IP, further attempts from that pair — including ones with the
+correct password — are rejected with a `403`/`429` response until
+`AXES_COOLOFF_TIME` elapses or an operator clears the record. The same
+username from another IP, and other usernames from the same IP, are
+unaffected.
 
-Covered by `backend/accounts/tests_security.py::LoginRateLimitTests` and
+### Client IP behind the proxy
+
+Every request reaches Django from the nginx container, so `REMOTE_ADDR` is
+that container's Docker address for every client. Keying lockouts on it
+would put everyone in the same bucket.
+
+`backend/backend/client_ip.py` reads `X-Real-IP` instead. nginx sets it with
+`proxy_set_header X-Real-IP $remote_addr` in every location, which
+**replaces** any value the client sent — it always holds exactly the address
+nginx saw. `X-Forwarded-For` is deliberately not used: nginx builds it with
+`$proxy_add_x_forwarded_for`, which *appends* to the client's own header, so
+its leftmost entries are whatever the client wants. (axes' built-in
+`AXES_IPWARE_*` settings only take effect when `django-ipware` is installed,
+which it isn't.)
+
+This assumes nginx is the only hop and the backend port is not reachable
+from outside the Docker network (in `docker-compose.yml` the backend
+publishes no ports). If a deployment exposes Django directly, set
+`BACKEND_TRUST_PROXY_IP_HEADER=false`, or clients could choose their IP. If
+another proxy or CDN is ever put in front of nginx, nginx's `$remote_addr`
+becomes that proxy and must be fixed there with `set_real_ip_from` /
+`real_ip_header`.
+
+After deploying a change to this configuration, clear old records — they
+were keyed on the proxy address — with `python manage.py axes_reset`.
+
+Covered by `backend/accounts/tests_security.py::LoginRateLimitTests`,
+`LockoutScopeTests`, `ClientIpTests` and
 `SecuritySettingsTests::test_axes_configured`.
 
 ## Password policy
