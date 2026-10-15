@@ -1,6 +1,7 @@
 import * as React from "react";
 import Map, { Marker } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
+import "../../lib/maplibre-worker";
 import { useStore } from "@nanostores/react";
 import Pin from "./Pin";
 
@@ -19,7 +20,16 @@ const PlaceHolderMap = () => {
   const region = useStore(regionMeta);
 
   const bounds = parseBbox(region?.bbox);
-  const maxBounds = bounds ? expandBounds(bounds, 4) : MAP_FALLBACK.maxBounds;
+  const [[west, south], [east, north]] = bounds
+    ? expandBounds(bounds, 4)
+    : MAP_FALLBACK.maxBounds;
+  // react-map-gl v8 types maxBounds as a flat [west, south, east, north].
+  const maxBounds: [number, number, number, number] = [
+    west,
+    south,
+    east,
+    north,
+  ];
 
   const [dimensions] = React.useState({
     height: 300,
