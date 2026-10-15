@@ -413,8 +413,18 @@ AXES_ENABLED = _env_bool("BACKEND_AXES_ENABLED", True)
 AXES_FAILURE_LIMIT = _env_int("BACKEND_AXES_FAILURE_LIMIT", 5)
 AXES_COOLOFF_TIME = _env_int("BACKEND_AXES_COOLOFF_HOURS", 1)  # hours
 AXES_RESET_ON_SUCCESS = True
-AXES_LOCKOUT_PARAMETERS = ["username", "ip_address"]
+# The nested list locks the username+IP *combination*. A flat list
+# (["username", "ip_address"]) is two independent criteria in axes 6.x, so
+# failures for any username would lock out every user sharing the IP.
+AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
+# Failures during an active lockout don't extend it, so an attacker can't keep
+# a user locked out indefinitely by retrying.
+AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT = False
 AXES_LOCKOUT_TEMPLATE = None
+# Behind nginx REMOTE_ADDR is the proxy container, shared by every client.
+# See backend/client_ip.py for why X-Real-IP and not X-Forwarded-For.
+CLIENT_IP_TRUST_PROXY_HEADER = _env_bool("BACKEND_TRUST_PROXY_IP_HEADER", not DEBUG)
+AXES_CLIENT_IP_CALLABLE = "backend.client_ip.get_client_ip"
 
 
 # Security hardening (environment-aware)
