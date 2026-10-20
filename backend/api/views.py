@@ -29,6 +29,8 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet, ModelViewSet, ReadOnlyModelViewSet
 
+from backend.client_ip import get_client_ip
+
 from .airgradient import AirGradientError, location_id_for_station
 from .aqi import classify_aqi
 from .models import (
@@ -206,14 +208,6 @@ def _parse_lat_lon(request):
 IP_GEOLOCATION_URL = getattr(settings, "IP_GEOLOCATION_URL", "https://ipwho.is/json")
 IP_GEOLOCATION_TIMEOUT = getattr(settings, "IP_GEOLOCATION_TIMEOUT", 4)
 IP_GEOLOCATION_CACHE_TTL = getattr(settings, "IP_GEOLOCATION_CACHE_TTL", 6 * 60 * 60)
-
-
-def _client_ip(request):
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
-    if forwarded:
-        # X-Forwarded-For is a comma-separated list; the original client is first.
-        return forwarded.split(",")[0].strip()
-    return request.META.get("HTTP_X_REAL_IP") or request.META.get("REMOTE_ADDR")
 
 
 def _ip_geolocate(ip):
@@ -466,7 +460,7 @@ class NearestRegionView(generics.GenericAPIView):
             # No coordinates supplied (e.g. the mobile widget before the app has
             # been opened and location granted). Resolve an approximate location
             # from the request IP so the first render still shows a nearby region.
-            coords = _ip_geolocate(_client_ip(request))
+            coords = _ip_geolocate(get_client_ip(request))
             if coords is None:
                 return Response(
                     {"error": "Could not resolve a location for this request."},

@@ -14,6 +14,11 @@ overrides:
   "@rollup/pluginutils>picomatch": ">=4.0.4"
   "micromatch>picomatch": ">=4.0.4"
   "anymatch>picomatch": ">=4.0.4"
+  "@rollup/pluginutils>rollup": "^4.59.0"
+  "@bundled-es-modules/cookie>cookie": "^0.7.0"
+  katex: "^0.18.2"
+  postcss-selector-parser: "^7.1.6"
+  prismjs: "^1.30.0"
 
 allowBuilds:
   es5-ext: true

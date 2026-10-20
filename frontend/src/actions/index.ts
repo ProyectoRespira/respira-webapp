@@ -1,5 +1,5 @@
 import { ActionError, defineAction } from "astro:actions";
-import { z } from "astro:schema";
+import { z } from "astro/zod";
 import { Resend } from "resend";
 import { Email } from "../components/react/ContactEmail";
 import { JoinEmail } from "../components/react/JoinNetworkEmail";

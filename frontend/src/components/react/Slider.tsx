@@ -32,7 +32,7 @@ export const Slider = ({ value }: { value?: number }) => {
           100
         </p>
         <p className="text-sm font-bold w-full text-lightgray text-center">
-          1 50
+          150
         </p>
         <p className="text-sm font-bold w-full text-lightgray text-center">
           200

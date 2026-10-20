@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework.test import APIClient
 
@@ -543,6 +543,7 @@ class BackendEndpointTests(TestCase):
         }
         return fake
 
+    @override_settings(CLIENT_IP_TRUST_PROXY_HEADER=True)
     @patch("api.views.requests.get")
     def test_nearest_region_resolves_from_ip_when_no_coords(self, mock_get):
         cache.clear()
@@ -550,9 +551,7 @@ class BackendEndpointTests(TestCase):
         # resolve that region without any lat/lon query params.
         mock_get.return_value = self._geo_response(latitude=-25.3, longitude=-57.5)
 
-        response = self.client.get(
-            reverse("nearest-region"), HTTP_X_FORWARDED_FOR="8.8.8.8"
-        )
+        response = self.client.get(reverse("nearest-region"), HTTP_X_REAL_IP="8.8.8.8")
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
@@ -560,6 +559,7 @@ class BackendEndpointTests(TestCase):
         self.assertEqual(payload["aqi"], 72.0)
         mock_get.assert_called_once()
 
+    @override_settings(CLIENT_IP_TRUST_PROXY_HEADER=True)
     @patch("api.views.requests.get")
     def test_nearest_region_caches_ip_geolocation(self, mock_get):
         cache.clear()
@@ -567,7 +567,7 @@ class BackendEndpointTests(TestCase):
 
         for _ in range(3):
             response = self.client.get(
-                reverse("nearest-region"), HTTP_X_FORWARDED_FOR="8.8.8.8"
+                reverse("nearest-region"), HTTP_X_REAL_IP="8.8.8.8"
             )
             self.assertEqual(response.status_code, 200)
 
@@ -575,6 +575,7 @@ class BackendEndpointTests(TestCase):
         # external geolocation provider.
         mock_get.assert_called_once()
 
+    @override_settings(CLIENT_IP_TRUST_PROXY_HEADER=True)
     @patch("api.views.requests.get")
     def test_nearest_region_without_coords_returns_404_when_ip_unresolved(
         self, mock_get
@@ -582,24 +583,22 @@ class BackendEndpointTests(TestCase):
         cache.clear()
         mock_get.side_effect = __import__("requests").RequestException("boom")
 
-        response = self.client.get(
-            reverse("nearest-region"), HTTP_X_FORWARDED_FOR="8.8.8.8"
-        )
+        response = self.client.get(reverse("nearest-region"), HTTP_X_REAL_IP="8.8.8.8")
 
         self.assertEqual(response.status_code, 404)
 
+    @override_settings(CLIENT_IP_TRUST_PROXY_HEADER=True)
     @patch("api.views.requests.get")
     def test_nearest_region_skips_geolocation_for_private_ip(self, mock_get):
         cache.clear()
 
-        response = self.client.get(
-            reverse("nearest-region"), HTTP_X_FORWARDED_FOR="10.0.0.1"
-        )
+        response = self.client.get(reverse("nearest-region"), HTTP_X_REAL_IP="10.0.0.1")
 
         self.assertEqual(response.status_code, 404)
         # Private/loopback IPs never reach the external provider.
         mock_get.assert_not_called()
 
+    @override_settings(CLIENT_IP_TRUST_PROXY_HEADER=True)
     @patch("api.views.requests.get")
     def test_nearest_region_with_coords_ignores_ip_geolocation(self, mock_get):
         cache.clear()
@@ -607,7 +606,7 @@ class BackendEndpointTests(TestCase):
         response = self.client.get(
             reverse("nearest-region"),
             {"lat": -25.3, "lon": -57.5},
-            HTTP_X_FORWARDED_FOR="8.8.8.8",
+            HTTP_X_REAL_IP="8.8.8.8",
         )
 
         self.assertEqual(response.status_code, 200)

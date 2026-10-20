@@ -181,11 +181,11 @@ const es = {
   // About (nosotros)
   "about.title": "Sobre Proyecto Respira",
   "about.p1":
-    "Ofrecemos al público pronósticos sobre la Calidad del Aire en Asunción y su área metropolitana mediante el uso de mapas interactivos en nuestra página web, y alertas diarias en nuestros canales de Telegram y X (Twitter).",
+    "Proyecto Respira brinda información y pronósticos sobre la calidad del aire en Paraguay mediante mapas interactivos disponibles en nuestra página web y aplicación móvil para iOS y Android, junto con alertas y notificaciones sobre las condiciones del aire en tiempo real.",
   "about.p2":
-    "Además de proporcionar predicciones actualizadas sobre la calidad del aire, proveemos estadísticas, noticias locales sobre incendios y datos abiertos sobre la calidad del aire en la ciudad desde el año 2019, provenientes de la Red de Monitoreo de Calidad del Aire de la Facultad de Ingeniería de la Universidad Nacional de Asunción.",
+    "La plataforma permite consultar estadísticas, datos históricos y recomendaciones sobre las medidas de protección que se pueden tomar según los niveles de contaminación. Para ello, integramos información de nuestra propia red de sensores, redes comunitarias y redes de monitoreo del Ministerio del Ambiente y Desarrollo Sostenible (MADES), ampliando continuamente nuestra cobertura en distintas ciudades del país.",
   "about.p3":
-    "Nuestras tecnologías open-source brindan a los ciudadanos información clave para tomar decisiones informadas sobre su salud y el medio ambiente, al tiempo que fomentan la colaboración comunitaria para mejorar continuamente su funcionalidad y utilidad.",
+    "Nuestras tecnologías de código abierto (open source) brindan a la ciudadanía información clave para tomar decisiones informadas sobre su salud y el medio ambiente, al tiempo que fomentan la colaboración comunitaria y el acceso a datos ambientales confiables.",
   "about.protectLink": "¿Cómo puedo protegerme de la contaminación?",
   "about.forecasts.title": "¿Para qué sirven los pronósticos?",
   "about.forecasts.p1":
@@ -567,11 +567,11 @@ const en: Dictionary = {
 
   "about.title": "About Proyecto Respira",
   "about.p1":
-    "We provide the public with Air Quality forecasts for Asunción and its metropolitan area through interactive maps on our website, and daily alerts on our Telegram and X (Twitter) channels.",
+    "Proyecto Respira provides air quality information and forecasts for Paraguay through interactive maps available on our website and mobile app for iOS and Android, along with real-time alerts and notifications about air conditions.",
   "about.p2":
-    "In addition to providing up-to-date air quality predictions, we offer statistics, local fire news and open air quality data for the city since 2019, sourced from the Air Quality Monitoring Network of the Faculty of Engineering of the National University of Asunción.",
+    "The platform lets you check statistics, historical data and recommendations on the protective measures you can take depending on pollution levels. To do this, we bring together data from our own sensor network, community networks and the monitoring networks of the Ministry of Environment and Sustainable Development (MADES), continuously expanding our coverage across cities in the country.",
   "about.p3":
-    "Our open-source technologies give citizens key information to make informed decisions about their health and the environment, while fostering community collaboration to continuously improve their functionality and usefulness.",
+    "Our open-source technologies give people key information to make informed decisions about their health and the environment, while fostering community collaboration and access to reliable environmental data.",
   "about.protectLink": "How can I protect myself from pollution?",
   "about.forecasts.title": "What are forecasts for?",
   "about.forecasts.p1":
@@ -930,11 +930,11 @@ const pt: Dictionary = {
 
   "about.title": "Sobre o Proyecto Respira",
   "about.p1":
-    "Oferecemos ao público previsões sobre a Qualidade do Ar em Assunção e sua área metropolitana por meio de mapas interativos em nosso site, e alertas diários em nossos canais do Telegram e X (Twitter).",
+    "O Proyecto Respira oferece informações e previsões sobre a qualidade do ar no Paraguai por meio de mapas interativos disponíveis em nosso site e aplicativo móvel para iOS e Android, junto com alertas e notificações sobre as condições do ar em tempo real.",
   "about.p2":
-    "Além de fornecer previsões atualizadas sobre a qualidade do ar, oferecemos estatísticas, notícias locais sobre incêndios e dados abertos sobre a qualidade do ar na cidade desde 2019, provenientes da Rede de Monitoramento da Qualidade do Ar da Faculdade de Engenharia da Universidade Nacional de Assunção.",
+    "A plataforma permite consultar estatísticas, dados históricos e recomendações sobre as medidas de proteção que podem ser tomadas de acordo com os níveis de poluição. Para isso, integramos informações da nossa própria rede de sensores, de redes comunitárias e das redes de monitoramento do Ministério do Ambiente e Desenvolvimento Sustentável (MADES), ampliando continuamente nossa cobertura em diferentes cidades do país.",
   "about.p3":
-    "Nossas tecnologias open-source fornecem aos cidadãos informações essenciais para tomar decisões conscientes sobre sua saúde e o meio ambiente, ao mesmo tempo em que incentivam a colaboração comunitária para melhorar continuamente sua funcionalidade e utilidade.",
+    "Nossas tecnologias de código aberto (open source) fornecem à população informações essenciais para tomar decisões conscientes sobre sua saúde e o meio ambiente, ao mesmo tempo em que incentivam a colaboração comunitária e o acesso a dados ambientais confiáveis.",
   "about.protectLink": "Como posso me proteger da poluição?",
   "about.forecasts.title": "Para que servem as previsões?",
   "about.forecasts.p1":
