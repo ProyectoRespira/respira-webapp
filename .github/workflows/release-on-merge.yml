@@ -7,12 +7,14 @@ on:
       - main
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 jobs:
   create-release:
     name: Create GitHub Release
+    permissions:
+      contents: write
+      packages: write
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true
     outputs:
