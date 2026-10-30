@@ -9,10 +9,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
-  attestations: write
-  artifact-metadata: write
-  id-token: write
 
 concurrency:
   group: demo-deploy-${{ github.ref_name }}
@@ -21,6 +17,7 @@ concurrency:
 jobs:
   validate:
     name: Validate Release/Hotfix Branch
+    permissions: {}
     if: ${{ github.repository == 'ProyectoRespira/respira-webapp' }}
     runs-on: ubuntu-latest
     outputs:
@@ -55,6 +52,12 @@ jobs:
 
   publish:
     name: Publish Images to GHCR
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      artifact-metadata: write
+      id-token: write
     needs: validate
     if: ${{ github.repository == 'ProyectoRespira/respira-webapp' }}
     runs-on: ubuntu-latest
@@ -193,6 +196,7 @@ jobs:
 
   authorize-demo:
     name: Authorize Demo Deployment Actor
+    permissions: {}
     needs: validate
     if: ${{ github.repository == 'ProyectoRespira/respira-webapp' }}
     runs-on: ubuntu-latest
@@ -220,6 +224,8 @@ jobs:
 
   migrate-demo:
     name: Run Demo Django Migrations
+    permissions:
+      contents: read
     needs: [validate, publish, authorize-demo]
     if: ${{ github.repository == 'ProyectoRespira/respira-webapp' }}
     runs-on: ubuntu-latest
@@ -474,6 +480,8 @@ jobs:
 
   deploy-demo:
     name: Deploy to Demo Server
+    permissions:
+      contents: read
     needs: [validate, publish, authorize-demo, migrate-demo]
     if: ${{ github.repository == 'ProyectoRespira/respira-webapp' }}
     runs-on: ubuntu-latest
