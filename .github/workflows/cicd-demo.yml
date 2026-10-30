@@ -20,10 +20,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
-  attestations: write
-  artifact-metadata: write
-  id-token: write
 
 concurrency:
   group: ci-cd-demo-${{ github.ref }}
@@ -32,6 +28,12 @@ concurrency:
 jobs:
   publish:
     name: Publish Dev Images to GHCR
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      artifact-metadata: write
+      id-token: write
     if: ${{ github.event_name == 'push' || inputs.publish_images }}
     runs-on: ubuntu-latest
     environment: Demo
@@ -202,6 +204,7 @@ jobs:
 
   prepare-demo:
     name: Prepare Demo Deploy Context
+    permissions: {}
     needs: [publish]
     if: ${{ always() && github.ref == 'refs/heads/dev' && (needs.publish.result == 'success' || needs.publish.result == 'skipped') }}
     runs-on: ubuntu-latest
@@ -258,6 +261,8 @@ jobs:
 
   migrate-demo:
     name: Run Demo Django Migrations
+    permissions:
+      contents: read
     needs: [publish, prepare-demo]
     if: ${{ always() && github.ref == 'refs/heads/dev' && (needs.publish.result == 'success' || needs.publish.result == 'skipped') && needs.prepare-demo.result == 'success' }}
     runs-on: ubuntu-latest
@@ -511,6 +516,8 @@ jobs:
 
   deploy-demo:
     name: Deploy to Demo Server
+    permissions:
+      contents: read
     needs: [publish, prepare-demo, migrate-demo]
     if: ${{ always() && github.ref == 'refs/heads/dev' && (needs.publish.result == 'success' || needs.publish.result == 'skipped') && needs.prepare-demo.result == 'success' && needs.migrate-demo.result == 'success' }}
     runs-on: ubuntu-latest

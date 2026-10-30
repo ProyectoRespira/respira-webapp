@@ -20,9 +20,7 @@ on:
 
 # Required permissions for CodeQL analysis
 permissions:
-  actions: read # Required to access GitHub Actions
-  contents: read # Required to read repository contents
-  security-events: write # Required to write security scanning results
+  contents: read
 
 # Prevent concurrent CodeQL runs on the same branch to avoid resource contention
 concurrency:
@@ -32,6 +30,10 @@ concurrency:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
+    permissions:
+      actions: read # Required to access GitHub Actions
+      contents: read # Required to read repository contents
+      security-events: write # Required to write security scanning results
     runs-on: ubuntu-latest
     strategy:
       # Continue analyzing other languages even if one fails
