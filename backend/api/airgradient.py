@@ -58,6 +58,13 @@ MAX_CONCURRENCY = 8
 
 STATION_CODE_PREFIX = "respira_"
 
+# Sensors that reach gold under a ``respira_`` code but live in another
+# organization's AirGradient account, so our token cannot read them. Vigilancia
+# del Aire's sensor is ingested through VA's own proxy in respira-data; offering
+# its raw export would only ever fail upstream. Remove a code here once its
+# export can be served.
+STATIONS_WITHOUT_RAW_EXPORT = frozenset({"respira_209581"})
+
 
 class AirGradientError(Exception):
     """Raised when the upstream API cannot serve a range."""
@@ -70,8 +77,15 @@ def location_id_for_station(station) -> int:
     from AirGradient it is ``respira_<locationId>``. Stations from the other
     networks (FIUNA, MADES) carry a different prefix and have no AirGradient
     identity at all, which is a configuration error rather than a missing value.
+    Codes in ``STATIONS_WITHOUT_RAW_EXPORT`` are AirGradient sensors our token
+    cannot reach, and are refused the same way.
     """
     code = (getattr(station, "station_code", "") or "").strip()
+    if code in STATIONS_WITHOUT_RAW_EXPORT:
+        raise AirGradientError(
+            f"Station {station!s} belongs to another AirGradient organization "
+            f"(station_code={code!r}); its raw export is not available."
+        )
     if not code.startswith(STATION_CODE_PREFIX):
         raise AirGradientError(
             f"Station {station!s} is not an AirGradient sensor (station_code={code!r})."
