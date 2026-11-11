@@ -56,6 +56,12 @@ class LocationIdTests(SimpleTestCase):
         with self.assertRaises(AirGradientError):
             location_id_for_station(_FakeStation(""))
 
+    def test_rejects_a_sensor_from_another_organization(self):
+        # Vigilancia del Aire's sensor has a well-formed respira_ code, but it
+        # lives in VA's AirGradient account; our token cannot read it.
+        with self.assertRaises(AirGradientError):
+            location_id_for_station(_FakeStation("respira_209581"))
+
 
 class WindowTests(SimpleTestCase):
     def test_a_short_range_is_a_single_window(self):
