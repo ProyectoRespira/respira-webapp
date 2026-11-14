@@ -21,7 +21,7 @@
   "dependencies": {
     "@astro-utils/forms": "^4.0.2",
     "@astrojs/check": "^0.9.10",
-    "@astrojs/node": "^11.1.7",
+    "@astrojs/node": "^11.1.12",
     "@astrojs/react": "^7.0.1",
     "@astrojs/sitemap": "^3.7.4",
     "@sentry/browser": "^10.38.0",
