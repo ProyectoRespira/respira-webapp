@@ -1,4 +1,4 @@
-FROM node:26-bookworm-slim AS base
+FROM node:26.12.1-bookworm-slim AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 WORKDIR /app
@@ -21,7 +21,7 @@ COPY . .
 RUN pnpm run build \
 	&& find ./dist/client -type f -name "*.map" -delete
 
-FROM node:26-bookworm-slim AS runtime
+FROM node:26.12.1-bookworm-slim AS runtime
 WORKDIR /app
 
 RUN apt-get update \
