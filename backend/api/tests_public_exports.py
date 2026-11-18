@@ -179,6 +179,28 @@ class EligibilityTests(PublicExportTestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    def test_sensor_from_another_organization_is_refused(self):
+        """Vigilancia del Aire's sensor has a respira_ code, but our token
+        cannot read it from AirGradient: no button, and no call upstream."""
+        va_station = Stations.seed_for_tests(
+            name="Respira: Barrio Cañada del Ybyray",
+            station_code="respira_209581",
+            region=self.station.region,
+            latitude=-25.26817,
+            longitude=-57.57674,
+            is_station_on=True,
+        )
+        captured = self.stub()
+
+        detail = self.client.get(
+            reverse("stations-detail", kwargs={"pk": va_station.id})
+        )
+        response = self.client.get(self.url(va_station))
+
+        self.assertFalse(detail.json()["supports_public_export"])
+        self.assertEqual(response.status_code, 404)
+        self.assertNotIn("location_id", captured)
+
     def test_unknown_sensor_is_not_found(self):
         self.stub()
 
