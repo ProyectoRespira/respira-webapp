@@ -30,6 +30,7 @@ from .models import (
     InstitutionAlertRuleState,
     InstitutionContract,
     InstitutionUser,
+    MadesPmLimits,
     PushBroadcast,
     PushNotificationWindow,
     Regions,
@@ -428,6 +429,8 @@ class InstitutionUserInline(admin.TabularInline):
     model = InstitutionUser
     extra = 1
     autocomplete_fields = ("user",)
+    # `role`: admins write to the panel (record actions), members only read it.
+    fields = ("user", "role")
     verbose_name = "Dashboard user"
     verbose_name_plural = "Dashboard users"
 
@@ -1303,7 +1306,14 @@ class ActionLogAdmin(ReadOnlyModelAdmin):
     ``timestamp`` cannot be overwritten by hand.
     """
 
-    list_display = ("timestamp", "institution", "station", "alert", "note_excerpt")
+    list_display = (
+        "timestamp",
+        "institution",
+        "station",
+        "aqi",
+        "alert",
+        "note_excerpt",
+    )
     list_filter = (AlertLinkFilter, "institution", "station", "timestamp")
     search_fields = (
         "institution__legal_name",
@@ -1314,7 +1324,7 @@ class ActionLogAdmin(ReadOnlyModelAdmin):
     ordering = ("-timestamp", "-id")
     list_select_related = ("institution", "station", "alert")
     fieldsets = (
-        (None, {"fields": ("institution", "station", "timestamp")}),
+        (None, {"fields": ("institution", "station", "timestamp", "aqi")}),
         ("Alert", {"fields": ("alert",)}),
         ("Action", {"fields": ("note",)}),
     )
@@ -1475,4 +1485,70 @@ class PushNotificationWindowAdmin(RoleBasedModelAdmin):
         next run, so a delete meant as "stop restricting delivery" would
         silently restore the restriction. ``is_enabled`` is that switch.
         """
+        return False
+
+
+@admin.register(MadesPmLimits)
+class MadesPmLimitsAdmin(RoleBasedModelAdmin):
+    """The MADES PM2.5 / PM10 limits the institutional panel compares against.
+
+    A settings screen, like ``PushNotificationWindowAdmin``: the changelist
+    opens the single row, a second row cannot be added and the row cannot be
+    deleted. Deleting is not a way to "clear" the limits — blanking a field is
+    — and without the row every limit reads as unconfirmed.
+
+    Should the row go missing anyway (deleted from a shell), "add" comes back
+    so the page can recreate it; until then the panel shows every limit as
+    "A confirmar" (see ``MadesPmLimits.current_payload``).
+
+    Not in the role matrix (``accounts.permissions``), so only superadmins see
+    it: a wrong limit tells an institution it is within the norm when it may
+    not be, which makes this a narrower edit than the institution data.
+    """
+
+    list_display = ("__str__", "pm25_h24", "pm25_annual", "pm10_h24", "pm10_annual")
+    readonly_fields = ("updated_at",)
+    fieldsets = (
+        (
+            "Limits (µg/m³)",
+            {
+                "fields": (
+                    ("pm25_h24", "pm25_annual"),
+                    ("pm10_h24", "pm10_annual"),
+                ),
+                "description": (
+                    "Reference limits from MADES, Resolución 259/2015. The "
+                    'institutional panel draws its "frente al límite MADES" '
+                    "cards and chart lines from these and picks up a change on "
+                    "its next load. Leave a field blank while MADES has not "
+                    'confirmed it: the panel shows "A confirmar". Never '
+                    "type in an estimate."
+                ),
+            },
+        ),
+        ("Audit", {"fields": ("updated_at",)}),
+    )
+
+    def changelist_view(self, request, extra_context=None):
+        """Sends the operator to the single row instead of a one-item list."""
+        if not self.has_view_or_change_permission(request):
+            raise PermissionDenied
+        if MadesPmLimits.objects.filter(pk=MadesPmLimits.SINGLETON_ID).exists():
+            return redirect(
+                reverse(
+                    "admin:api_madespmlimits_change",
+                    args=[MadesPmLimits.SINGLETON_ID],
+                )
+            )
+        # The row is gone: the list shows it is empty and offers "add".
+        return super().changelist_view(request, extra_context)
+
+    def has_add_permission(self, request):
+        """Only to recreate a missing row; there is never a second one."""
+        if MadesPmLimits.objects.filter(pk=MadesPmLimits.SINGLETON_ID).exists():
+            return False
+        return super().has_add_permission(request)
+
+    def has_delete_permission(self, request, obj=None):
+        """Never: a blank field is how a limit is marked unconfirmed."""
         return False

@@ -185,6 +185,18 @@ def aqi_from_pm10(value: float | int | None) -> int | None:
     return _aqi_from_breakpoints(value, _PM10_BREAKPOINTS, 0)
 
 
+def round_aqi(value: float | int | None) -> int | None:
+    """An AQI as the whole number it is read as, half up; ``None`` passes through.
+
+    Gold stores AQI in a float column. Rounded half up rather than with
+    Python's ``round`` (half to even), so 42.5 reads as 43 the same way the
+    dbt macro and ``_aqi_from_breakpoints`` round it.
+    """
+    if value is None:
+        return None
+    return int(Decimal(str(value)).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
 def classify_aqi(value: float | int | None) -> AqiLevel | None:
     """Return the ``AQI_LEVELS`` entry covering ``value``.
 

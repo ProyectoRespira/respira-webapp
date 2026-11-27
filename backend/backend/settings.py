@@ -158,6 +158,14 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "This is the Respira API",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    # Two different `role` fields exist: the platform role (`UserRole`, admin
+    # users API) and the role inside an institution (`InstitutionRole`, on
+    # /api/institution/me/). Named explicitly so the platform one keeps the
+    # `RoleEnum` name it had before the second appeared.
+    "ENUM_NAME_OVERRIDES": {
+        "RoleEnum": "api.models.UserRole",
+        "InstitutionRoleEnum": "api.models.InstitutionRole",
+    },
 }
 
 MIDDLEWARE = [

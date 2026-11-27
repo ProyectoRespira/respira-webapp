@@ -6,9 +6,11 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.conf import settings
+from django.core.validators import MinValueValidator
 from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
+from .aqi import round_aqi
 from .gold import ReadOnlyGoldModel
 
 logger = logging.getLogger(__name__)
@@ -151,6 +153,25 @@ class StationDetails(models.Model):
         return f"Details for {self.station.name}"
 
 
+class InstitutionType(models.TextChoices):
+    """The values the institutional panel tailors its copy to.
+
+    The panel reads ``Institution.institution_type`` and switches its
+    recommendations and examples between these two ("trabajo al aire libre" for
+    an industry, "recreo" for a school); anything else gets the generic copy.
+
+    Documented here rather than enforced as ``choices`` on the field: the column
+    has been free text since it was created, so existing rows may hold other
+    spellings ("Educativa", "school"). With ``choices`` the admin would render
+    such a row with no option selected and the next save — of any field — would
+    silently blank it. Normalise the existing rows first, then the field can
+    take ``choices=InstitutionType.choices``.
+    """
+
+    INDUSTRIA = "industria", "Industria"
+    COLEGIO = "colegio", "Colegio"
+
+
 class Institution(models.Model):
     """A client organization in the Sensor Leasing program.
 
@@ -160,7 +181,14 @@ class Institution(models.Model):
 
     legal_name = models.CharField(max_length=255)
     display_name = models.CharField(max_length=255, blank=True)
-    institution_type = models.CharField(max_length=100, blank=True)
+    institution_type = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text=(
+            'The panel adapts its texts to "industria" or "colegio" (lowercase, '
+            "exactly as written); any other value gets the generic texts."
+        ),
+    )
     contact_name = models.CharField(max_length=255, blank=True)
     contact_email = models.EmailField(blank=True)
     contact_phone = models.CharField(max_length=50, blank=True)
@@ -249,6 +277,18 @@ class InstitutionContract(models.Model):
         return f"{self.institution} — {self.station.name}"
 
 
+class InstitutionRole(models.TextChoices):
+    """What a dashboard user may do *inside their own institution*.
+
+    Not to be confused with :class:`UserRole`, the platform role that gates the
+    backoffice (``IsAdminRole``). An institution's admin is no platform admin:
+    it only means that user may write to their institution's panel.
+    """
+
+    ADMIN = "admin", "Admin"
+    MEMBER = "member", "Member (read-only)"
+
+
 class InstitutionUser(models.Model):
     """Grants a platform user access to a single Institution's private dashboard.
 
@@ -257,6 +297,11 @@ class InstitutionUser(models.Model):
     migration on the core auth model. ``user`` is OneToOne — a user reaches at
     most one institution's data — while ``institution`` is a plain FK, since an
     institution may have more than one contact with dashboard access.
+
+    ``role`` splits those contacts into admins, who may write to the panel
+    (record actions today; alert rules and the team later), and members, who
+    only read it. It defaults to admin because every link that existed before
+    the role did had full access, and the migration keeps it that way.
     """
 
     user = models.OneToOneField(
@@ -267,12 +312,33 @@ class InstitutionUser(models.Model):
     institution = models.ForeignKey(
         "Institution", on_delete=models.CASCADE, related_name="users"
     )
+    role = models.CharField(
+        max_length=20,
+        choices=InstitutionRole.choices,
+        default=InstitutionRole.ADMIN,
+        help_text=(
+            "Admins can write to the institutional panel (e.g. record actions); "
+            "members can only read it."
+        ),
+    )
 
     class Meta:
         db_table = "institution_user"
 
     def __str__(self):
         return f"{self.user} → {self.institution}"
+
+
+def get_institution_role(user) -> "str | None":
+    """The caller's role inside their institution, or ``None`` without one.
+
+    The counterpart of :func:`get_institution_for_user` — read from the same
+    link, so "which institution" and "what may I do there" never disagree.
+    """
+    if user is None or not getattr(user, "is_authenticated", False):
+        return None
+    link = getattr(user, "institution_user", None)
+    return link.role if link else None
 
 
 def get_institution_for_user(user) -> "Institution | None":
@@ -767,6 +833,16 @@ class ActionLog(models.Model):
     )
     timestamp = models.DateTimeField(auto_now_add=True)
     note = models.TextField(help_text="The action taken by the institution.")
+    # The station's AQI when the action was recorded, so the history can show
+    # what the air was like at the time. Stamped by the backend from the latest
+    # gold reading (see `latest_station_aqi`), never accepted from a client —
+    # same reasoning as `timestamp`. Null for entries recorded before the field
+    # existed and for a station with no reading (or no AQI) yet.
+    aqi = models.PositiveSmallIntegerField(
+        blank=True,
+        null=True,
+        help_text="AQI of the station's latest reading when the action was recorded.",
+    )
 
     class Meta:
         db_table = "action_log"
@@ -1192,6 +1268,32 @@ class StationReadingsGold(ReadOnlyGoldModel):
         db_table = "station_readings_gold"
 
 
+def latest_station_readings(station_ids) -> "dict[int, StationReadingsGold]":
+    """Each station's most recent gold reading, keyed by station id.
+
+    One ``DISTINCT ON`` query for the whole set, so a selector listing every
+    contracted sensor costs the same as one sensor. "Most recent" is the same
+    row the dashboard reports on — the latest hour, whatever it holds — so a
+    sensor's AQI in the selector always matches its dashboard. A station with
+    no readings is simply absent from the result.
+    """
+    ids = list(station_ids)
+    if not ids:
+        return {}
+    rows = (
+        StationReadingsGold.objects.filter(station_id__in=ids)
+        .order_by("station_id", models.F("date_utc").desc(nulls_last=True))
+        .distinct("station_id")
+    )
+    return {row.station_id: row for row in rows}
+
+
+def latest_station_aqi(station_id) -> "int | None":
+    """The AQI of a station's latest reading, as a whole number, or ``None``."""
+    reading = latest_station_readings([station_id]).get(station_id)
+    return round_aqi(reading.aqi_pm2_5) if reading is not None else None
+
+
 class InferenceRuns(ReadOnlyGoldModel):
     class Status(models.TextChoices):
         RUNNING = "running", "running"
@@ -1537,3 +1639,117 @@ class PushNotificationWindow(models.Model):
             return self.start_time <= local < self.end_time
         # Crosses midnight: inside the window means late evening or early hours.
         return local >= self.start_time or local < self.end_time
+
+
+# Help text shared by the four limit fields, so the admin form tells the
+# operator the same two things on each one: where the number comes from, and
+# what leaving it blank does on the panel.
+_MADES_LIMIT_HELP = (
+    "µg/m³, per MADES Resolución 259/2015. Leave blank while the value is not "
+    'confirmed: the panel then shows "A confirmar" instead of a number.'
+)
+
+
+def _mades_limit_field(verbose_name: str):
+    return models.DecimalField(
+        verbose_name,
+        max_digits=6,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        help_text=_MADES_LIMIT_HELP,
+    )
+
+
+class MadesPmLimits(models.Model):
+    """PM2.5 / PM10 reference limits from MADES, Resolución 259/2015.
+
+    The institutional panel draws its "frente al límite MADES" cards and chart
+    lines from these, served on ``/api/institution/me/``, so the frontend never
+    carries a number of its own.
+
+    A single row, kept in the database so staff can correct a limit from the
+    admin when MADES confirms or changes one, without a deploy. The singleton
+    is enforced by the table itself, not only by the admin hiding its "add"
+    button: ``id`` defaults to 1 and a check constraint refuses any other, so
+    a second row is an ``IntegrityError`` however it is written.
+
+    ``NULL`` means "not confirmed yet", and the panel says so. Never fill one
+    in with a guess: a wrong limit tells an institution it is within the norm
+    when it may not be. Still to confirm (#333): PM2.5 24 h, PM10 annual, and
+    that the annual 40 is PM2.5's.
+
+    Stored as decimals rather than floats so what an operator types is what
+    the panel shows (no ``40.000001``); :meth:`as_payload` turns whole numbers
+    back into integers for the API.
+    """
+
+    SINGLETON_ID = 1
+
+    id = models.PositiveSmallIntegerField(
+        primary_key=True, default=SINGLETON_ID, editable=False
+    )
+    pm25_h24 = _mades_limit_field("PM2.5, 24-hour average")
+    pm25_annual = _mades_limit_field("PM2.5, annual average")
+    pm10_h24 = _mades_limit_field("PM10, 24-hour average")
+    pm10_annual = _mades_limit_field("PM10, annual average")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "mades_pm_limits"
+        verbose_name = "MADES PM limits"
+        verbose_name_plural = "MADES PM limits"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(id=1), name="mades_pm_limits_singleton"
+            ),
+        ]
+
+    def __str__(self):
+        return "MADES PM limits (Resolución 259/2015)"
+
+    @staticmethod
+    def _as_number(value):
+        """``Decimal`` to the JSON number a client expects: ``150``, ``12.5``.
+
+        A ``DecimalField`` reads back as ``Decimal("150.0")``, which DRF's
+        renderer would emit as ``150.0`` (or a string, through a
+        ``DecimalField`` serializer). Clients compare against these, and the
+        contract since the limits lived in settings has been plain integers.
+        """
+        if value is None:
+            return None
+        return int(value) if value == value.to_integral_value() else float(value)
+
+    def as_payload(self) -> dict[str, dict[str, int | float | None]]:
+        """The ``limits`` object of ``/api/institution/me/``."""
+        return {
+            "pm25": {
+                "h24": self._as_number(self.pm25_h24),
+                "annual": self._as_number(self.pm25_annual),
+            },
+            "pm10": {
+                "h24": self._as_number(self.pm10_h24),
+                "annual": self._as_number(self.pm10_annual),
+            },
+        }
+
+    @classmethod
+    def current_payload(cls) -> dict[str, dict[str, int | float | None]]:
+        """The limits as the API serves them, in one query.
+
+        A missing row (deleted from a shell; the admin refuses to) answers with
+        every limit ``null`` — "a confirmar" on the panel — rather than a 500
+        or a recreated row. Recreating would have to invent the values: the
+        seeded ones may be exactly what staff had since corrected, and a stale
+        limit shown as fact is the one outcome this model exists to avoid. The
+        admin offers "add" again in that state, so the fix is one form away.
+        """
+        row = cls.objects.filter(pk=cls.SINGLETON_ID).first()
+        if row is None:
+            logger.warning(
+                "MADES PM limits row is missing; serving every limit as null"
+            )
+            row = cls(id=cls.SINGLETON_ID)
+        return row.as_payload()
