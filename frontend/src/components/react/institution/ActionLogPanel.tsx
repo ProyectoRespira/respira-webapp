@@ -4,6 +4,8 @@ import {
   ACTION_NOTE_MAX_LENGTH,
   type ActionLog,
   type InstitutionAlert,
+  type InstitutionKind,
+  type InstitutionRole,
 } from "../../../data/institution";
 import type { Lang } from "../../../i18n/config";
 import { useInstitutionCopy } from "../../../i18n/institution";
@@ -19,20 +21,14 @@ import {
   formatShortDate,
   formatTime,
 } from "../../../utils/institution-format";
-import { INSTITUTION_LOGIN_PATH } from "../../../utils/institution-session";
 import {
-  Button,
-  Card,
-  CardHead,
-  CardTitle,
-  ErrorState,
-  FieldLabel,
-  HelpDisclosure,
-  Pill,
-  Skeleton,
-  StateBlock,
-  fieldClassName,
-} from "./ui";
+  AQI_SCALE,
+  aqiBand,
+  aqiInk,
+} from "../../../utils/institution-readings";
+import { INSTITUTION_LOGIN_PATH } from "../../../utils/institution-session";
+import { PanelButton, PanelCard, PanelNotice, PanelTitle } from "./panel-ui";
+import { HelpDisclosure, Skeleton } from "./ui";
 
 // Loaded in the browser rather than during SSR: the list is paginated and
 // changes as the visitor adds to it, so it owns its own state from the start.
@@ -52,29 +48,41 @@ const stateForError = (error: unknown): ListState => {
   return { status: "error" };
 };
 
+const FIELD =
+  "w-full rounded-[10px] border-2 border-[#1B1B1A] bg-white px-3.5 py-3 text-[15px] text-[#1B1B1A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1B1B1A] disabled:opacity-60";
+
+/**
+ * Bitácora: the form to log an action, and the history beside it.
+ *
+ * A member reads the history but cannot write to it (#328): the form is
+ * replaced by a line saying so. The backend enforces the same rule; hiding the
+ * form only spares a member a button that would be refused.
+ */
 export function ActionLogPanel({
   stationId,
   stationName,
+  role,
+  kind,
   lang,
 }: {
   /**
    * The sensor this panel is about: the one the form records against, and the
-   * one the history is limited to. With several sensors under contract it is
-   * whichever the selector has chosen, so the actions listed here are that
-   * sensor's rather than every sensor's merged together.
+   * one the history is limited to.
    */
   stationId: number | null;
   stationName: string;
+  role: InstitutionRole;
+  kind: InstitutionKind;
   lang: Lang;
 }) {
-  // No `copy` here: this component renders no text of its own, it just passes
-  // `lang` down to the list and the form, which each resolve their own.
+  const copy = useInstitutionCopy(lang);
   const [list, setList] = useState<ListState>({ status: "loading" });
   const [loadingMore, setLoadingMore] = useState(false);
   // Alerts are optional context for the form, so a failure to load them is not
   // an error state: the selector simply offers nothing and a note can still be
   // saved without one.
   const [alerts, setAlerts] = useState<InstitutionAlert[]>([]);
+  const canWrite = role === "admin";
 
   const load = useCallback(async () => {
     setList({ status: "loading" });
@@ -98,6 +106,7 @@ export function ActionLogPanel({
   }, [load]);
 
   useEffect(() => {
+    if (!canWrite) return;
     // Asked for by sensor rather than filtered client-side: with several
     // sensors the unfiltered first page could be filled by another sensor's
     // alerts, leaving this one's selector empty though it has events.
@@ -106,7 +115,7 @@ export function ActionLogPanel({
       .catch((error) => {
         console.error("Could not load the institution's alerts", error);
       });
-  }, [stationId]);
+  }, [stationId, canWrite]);
 
   const loadMore = async () => {
     if (list.status !== "ready" || loadingMore) return;
@@ -137,33 +146,28 @@ export function ActionLogPanel({
   };
 
   return (
-    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
-      {/* `items-start`, not stretched: forcing both cards to one height means a
-          history with two entries is padded out to the height of a six-field
-          form, and the empty half reads as something failing to load. Each card
-          takes the height its content needs; the shared top edge is what makes
-          them a pair.
-
-          The form comes first (RES-434). Reading order is the order of the
-          task: you write the action, then it appears in the history beside it —
-          the list led with the result of a step the page had not offered yet.
-          This also settles the stacking order below `lg`, where the form now
-          precedes the history it feeds.
-
-          The widths do not travel with the cards: the history keeps the wider
-          half, since it holds notes, dates and alert badges, while the form is
-          two fields and a button and reads better narrow. */}
-      <div className="lg:col-span-5">
-        <ActionLogForm
-          stationId={stationId}
-          stationName={stationName}
-          alerts={alerts}
-          disabled={list.status === "unavailable"}
-          onCreated={prepend}
-          lang={lang}
-        />
+    <div className="flex flex-wrap items-start gap-5">
+      {/* The form comes first (RES-434): you write the action, then it
+          appears in the history beside it. Each card keeps the height its
+          content needs. */}
+      <div className="min-w-0 flex-[1_1_340px]">
+        {canWrite ? (
+          <ActionLogForm
+            stationId={stationId}
+            stationName={stationName}
+            alerts={alerts}
+            disabled={list.status === "unavailable"}
+            onCreated={prepend}
+            kind={kind}
+            lang={lang}
+          />
+        ) : (
+          <p className="m-0 rounded-[18px] bg-[#F6F2EF] px-6 py-5 text-[14px] leading-[1.5]">
+            {copy.logMemberNotice}
+          </p>
+        )}
       </div>
-      <div className="lg:col-span-7">
+      <div className="min-w-0 flex-[2_1_520px]">
         <ActionLogList
           state={list}
           onRetry={load}
@@ -193,15 +197,8 @@ function ActionLogList({
 }) {
   const copy = useInstitutionCopy(lang);
   return (
-    <Card tone="main">
-      <CardHead>
-        <CardTitle level="main">{copy.actionsTitle}</CardTitle>
-        {state.status === "ready" && state.items.length > 0 && (
-          <span className="ml-auto">
-            <Pill>{state.items.length}</Pill>
-          </span>
-        )}
-      </CardHead>
+    <PanelCard labelledBy="panel-log-history">
+      <PanelTitle id="panel-log-history">{copy.logHistoryTitle}</PanelTitle>
 
       {state.status === "loading" && (
         <div className="flex flex-col gap-3">
@@ -213,31 +210,31 @@ function ActionLogList({
       )}
 
       {state.status === "error" && (
-        <ErrorState
-          title={copy.errorTitle}
-          body={copy.errorBody}
-          onRetry={onRetry}
-          retryLabel={copy.retry}
-        />
+        <div role="alert" className="flex flex-col items-start gap-3">
+          <PanelNotice title={copy.errorTitle} body={copy.errorBody} />
+          <PanelButton variant="secondary" onClick={onRetry}>
+            {copy.retry}
+          </PanelButton>
+        </div>
       )}
 
       {state.status === "expired" && (
-        <StateBlock
-          title={copy.sessionExpiredTitle}
-          body={copy.sessionExpiredBody}
-          action={
-            <Button
-              variant="void"
-              onClick={() => window.location.assign(INSTITUTION_LOGIN_PATH)}
-            >
-              {copy.goToLogin}
-            </Button>
-          }
-        />
+        <div className="flex flex-col items-start gap-3">
+          <PanelNotice
+            title={copy.sessionExpiredTitle}
+            body={copy.sessionExpiredBody}
+          />
+          <PanelButton
+            variant="secondary"
+            onClick={() => window.location.assign(INSTITUTION_LOGIN_PATH)}
+          >
+            {copy.goToLogin}
+          </PanelButton>
+        </div>
       )}
 
       {state.status === "unavailable" && (
-        <StateBlock
+        <PanelNotice
           title={copy.actionsUnavailableTitle}
           body={copy.actionsUnavailableBody}
         />
@@ -245,66 +242,86 @@ function ActionLogList({
 
       {state.status === "ready" &&
         (state.items.length === 0 ? (
-          <StateBlock
+          <PanelNotice
             title={copy.actionsEmptyTitle}
             body={copy.actionsEmptyBody}
           />
         ) : (
-          /* Capped and scrollable, like the notifications feed: the history
-             only grows, and past a point it should not be what decides how tall
-             this half of the page is. */
-          <div className="-mx-1 max-h-[26rem] overflow-y-auto overscroll-contain px-1">
+          /* Capped and scrollable: the history only grows, and past a point it
+             should not be what decides how tall the page is. */
+          <div className="-mx-1 max-h-[34rem] overflow-y-auto overscroll-contain px-1">
             <ul className="m-0 flex list-none flex-col p-0">
               {state.items.map((item) => (
-                <li
-                  key={item.id}
-                  className="grid grid-cols-[64px_1fr] gap-3.5 border-b border-bg-gray py-3 last:border-b-0 last:pb-0"
-                >
-                  <p className="m-0 pt-0.5 text-xs leading-snug text-gray tabular-nums">
-                    {formatShortDate(item.timestamp)}
-                    <span className="block text-lightgray">
-                      {formatTime(item.timestamp)}
-                    </span>
-                  </p>
-                  <div>
-                    <p className="m-0 whitespace-pre-line text-[13.5px]">
-                      {item.note}
-                    </p>
-                    {item.alert != null && (
-                      <p className="m-0 mt-2 inline-flex items-center gap-1.5 rounded bg-light_green px-2 py-1 text-[11.5px] text-green_darker tabular-nums">
-                        <span aria-hidden="true">⚡</span>
-                        {item.alert_detail ? (
-                          <>
-                            {copy.actionsRespondsToAlert}{" "}
-                            {formatShortDate(item.alert_detail.triggered_at)} ·{" "}
-                            {formatAqi(item.alert_detail.aqi_value)} AQI
-                          </>
-                        ) : (
-                          // The id is there but the expansion is not — an older
-                          // payload, or an alert deleted after the fact.
-                          copy.actionsRespondsToAlertPlain
-                        )}
-                      </p>
-                    )}
-                  </div>
-                </li>
+                <ActionRow key={item.id} item={item} lang={lang} />
               ))}
             </ul>
             {state.hasMore && (
-              <div className="pt-2">
-                <Button
-                  variant="void"
+              <div className="pt-3">
+                <PanelButton
+                  variant="secondary"
                   onClick={onLoadMore}
                   disabled={loadingMore}
-                  block
+                  className="w-full"
                 >
                   {loadingMore ? copy.actionsLoadingMore : copy.actionsLoadMore}
-                </Button>
+                </PanelButton>
               </div>
             )}
           </div>
         ))}
-    </Card>
+    </PanelCard>
+  );
+}
+
+function ActionRow({ item, lang }: { item: ActionLog; lang: Lang }) {
+  const copy = useInstitutionCopy(lang);
+  // The AQI of the moment (#335): absent on an older backend, which drops the
+  // circle; null on an entry written before it was recorded.
+  const hasAqi = item.aqi !== undefined;
+  const band = aqiBand(item.aqi);
+
+  return (
+    <li
+      className={`grid gap-3 border-t border-[#EEE8E3] py-3 ${
+        hasAqi ? "grid-cols-[44px_minmax(0,1fr)]" : "grid-cols-1"
+      }`}
+    >
+      {hasAqi && (
+        <span
+          className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-[#1B1B1A] text-[12px] font-extrabold"
+          style={{
+            backgroundColor: band != null ? AQI_SCALE[band] : "#EFEAE6",
+            color: aqiInk(band),
+          }}
+        >
+          {item.aqi != null ? (
+            <>
+              <span className="sr-only">AQI </span>
+              {formatAqi(item.aqi)}
+            </>
+          ) : (
+            <>
+              <span aria-hidden="true">—</span>
+              <span className="sr-only">{copy.logNoAqi}</span>
+            </>
+          )}
+        </span>
+      )}
+      <div className="flex min-w-0 flex-col gap-[3px]">
+        <p className="m-0 whitespace-pre-line text-[15px] leading-[1.45]">
+          {item.note}
+        </p>
+        <p className="m-0 text-[12px] text-[#5C5752]">
+          {formatShortDate(item.timestamp)} · {formatTime(item.timestamp)}
+          {item.alert != null &&
+            (item.alert_detail
+              ? ` · ${copy.actionsRespondsToAlert} ${formatShortDate(
+                  item.alert_detail.triggered_at,
+                )} (${formatAqi(item.alert_detail.aqi_value)} AQI)`
+              : ` · ${copy.actionsRespondsToAlertPlain}`)}
+        </p>
+      </div>
+    </li>
   );
 }
 
@@ -314,11 +331,7 @@ function ActionLogList({
  * One line in the alert selector: `24/08/2026 · 128 AQI · umbral 100`.
  *
  * The full date, not the list's `dd/mm`: an option has to be identifiable on
- * its own, and the alerts on offer can span more than a year. `<option>` takes
- * text and nothing else, so the three parts are assembled from a translated
- * template rather than from markup — which is also what moved "umbral" out of
- * the component, where it was hardcoded in Spanish whatever the panel's
- * language.
+ * its own, and the alerts on offer can span more than a year.
  */
 function alertOptionLabel(
   alert: InstitutionAlert,
@@ -342,6 +355,7 @@ function ActionLogForm({
   alerts,
   disabled,
   onCreated,
+  kind,
   lang,
 }: {
   stationId: number | null;
@@ -349,10 +363,12 @@ function ActionLogForm({
   alerts: InstitutionAlert[];
   disabled: boolean;
   onCreated: (created: ActionLog) => void;
+  kind: InstitutionKind;
   lang: Lang;
 }) {
   const copy = useInstitutionCopy(lang);
   const noteId = useId();
+  const noteHelpId = useId();
   const alertId = useId();
   const alertHelpId = useId();
   const [note, setNote] = useState("");
@@ -419,56 +435,47 @@ function ActionLogForm({
 
   if (stationId == null) {
     return (
-      <Card tone="main">
-        <CardHead>
-          <CardTitle level="main">{copy.actionFormTitle}</CardTitle>
-        </CardHead>
-        <p className="m-0 text-[13px] text-gray">{copy.actionFormNoStation}</p>
-      </Card>
+      <PanelCard>
+        <PanelTitle>{copy.actionFormTitle}</PanelTitle>
+        <p className="m-0 text-[14px] text-[#3E3A36]">
+          {copy.actionFormNoStation}
+        </p>
+      </PanelCard>
     );
   }
 
   return (
-    <Card tone="main">
-      <CardHead>
-        <CardTitle level="main">{copy.actionFormTitle}</CardTitle>
-      </CardHead>
-
-      {/* Each field explains itself; what was missing is why the section exists
-          — and that what is written here comes back in the monthly PDF, which
-          is what makes it worth the minute it takes. Above the form rather than
-          inside it, so it is read before the first field rather than found
-          after the visitor has already worked out what to type.
-
-          In the normal flow, not floating: the text pushes the form down and
-          stays put while it is read, which is what a paragraph of explanation
-          should do. Nothing beside it moves — `items-start` on the row already
-          lets the history card keep its own height. */}
+    <PanelCard labelledBy="panel-log-form">
+      <PanelTitle id="panel-log-form">{copy.actionFormTitle}</PanelTitle>
+      <p className="m-0 text-[14px] leading-[1.5] text-[#3E3A36]">
+        {copy.logIntro}
+      </p>
+      {/* What comes back in the monthly PDF is what makes the minute worth it;
+          kept folded so the form stays short for the people who know. */}
       <HelpDisclosure
         toggle={copy.actionFormHelpToggle}
         body={copy.actionFormHelp}
-        className="-mt-1 mb-4"
       />
 
-      <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
-        <p className="m-0 flex items-baseline gap-2.5 rounded-md bg-base px-3 py-2 text-[13px]">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-gray">
+      <form className="flex flex-col gap-3" onSubmit={handleSubmit} noValidate>
+        <p className="m-0 flex items-baseline gap-2.5 rounded-[10px] bg-[#F6F2EF] px-3 py-2 text-[13px]">
+          <span className="text-[11px] font-bold uppercase tracking-[0.8px] text-[#5C5752]">
             {copy.actionFormSensor}
           </span>
-          <span>{stationName}</span>
+          <span className="font-semibold">{stationName}</span>
         </p>
 
         {selectableAlerts.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <FieldLabel htmlFor={alertId}>
+            <label htmlFor={alertId} className="text-[14px] font-bold">
               {copy.actionFormAlertLabel}{" "}
-              <span className="font-normal text-lightgray">
+              <span className="font-normal text-[#5C5752]">
                 {copy.actionFormAlertOptional}
               </span>
-            </FieldLabel>
+            </label>
             <select
               id={alertId}
-              className={fieldClassName}
+              className={FIELD}
               value={alert}
               onChange={(event) => setAlert(event.target.value)}
               disabled={disabled || submitting}
@@ -481,24 +488,28 @@ function ActionLogForm({
                 </option>
               ))}
             </select>
-            {/* The three numbers in an option — date, AQI, threshold — mean
-                nothing on their own; this line is what names them (RES-435).
-                It sits under the control rather than in the label so the label
-                stays a short noun phrase. */}
-            <span id={alertHelpId} className="text-[11.5px] text-lightgray">
+            <span id={alertHelpId} className="text-[12px] text-[#5C5752]">
               {copy.actionFormAlertHelp}
             </span>
           </div>
         )}
 
         <div className="flex flex-col gap-1.5">
-          <FieldLabel htmlFor={noteId}>{copy.actionFormNoteLabel}</FieldLabel>
+          <label htmlFor={noteId} className="text-[14px] font-bold">
+            {copy.actionFormNoteLabel}
+          </label>
           <textarea
             id={noteId}
-            className={`${fieldClassName} min-h-[74px] resize-y`}
+            rows={4}
+            className={`${FIELD} resize-y`}
             value={note}
             maxLength={ACTION_NOTE_MAX_LENGTH}
-            placeholder={copy.actionFormNotePlaceholder}
+            placeholder={
+              kind === "colegio"
+                ? copy.logPlaceholderColegio
+                : copy.logPlaceholderIndustria
+            }
+            aria-describedby={noteHelpId}
             onChange={(event) => {
               setNote(event.target.value);
               setSaved(false);
@@ -506,26 +517,36 @@ function ActionLogForm({
             disabled={disabled || submitting}
             required
           />
-          <span className="text-[11.5px] text-lightgray">
+          <span id={noteHelpId} className="text-[12px] text-[#5C5752]">
             {copy.actionFormNoteHelp}
           </span>
         </div>
 
         {error && (
-          <p role="alert" className="m-0 text-[13px] text-aqi-red-dark">
+          <p
+            role="alert"
+            className="m-0 text-[13px] font-semibold text-[#A3262A]"
+          >
             {error}
           </p>
         )}
         {saved && (
-          <p role="status" className="m-0 text-[13px] text-green_darker">
+          <p
+            role="status"
+            className="m-0 text-[13px] font-semibold text-[#245C2A]"
+          >
             {copy.actionFormSaved}
           </p>
         )}
 
-        <Button type="submit" block disabled={disabled || submitting}>
+        <PanelButton
+          type="submit"
+          disabled={disabled || submitting}
+          className="self-start"
+        >
           {submitting ? copy.actionFormSubmitting : copy.actionFormSubmit}
-        </Button>
+        </PanelButton>
       </form>
-    </Card>
+    </PanelCard>
   );
 }

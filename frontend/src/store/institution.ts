@@ -22,6 +22,8 @@ import {
   type InstitutionDashboard,
   type InstitutionNotification,
   type Paginated,
+  type ReadingsPeriod,
+  type SensorReadings,
 } from "../data/institution";
 import { saveResponseAsFile } from "../utils/download";
 import { getBackendUrl } from "./runtime-config";
@@ -386,6 +388,22 @@ export const fetchInstitutionNotifications = async (
     ? { count: payload.length, next: null, previous: null, results: payload }
     : payload;
 };
+
+/**
+ * Hourly PM2.5/PM10 for one sensor over a period (#322).
+ *
+ * 404 reads as `unavailable`: until the endpoint ships, every caller hides
+ * its block rather than treating the absence as a failure.
+ */
+export const fetchReadings = (
+  station: number,
+  period: ReadingsPeriod,
+  cookie?: string,
+): Promise<SensorReadings> =>
+  requestJson<SensorReadings>(
+    withStation(`${INSTITUTION_ENDPOINTS.readings}?period=${period}`, station),
+    { cookie, treat404AsUnavailable: true },
+  );
 
 export const createActionLog = (draft: ActionLogDraft): Promise<ActionLog> =>
   requestJson<ActionLog>(INSTITUTION_ENDPOINTS.actionLogs, {

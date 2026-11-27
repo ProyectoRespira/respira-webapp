@@ -6,31 +6,27 @@
 // private panel. Keeping the two shells separate is also what guarantees this
 // feature cannot change the public dashboard.
 //
-// The top bar is `near_black` rather than the public site's light chrome, so
-// the private area is visually unmistakable.
+// The panel draws its own chrome — the sidebar with the institution, the menu
+// and the logout (#338) — so this shell is only the document around it. No
+// language selector on purpose: the panel inherits whatever language the
+// visitor was reading the public site in (the site-wide `respira-lang`
+// cookie).
 
 import "@fontsource-variable/open-sans";
 import "@fontsource/merriweather/400.css";
 import "@fontsource/merriweather/700.css";
+import "@fontsource/merriweather/900.css";
 
 import "../../main.css";
 
-import { Image } from "astro:assets";
-
-import RespiraLogo from "../assets/logo.svg";
-import { useInstitutionCopy } from "../i18n/institution";
-import { LogoutButton } from "../components/react/institution/LogoutButton";
 import { getLangFromLocals } from "../i18n/utils";
 
 interface Props {
   title: string;
-  /** Omitted on the login page, which has no session and so no top bar. */
-  institutionName?: string;
 }
 
-const { title, institutionName } = Astro.props;
+const { title } = Astro.props;
 const lang = getLangFromLocals(Astro.locals);
-const copy = useInstitutionCopy(lang);
 ---
 
 <html lang={lang}>
@@ -44,52 +40,7 @@ const copy = useInstitutionCopy(lang);
     <title>{title} · Respira</title>
   </head>
 
-  <body class="bg-base min-h-screen font-sans text-near_black">
-    {
-      institutionName && (
-        <header class="flex h-16 items-center gap-3 bg-near_black px-4 md:gap-4 md:px-6">
-          {/*
-            `invert` because the brand mark is drawn dark for the public site's
-            light chrome; on this bar it would be black on near-black. Inverting
-            turns the wordmark white and leaves the lung as an outline, which is
-            how the mark is meant to read on a dark ground.
-          */}
-          <a href="/institucion/dashboard" class="flex shrink-0 items-center">
-            <Image
-              src={RespiraLogo}
-              alt="Respira"
-              class="h-9 w-auto invert md:h-10"
-              loading="eager"
-            />
-          </a>
-          <span class="hidden h-6 w-px shrink-0 bg-gray sm:block" />
-          <div class="hidden min-w-0 flex-col leading-tight sm:flex">
-            <span class="text-[11px] font-bold uppercase tracking-[0.12em] text-lightgray">
-              {copy.panelName}
-            </span>
-            <span class="truncate text-sm font-semibold text-white">
-              {institutionName}
-            </span>
-          </div>
-          <span class="truncate text-sm font-semibold text-white sm:hidden">
-            {institutionName}
-          </span>
-          {/*
-              No language selector here on purpose: the panel inherits whatever
-              language the visitor was already reading the public site in. That
-              choice lives in the `respira-lang` cookie, which is site-wide, so
-              arriving from an English site lands on an English panel with
-              nothing to pick.
-            */}
-          <div class="ml-auto shrink-0">
-            <LogoutButton lang={lang} client:load />
-          </div>
-        </header>
-      )
-    }
-
-    <main>
-      <slot />
-    </main>
+  <body class="min-h-screen bg-[#F1ECE9] font-sans text-[#1B1B1A]">
+    <slot />
   </body>
 </html>

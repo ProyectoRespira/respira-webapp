@@ -1,12 +1,16 @@
 // Date and number formatting for the institutional dashboard (RES-328).
 //
-// Every formatter pins the time zone to Asunción. Two reasons, both load-
+// Every formatter pins the time zone to Paraguay. Two reasons, both load-
 // bearing: the backend stores timestamps in UTC while institutions read them in
 // local time, and these components hydrate — a server rendering in UTC and a
 // browser rendering in local time would produce different markup for the same
 // data and trip a hydration mismatch.
+//
+// A fixed UTC−3 rather than `America/Asuncion`: Paraguay dropped daylight
+// saving in 2024, and a browser with older time-zone data would still move
+// summer timestamps by an hour. (`Etc/GMT+3` is UTC−3; the sign is POSIX's.)
 
-const TIME_ZONE = "America/Asuncion";
+const TIME_ZONE = "Etc/GMT+3";
 const LOCALE = "es-PY";
 
 const dateTimeFormatter = new Intl.DateTimeFormat(LOCALE, {

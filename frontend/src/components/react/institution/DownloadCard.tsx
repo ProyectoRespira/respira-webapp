@@ -15,17 +15,14 @@ import {
 } from "../../../store/institution";
 import { formatMonthName } from "../../../utils/institution-format";
 import { INSTITUTION_LOGIN_PATH } from "../../../utils/institution-session";
-import {
-  Button,
-  Card,
-  CardHead,
-  CardTitle,
-  DateField,
-  DownloadIcon,
-  HelpDisclosure,
-  Select,
-  Skeleton,
-} from "./ui";
+import { PanelButton, PanelCard, PanelTitle } from "./panel-ui";
+import { DownloadIcon, HelpDisclosure, Skeleton } from "./ui";
+
+/** The panel's field look: black 2 px edge, 44 px tall. */
+const FIELD =
+  "min-h-[44px] w-full rounded-[10px] border-2 border-[#1B1B1A] bg-white px-3 text-[14px] text-[#1B1B1A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1B1B1A] disabled:cursor-not-allowed disabled:opacity-60";
+
+const LABEL = "text-[13px] font-bold text-[#1B1B1A]";
 
 /**
  * Mirrors `MAX_EXPORT_DAYS` in `api/exports.py`.
@@ -38,34 +35,12 @@ import {
 const MAX_EXPORT_DAYS = 366;
 
 /**
- * The two-column split, keyed to the card's width rather than the window's.
- *
- * Plain CSS because Tailwind 3.4 has no container-query utilities without the
- * `@tailwindcss/container-queries` plugin, and one card does not justify adding
- * a build dependency. Scoped by class names so it cannot reach other cards.
- */
-const DOWNLOAD_COLUMNS_CSS = `
-.downloads-card { container-type: inline-size; }
-@container (min-width: 560px) {
-  .downloads-grid { grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-  .downloads-second {
-    border-top: 0;
-    padding-top: 0;
-    /* The literal bg-gray token, since this rule is outside Tailwind. */
-    border-left: 1px solid #DBD3D0;
-    padding-left: 1.5rem;
-  }
-}
-`;
-
-/**
- * The two file exports, side by side (RES-433).
+ * Descargas: the two file exports as two cards, side by side (RES-433, #338).
  *
  * They answer different questions — "how was last month?" against "give me the
- * numbers to work on myself" — and stacked they read as one long form whose
- * second half is merely more of the first. Two columns put them in parallel,
- * where the pair of headings and the pair of notes can be compared at a glance,
- * and each download plainly owns its own selector.
+ * numbers to work on myself" — so each is its own card with its own selector,
+ * and the pair wraps to one column on a phone. The cards stretch to one height
+ * so the two buttons line up.
  *
  * Each button resolves its own 404 into "not available yet" and says so under
  * itself. State is per-button rather than per-card: a failing report must not
@@ -76,13 +51,10 @@ const DOWNLOAD_COLUMNS_CSS = `
  * caused them.
  *
  * For a sensor with no raw history to serve — see `supports_raw_export` — the
- * column stays where it is and only its controls are replaced by a line saying
- * why. Dropping the column outright was tried and reverted: the card then
- * rendered as a single half-width report against empty space, which reads as a
- * layout bug rather than as a deliberate absence, and it left the reader with
- * no account of a download they may have seen elsewhere. The monthly report is
- * built from the warehouse and works for every network, so that half of the
- * card is unaffected either way.
+ * card stays where it is and only its controls are replaced by a line saying
+ * why: dropping it left the report alone against empty space, which read as a
+ * layout bug, and gave no account of a download the reader may have seen
+ * elsewhere.
  */
 export function DownloadCard({
   lang,
@@ -99,58 +71,26 @@ export function DownloadCard({
    */
   stationId?: number;
 }) {
-  const copy = useInstitutionCopy(lang);
   // Absent on a backend that predates the field: keep offering the download
   // rather than hiding it from every panel the moment the frontend ships first.
   const hasRawExport = sensor?.supports_raw_export !== false;
 
   return (
-    <Card className="downloads-card">
-      <CardHead>
-        <CardTitle>{copy.downloadsTitle}</CardTitle>
-      </CardHead>
-      {/* One column, splitting into two once the *card* is wide enough — a
-          container query rather than a `md:` breakpoint, because what has to
-          fit is the card, not the window. Screenshotting this at 1280px inside
-          a narrow column showed why: viewport breakpoints split a 420px card
-          into two columns on a wide screen, leaving each date field ~130px and
-          rendering "08/1". The card is full width on the dashboard today, so
-          only a future move would hit that — this makes the component correct
-          wherever it is put, instead of correct only where it currently sits.
-
-          560px is where two date fields, their labels and the gutter stop being
-          cramped. Browsers without container-query support keep the stacked
-          single column, which is the safe way to be wrong.
-
-          A rule between the two rather than more whitespace: each download owns
-          its own selector, so they need a visible boundary to stop one reading
-          as if it applied to both. It turns with the layout — a top border when
-          they are stacked, a left one when they sit side by side. */}
-      <style>{DOWNLOAD_COLUMNS_CSS}</style>
-      <div className="downloads-grid grid grid-cols-1 gap-4">
-        <MonthlyReport lang={lang} stationId={stationId} />
-        {/* `h-full` so the column inside can measure against the grid row —
-            without it `mt-auto` has no slack to take up and the buttons stop
-            lining up. */}
-        <div className="downloads-second h-full border-t border-bg-gray pt-4">
-          {hasRawExport ? (
-            <RawExport lang={lang} contract={contract} stationId={stationId} />
-          ) : (
-            <RawExportUnsupported lang={lang} />
-          )}
-        </div>
-      </div>
-    </Card>
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] gap-5">
+      <MonthlyReport lang={lang} stationId={stationId} />
+      {hasRawExport ? (
+        <RawExport lang={lang} contract={contract} stationId={stationId} />
+      ) : (
+        <RawExportUnsupported lang={lang} />
+      )}
+    </div>
   );
 }
 
 /**
- * The shared shape of a download column: heading, explanatory line, selector,
- * then the button pinned to the bottom.
- *
- * `h-full` with `mt-auto` on the button is what keeps the two buttons on one
- * line when the notes wrap to different heights — without it the shorter column
- * ends higher and the pair reads as two unrelated blocks.
+ * The shared shape of a download card: heading, explanatory line, selector,
+ * then the button pinned to the bottom (`mt-auto`), so the two buttons stay on
+ * one line when the notes wrap to different heights.
  */
 function DownloadColumn({
   title,
@@ -166,34 +106,23 @@ function DownloadColumn({
   children: ReactNode;
 }) {
   return (
-    <div className="flex h-full flex-col gap-3">
-      <div className="flex flex-col gap-1.5">
-        {/* A heading, not a `<label>` (RES-435): every field inside now carries
-            its own — "Mes a reportar" here, "Desde"/"Hasta" in the export — and
-            a heading that also labelled one of them made a screen reader
-            announce the control as "Reporte mensual (PDF) Mes a reportar". It
-            names the download; the fields below name themselves. */}
-        <h3 className="m-0 text-xs font-semibold text-gray">{title}</h3>
-        <p className="text-[12px] leading-snug text-gray">{note}</p>
-        {/* The note above says what the file is; this says what is actually
-            inside it — what someone deciding between the two downloads needs,
-            and what someone about to open a 24-column spreadsheet wants first.
-
-            `overlay` because the two downloads share a grid row: expanded in
-            the normal flow, opening one grew the row, stretching the other
-            column and pushing both buttons down. Floating, reading about one
-            file leaves the other untouched. */}
-        <HelpDisclosure toggle={helpToggle} body={help} overlay />
-      </div>
+    <PanelCard className="h-full">
+      {/* A heading, not a `<label>` (RES-435): every field inside carries
+          its own, and a heading that also labelled one of them made a screen
+          reader announce the control twice. */}
+      <PanelTitle>{title}</PanelTitle>
+      <p className="m-0 text-[14px] leading-[1.5] text-[#3E3A36]">{note}</p>
+      <HelpDisclosure toggle={helpToggle} body={help} />
       {children}
-    </div>
+    </PanelCard>
   );
 }
 
 /** Today in Asunción, as `YYYY-MM-DD` — the latest date worth offering. */
 const todayInAsuncion = (): string =>
   new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Asuncion",
+    // Paraguay's fixed UTC−3; see `utils/institution-format.ts`.
+    timeZone: "Etc/GMT+3",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -214,32 +143,23 @@ const addDays = (isoDate: string, days: number): string => {
  * button are replaced, by a line naming the reason. The "what's in this file?"
  * disclosure is dropped: there is no file to describe here, and leaving it would
  * offer detail about something unobtainable.
- *
- * `mt-auto` on the notice keeps it at the bottom of the column, where the button
- * sits in the other one, so the two halves still read as a pair rather than as
- * one column that ran short.
  */
 function RawExportUnsupported({ lang }: { lang: Lang }) {
   const copy = useInstitutionCopy(lang);
 
   return (
-    <div className="flex h-full flex-col gap-3">
-      <div className="flex flex-col gap-1.5">
-        <h3 className="m-0 text-xs font-semibold text-gray">
-          {copy.downloadRaw}
-        </h3>
-        <p className="text-[12px] leading-snug text-gray">
-          {copy.downloadRawNote}
-        </p>
-      </div>
-      {/* Dashed and muted, the same treatment the month selector's "no months
-          yet" placeholder uses: it reads as a space that stays empty, not as a
+    <PanelCard className="h-full">
+      <PanelTitle>{copy.downloadRaw}</PanelTitle>
+      <p className="m-0 text-[14px] leading-[1.5] text-[#3E3A36]">
+        {copy.downloadRawNote}
+      </p>
+      {/* Dashed and muted: it reads as a space that stays empty, not as a
           control that failed to load. Not `role="alert"` — nothing just went
-          wrong, it is the standing state of this panel. */}
-      <p className="mt-auto rounded-md border border-dashed border-basedark px-3 py-2.5 text-[12px] leading-snug text-gray">
+          wrong, it is the standing state of this sensor. */}
+      <p className="m-0 rounded-[10px] border-2 border-dashed border-[#B9AFA8] px-3 py-2.5 text-[13px] leading-snug text-[#3E3A36]">
         {copy.downloadRawUnsupported}
       </p>
-    </div>
+    </PanelCard>
   );
 }
 
@@ -318,33 +238,31 @@ function RawExport({
       help={copy.downloadRawHelp}
       helpToggle={copy.downloadHelpToggle}
     >
-      <div className="grid grid-cols-2 gap-2">
-        <div className="flex flex-col gap-1">
-          <label
-            htmlFor={fromId}
-            className="text-[11px] uppercase tracking-wide text-lightgray"
-          >
+      <div className="grid grid-cols-2 gap-2.5">
+        <div className="flex min-w-0 flex-col gap-1">
+          <label htmlFor={fromId} className={LABEL}>
             {copy.rangeFrom}
           </label>
-          <DateField
+          <input
             id={fromId}
+            type="date"
+            className={FIELD}
             value={from}
-            onChange={setFrom}
+            onChange={(event) => setFrom(event.target.value)}
             min={earliest}
             max={today}
           />
         </div>
-        <div className="flex flex-col gap-1">
-          <label
-            htmlFor={toId}
-            className="text-[11px] uppercase tracking-wide text-lightgray"
-          >
+        <div className="flex min-w-0 flex-col gap-1">
+          <label htmlFor={toId} className={LABEL}>
             {copy.rangeTo}
           </label>
-          <DateField
+          <input
             id={toId}
+            type="date"
+            className={FIELD}
             value={to}
-            onChange={setTo}
+            onChange={(event) => setTo(event.target.value)}
             min={from || earliest}
             max={today}
           />
@@ -362,7 +280,7 @@ function RawExport({
               ? copy.rangeDaysOne
               : copy.rangeDays.replace("{days}", String(Math.round(spanDays)))
         }
-        variant="void"
+        variant="secondary"
         lang={lang}
         from={from}
         to={to}
@@ -446,29 +364,31 @@ function MonthlyReport({
             covered. Rendered whatever the state, so the selector, the skeleton
             and the "no months yet" placeholder all arrive labelled and the
             column does not reflow as the list loads. */}
-        <label
-          htmlFor={selectId}
-          className="text-[11px] uppercase tracking-wide text-lightgray"
-        >
+        <label htmlFor={selectId} className={LABEL}>
           {copy.reportMonthLabel}
         </label>
 
         {loading && (
           <>
             {/* Matches the select's height so the card does not reflow. */}
-            <Skeleton className="h-[38px] w-full" />
+            <Skeleton className="h-[44px] w-full" />
             <span className="sr-only">{copy.reportMonthsLoading}</span>
           </>
         )}
 
         {hasMonths && (
-          <Select id={selectId} value={selected} onChange={setSelected}>
+          <select
+            id={selectId}
+            className={`${FIELD} cursor-pointer`}
+            value={selected}
+            onChange={(event) => setSelected(event.target.value)}
+          >
             {[...months].reverse().map((month) => (
               <option key={month.month} value={month.month}>
                 {formatMonthName(month.month, lang, month.label)}
               </option>
             ))}
-          </Select>
+          </select>
         )}
 
         {noMonths && (
@@ -477,7 +397,7 @@ function MonthlyReport({
           // taller. The message is short enough to fit on one line at this
           // width; `truncate` is the guard for a longer translation.
           <p
-            className="flex h-[38px] items-center truncate rounded-md border border-dashed border-basedark px-3 text-[12.5px] text-gray"
+            className="m-0 flex h-[44px] items-center truncate rounded-[10px] border-2 border-dashed border-[#B9AFA8] px-3 text-[13px] text-[#3E3A36]"
             title={copy.reportNoMonths}
           >
             {copy.reportNoMonths}
@@ -485,7 +405,9 @@ function MonthlyReport({
         )}
 
         {loadFailed && (
-          <p className="text-[11.5px] text-gray">{copy.reportMonthsError}</p>
+          <p className="m-0 text-[12px] text-[#5C5752]">
+            {copy.reportMonthsError}
+          </p>
         )}
       </div>
 
@@ -498,7 +420,7 @@ function MonthlyReport({
         className="mt-auto"
         kind="monthlyReport"
         label={copy.reportDownloadPdf}
-        variant="color"
+        variant="primary"
         lang={lang}
         month={selected || undefined}
         stationId={stationId}
@@ -525,7 +447,7 @@ function DownloadButton({
   kind: DownloadKind;
   label: string;
   note?: string;
-  variant: "color" | "void";
+  variant: "primary" | "secondary";
   lang: Lang;
   month?: string;
   from?: string;
@@ -581,16 +503,16 @@ function DownloadButton({
 
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
-      <Button
+      <PanelButton
         variant={variant}
-        block
         onClick={handleClick}
         disabled={busy || disabled}
+        className="self-start"
       >
         <DownloadIcon />
         {busy ? copy.downloadPreparing : label}
-      </Button>
-      {note && <span className="text-[11.5px] text-lightgray">{note}</span>}
+      </PanelButton>
+      {note && <span className="text-[12px] text-[#5C5752]">{note}</span>}
       {(blockedMessage ?? message) && (
         <span
           role="alert"
@@ -598,8 +520,8 @@ function DownloadButton({
             // A blocked range is guidance, not a failure: it reads in the muted
             // tone, like a partial download, rather than in the error red.
             blockedMessage || tone === "warning"
-              ? "text-[11.5px] text-gray"
-              : "text-[11.5px] text-aqi-red-dark"
+              ? "text-[12px] text-[#5C5752]"
+              : "text-[12px] font-semibold text-[#A3262A]"
           }
         >
           {blockedMessage ?? message}

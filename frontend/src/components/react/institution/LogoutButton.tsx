@@ -13,6 +13,9 @@ import { INSTITUTION_LOGIN_PATH } from "../../../utils/institution-session";
  * who still has a valid session straight back to the dashboard, so a failed
  * logout would silently bounce them where they started with nothing to explain
  * it. Saying so is the honest outcome.
+ *
+ * Drawn as a link-weight button, the way the sidebar's user card shows it: it
+ * is an action, so it stays a `<button>` rather than a link to `#salir`.
  */
 export function LogoutButton({ lang }: { lang: Lang }) {
   const copy = useInstitutionCopy(lang);
@@ -33,23 +36,20 @@ export function LogoutButton({ lang }: { lang: Lang }) {
   };
 
   return (
-    <div className="flex items-center gap-3">
-      {failed && (
-        <span
-          role="alert"
-          className="hidden text-xs text-aqi-red-light sm:block"
-        >
-          {copy.logoutFailed}
-        </span>
-      )}
+    <div className="flex flex-col items-start gap-1">
       <button
         type="button"
         onClick={handleClick}
         disabled={busy}
-        className="rounded-md border border-gray px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-bg-gray transition-colors hover:border-basedark hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green disabled:opacity-60"
+        className="min-h-[32px] rounded text-[12px] font-bold text-[#245C2A] underline-offset-2 hover:text-[#163A1A] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#245C2A] disabled:opacity-60"
       >
         {busy ? copy.loggingOut : failed ? copy.retry : copy.logout}
       </button>
+      {failed && (
+        <span role="alert" className="text-[12px] text-[#A3262A]">
+          {copy.logoutFailed}
+        </span>
+      )}
     </div>
   );
 }
