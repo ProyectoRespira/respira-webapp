@@ -9,6 +9,7 @@ from rest_framework.validators import UniqueValidator
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 from .airgradient import AirGradientError, location_id_for_station
+from .exports import REPORT_TIME_ZONE
 from .models import (
     ActionLog,
     DeviceFollower,
@@ -18,6 +19,8 @@ from .models import (
     Institution,
     InstitutionAlert,
     InstitutionContract,
+    InstitutionRole,
+    MadesPmLimits,
     Regions,
     SensitiveGroup,
     Stations,
@@ -27,7 +30,9 @@ from .models import (
     faq_localized_map,
     get_institution_contracts,
     get_institution_for_user,
+    get_institution_role,
     get_institution_station_ids,
+    latest_station_aqi,
     user_role,
 )
 
@@ -362,6 +367,29 @@ class InstitutionContractSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class PmLimitSerializer(serializers.Serializer):
+    """One pollutant's MADES limits in µg/m³; ``null`` = not confirmed yet."""
+
+    h24 = serializers.FloatField(allow_null=True, help_text="24-hour average limit.")
+    annual = serializers.FloatField(allow_null=True, help_text="Annual average limit.")
+
+
+class MadesLimitsSerializer(serializers.Serializer):
+    """PM reference limits from MADES, Resolución 259/2015 (``MadesPmLimits``)."""
+
+    pm25 = PmLimitSerializer()
+    pm10 = PmLimitSerializer()
+
+
+class InstitutionCallerSerializer(serializers.Serializer):
+    """Who is looking at the panel: the logged-in user, not the institution."""
+
+    email = serializers.EmailField()
+    full_name = serializers.CharField(
+        help_text="First and last name; an empty string when neither is set."
+    )
+
+
 class InstitutionSerializer(serializers.ModelSerializer):
     """Self-service representation of an institution for its own dashboard.
 
@@ -372,6 +400,9 @@ class InstitutionSerializer(serializers.ModelSerializer):
 
     contract = serializers.SerializerMethodField()
     contracts = serializers.SerializerMethodField()
+    role = serializers.SerializerMethodField()
+    user = serializers.SerializerMethodField()
+    limits = serializers.SerializerMethodField()
 
     class Meta:
         model = Institution
@@ -387,8 +418,49 @@ class InstitutionSerializer(serializers.ModelSerializer):
             "city",
             "contract",
             "contracts",
+            "role",
+            "user",
+            "limits",
         ]
         read_only_fields = fields
+
+    @extend_schema_field(
+        serializers.ChoiceField(choices=InstitutionRole.choices, allow_null=True)
+    )
+    def get_role(self, obj):
+        """The *caller's* role in this institution, not a property of it.
+
+        Read from the request's user, so it needs the request in the context;
+        without one (a serializer built outside a view) it is ``None`` rather
+        than a guess. Clients hide the panel's writes for ``"member"``.
+        """
+        request = self.context.get("request")
+        return get_institution_role(getattr(request, "user", None))
+
+    @extend_schema_field(InstitutionCallerSerializer(allow_null=True))
+    def get_user(self, obj):
+        """The *caller's* identity, for the panel's user card.
+
+        Like ``role``, read from the request's user and ``None`` without a
+        request in the context. ``full_name`` is ``""`` rather than ``null``
+        when the account has no name, so a client falls back to the email with
+        one truthiness check instead of two.
+        """
+        user = getattr(self.context.get("request"), "user", None)
+        if user is None or not user.is_authenticated:
+            return None
+        return {"email": user.email, "full_name": user.get_full_name().strip()}
+
+    @extend_schema_field(MadesLimitsSerializer)
+    def get_limits(self, obj):
+        """MADES reference limits for PM2.5 / PM10, edited in the admin.
+
+        Built by the model rather than through a numeric field, so a
+        whole-number limit reaches the client as ``150`` and not ``150.0``, and
+        an unconfirmed one stays ``null``. One query; all-null if the row is
+        missing (see ``MadesPmLimits.current_payload``).
+        """
+        return MadesPmLimits.current_payload()
 
     @extend_schema_field(InstitutionContractSerializer(allow_null=True))
     def get_contract(self, obj):
@@ -649,8 +721,12 @@ class ActionLogSerializer(serializers.ModelSerializer):
             "alert_detail",
             "timestamp",
             "note",
+            "aqi",
         ]
-        read_only_fields = ["id", "institution", "timestamp"]
+        # `aqi` is stamped from the station's latest reading in `create`, like
+        # `timestamp` is by the model: what the air was like is a fact the
+        # backend records, not something a client gets to state.
+        read_only_fields = ["id", "institution", "timestamp", "aqi"]
 
     @extend_schema_field(OpenApiTypes.STR)
     def get_institution_name(self, obj) -> str:
@@ -702,6 +778,10 @@ class ActionLogSerializer(serializers.ModelSerializer):
             )
         return attrs
 
+    def create(self, validated_data):
+        validated_data["aqi"] = latest_station_aqi(validated_data["station"].pk)
+        return super().create(validated_data)
+
 
 class SensitiveGroupSerializer(serializers.ModelSerializer):
     class Meta:
@@ -728,6 +808,10 @@ class DashboardSensorSerializer(serializers.Serializer):
     # False for the networks the raw export cannot reach (FIUNA, MADES): the
     # panel hides that download rather than offering one that would 404.
     supports_raw_export = serializers.BooleanField()
+    # `StationDetails.model` (e.g. "AirGradient Open Air O-1PST"), for the
+    # panel's "name · model" header. Null when the station has no details or
+    # the field was left blank.
+    model = serializers.CharField(allow_null=True)
 
 
 class DashboardAirQualitySerializer(serializers.Serializer):
@@ -764,6 +848,21 @@ class DashboardAvailableSensorSerializer(serializers.Serializer):
 
     id = serializers.IntegerField()
     name = serializers.CharField()
+    # AQI of the sensor's latest reading, as a whole number: the same reading
+    # the dashboard reports when that sensor is selected. Null with no reading.
+    aqi = serializers.IntegerField(allow_null=True)
+
+
+class DashboardCurrentSerializer(serializers.Serializer):
+    """PM concentrations of the sensor's latest hourly reading, in µg/m³.
+
+    The same reading as ``air_quality`` and ``sensor.last_measurement_at``.
+    Each value is null when that reading lacks it — both are, when the sensor
+    has not reported at all — so the object itself is always present.
+    """
+
+    pm25 = serializers.FloatField(allow_null=True)
+    pm10 = serializers.FloatField(allow_null=True)
 
 
 class InstitutionDashboardSerializer(serializers.Serializer):
@@ -778,8 +877,29 @@ class InstitutionDashboardSerializer(serializers.Serializer):
     sensor = DashboardSensorSerializer()
     available_sensors = DashboardAvailableSensorSerializer(many=True)
     air_quality = DashboardAirQualitySerializer(allow_null=True)
+    current = DashboardCurrentSerializer()
     history = DashboardHistoryPointSerializer(many=True)
     alert_config = InstitutionAlertConfigSerializer()
+
+
+class InstitutionReadingPointSerializer(serializers.Serializer):
+    """One hour of the series; ``null`` values mark an hour with no reading."""
+
+    # Rendered in Paraguayan time with its offset spelled out
+    # ("2026-11-18T00:00:00-03:00"), so a client can group by local hour and
+    # day without knowing the zone. It is the start of the hour the reading
+    # averages.
+    ts = serializers.DateTimeField(default_timezone=REPORT_TIME_ZONE)
+    pm25 = serializers.FloatField(allow_null=True)
+    pm10 = serializers.FloatField(allow_null=True)
+
+
+class InstitutionReadingsSerializer(serializers.Serializer):
+    """Hourly PM2.5 / PM10 series for one of the institution's sensors."""
+
+    station = serializers.IntegerField()
+    period = serializers.ChoiceField(choices=["24h", "7d", "30d"])
+    readings = InstitutionReadingPointSerializer(many=True)
 
 
 class DeviceFollowerSerializer(serializers.ModelSerializer):

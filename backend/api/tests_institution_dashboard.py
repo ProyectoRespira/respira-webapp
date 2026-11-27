@@ -20,6 +20,7 @@ from .models import (
     InstitutionAlertConfig,
     InstitutionContract,
     InstitutionUser,
+    MadesPmLimits,
     Regions,
     SensitiveGroup,
     StationDetails,
@@ -430,6 +431,7 @@ class InstitutionDashboardDataTests(APITestCase):
                 "sensor",
                 "available_sensors",
                 "air_quality",
+                "current",
                 "history",
                 "alert_config",
             },
@@ -443,6 +445,7 @@ class InstitutionDashboardDataTests(APITestCase):
                 "location",
                 "last_measurement_at",
                 "supports_raw_export",
+                "model",
             },
         )
         self.assertEqual(
@@ -877,3 +880,197 @@ class SharedSensorDashboardTests(APITestCase):
 
         self.client.force_authenticate(self.city_user)
         self.assertEqual(self.client.get(self.dashboard_url).status_code, 404)
+
+
+class InstitutionPanelAdditionsTests(APITestCase):
+    """What the redesigned panel added to the dashboard and /me (#322, #333, #334).
+
+    ``current`` (latest PM2.5 / PM10), ``available_sensors[].aqi``,
+    ``sensor.model`` and ``limits`` (MADES reference limits).
+    """
+
+    def setUp(self):
+        self.client = APIClient()
+        self.now = timezone.now()
+        region = Regions.seed_for_tests(name="Gran Asuncion", region_code="GA")
+
+        self.institution = Institution.objects.create(legal_name="Industria Ejemplo")
+        self.station_b = Stations.seed_for_tests(name="Respira: Zeta", region=region)
+        self.station_a = Stations.seed_for_tests(name="Respira: Alfa", region=region)
+        for station in (self.station_a, self.station_b):
+            InstitutionContract.objects.create(
+                institution=self.institution,
+                station=station,
+                start_date=date(2026, 1, 1),
+            )
+        self.user = User.objects.create_user(
+            username="admin@industria.example",
+            email="admin@industria.example",
+            password="S3ed!Pass99",
+        )
+        InstitutionUser.objects.create(user=self.user, institution=self.institution)
+
+        other = Institution.objects.create(legal_name="Colegio Ajeno")
+        self.foreign_station = Stations.seed_for_tests(
+            name="Respira: Ajena", region=region
+        )
+        InstitutionContract.objects.create(
+            institution=other, station=self.foreign_station, start_date=date(2026, 1, 1)
+        )
+        StationReadingsGold.seed_for_tests(
+            station=self.foreign_station, date_utc=self.now, aqi_pm2_5=180.0
+        )
+
+        self.client.force_authenticate(self.user)
+        self.dashboard_url = reverse("institution-dashboard")
+
+    def dashboard(self, **params):
+        response = self.client.get(self.dashboard_url, params)
+        self.assertEqual(response.status_code, 200)
+        return response.json()
+
+    # --- current ------------------------------------------------------------
+
+    def test_current_holds_the_latest_readings_pm(self):
+        StationReadingsGold.seed_for_tests(
+            station=self.station_a,
+            date_utc=self.now - relativedelta(hours=1),
+            pm2_5=50.0,
+            pm10=80.0,
+            aqi_pm2_5=120.0,
+        )
+        StationReadingsGold.seed_for_tests(
+            station=self.station_a,
+            date_utc=self.now,
+            pm2_5=5.4,
+            pm10=21.0,
+            aqi_pm2_5=42.0,
+        )
+
+        body = self.dashboard()
+
+        self.assertEqual(body["current"], {"pm25": 5.4, "pm10": 21.0})
+        # The same reading the AQI comes from.
+        self.assertEqual(body["air_quality"]["aqi"], 42.0)
+
+    def test_current_follows_the_selected_sensor(self):
+        StationReadingsGold.seed_for_tests(
+            station=self.station_a, date_utc=self.now, pm2_5=1.0, pm10=2.0
+        )
+        StationReadingsGold.seed_for_tests(
+            station=self.station_b, date_utc=self.now, pm2_5=3.0, pm10=4.0
+        )
+
+        body = self.dashboard(station=self.station_b.id)
+
+        self.assertEqual(body["current"], {"pm25": 3.0, "pm10": 4.0})
+
+    def test_current_is_an_object_of_nulls_without_a_reading(self):
+        body = self.dashboard()
+
+        self.assertEqual(body["current"], {"pm25": None, "pm10": None})
+        self.assertIsNone(body["air_quality"])
+
+    # --- available_sensors[].aqi ---------------------------------------------
+
+    def test_each_available_sensor_carries_its_latest_aqi(self):
+        StationReadingsGold.seed_for_tests(
+            station=self.station_a,
+            date_utc=self.now - relativedelta(hours=2),
+            aqi_pm2_5=150.0,
+        )
+        StationReadingsGold.seed_for_tests(
+            station=self.station_a, date_utc=self.now, aqi_pm2_5=42.0
+        )
+        StationReadingsGold.seed_for_tests(
+            station=self.station_b, date_utc=self.now, aqi_pm2_5=97.0
+        )
+
+        sensors = self.dashboard()["available_sensors"]
+
+        self.assertEqual(
+            sensors,
+            [
+                {"id": self.station_a.id, "name": "Respira: Alfa", "aqi": 42},
+                {"id": self.station_b.id, "name": "Respira: Zeta", "aqi": 97},
+            ],
+        )
+
+    def test_a_sensor_without_readings_has_a_null_aqi(self):
+        StationReadingsGold.seed_for_tests(
+            station=self.station_a, date_utc=self.now, aqi_pm2_5=42.0
+        )
+
+        sensors = {s["id"]: s for s in self.dashboard()["available_sensors"]}
+
+        self.assertEqual(sensors[self.station_a.id]["aqi"], 42)
+        self.assertIsNone(sensors[self.station_b.id]["aqi"])
+
+    def test_available_sensor_aqi_is_a_whole_number_rounded_half_up(self):
+        StationReadingsGold.seed_for_tests(
+            station=self.station_a, date_utc=self.now, aqi_pm2_5=42.5
+        )
+        StationReadingsGold.seed_for_tests(
+            station=self.station_b, date_utc=self.now, aqi_pm2_5=97.4
+        )
+
+        sensors = {s["id"]: s for s in self.dashboard()["available_sensors"]}
+
+        self.assertEqual(sensors[self.station_a.id]["aqi"], 43)
+        self.assertEqual(sensors[self.station_b.id]["aqi"], 97)
+
+    def test_available_sensors_never_include_a_foreign_sensors_aqi(self):
+        sensors = self.dashboard()["available_sensors"]
+
+        self.assertNotIn(self.foreign_station.id, [s["id"] for s in sensors])
+        self.assertNotIn(180, [s["aqi"] for s in sensors])
+
+    # --- sensor.model ----------------------------------------------------------
+
+    def test_sensor_model_comes_from_the_station_details(self):
+        StationDetails.objects.create(
+            station=self.station_a, model="AirGradient Open Air O-1PST"
+        )
+
+        self.assertEqual(
+            self.dashboard()["sensor"]["model"], "AirGradient Open Air O-1PST"
+        )
+
+    def test_sensor_model_is_null_without_details(self):
+        self.assertIsNone(self.dashboard()["sensor"]["model"])
+
+    def test_sensor_model_is_null_when_left_blank(self):
+        StationDetails.objects.create(station=self.station_a, model="")
+
+        self.assertIsNone(self.dashboard()["sensor"]["model"])
+
+    # --- limits on /me ------------------------------------------------------
+
+    def test_me_exposes_the_mades_limits_with_unconfirmed_ones_as_null(self):
+        body = self.client.get(reverse("institution-me")).json()
+
+        self.assertEqual(
+            body["limits"],
+            {
+                "pm25": {"h24": None, "annual": 40},
+                "pm10": {"h24": 150, "annual": None},
+            },
+        )
+
+    def test_limits_follow_the_admin_row(self):
+        MadesPmLimits.objects.filter(pk=MadesPmLimits.SINGLETON_ID).update(
+            pm25_h24=Decimal("50"),
+            pm25_annual=Decimal("15"),
+            pm10_h24=Decimal("150"),
+            pm10_annual=Decimal("50"),
+        )
+
+        body = self.client.get(reverse("institution-me")).json()
+
+        self.assertEqual(
+            body["limits"],
+            {
+                "pm25": {"h24": 50, "annual": 15},
+                "pm10": {"h24": 150, "annual": 50},
+            },
+        )

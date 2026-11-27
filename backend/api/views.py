@@ -2,6 +2,7 @@ import ipaddress
 import uuid
 from collections import defaultdict
 from datetime import timedelta
+from datetime import timezone as dt_timezone
 from math import asin, cos, radians, sin, sqrt
 from statistics import median, quantiles
 
@@ -32,7 +33,8 @@ from rest_framework.viewsets import GenericViewSet, ModelViewSet, ReadOnlyModelV
 from backend.client_ip import get_client_ip
 
 from .airgradient import AirGradientError, location_id_for_station
-from .aqi import classify_aqi
+from .aqi import classify_aqi, round_aqi
+from .exports import REPORT_TIME_ZONE
 from .models import (
     ActionLog,
     DeviceFollower,
@@ -51,10 +53,16 @@ from .models import (
     UserRole,
     get_institution_contracts,
     get_institution_for_user,
+    latest_station_readings,
     resolve_institution_station,
 )
 from .pagination import StandardResultsSetPagination
-from .permissions import IsAdminRole, IsInstitutionUser, IsOwnInstitution
+from .permissions import (
+    IsAdminRole,
+    IsInstitutionAdmin,
+    IsInstitutionUser,
+    IsOwnInstitution,
+)
 from .push import catch_up_follower
 from .serializers import (
     ActionLogSerializer,
@@ -74,6 +82,7 @@ from .serializers import (
     InstitutionNotificationSerializer,
     InstitutionPasswordResetConfirmSerializer,
     InstitutionPasswordResetSerializer,
+    InstitutionReadingsSerializer,
     InstitutionSerializer,
     MapSerializer,
     RegionSerializer,
@@ -717,11 +726,9 @@ def _supports_raw_export(station) -> bool:
 
 def _dashboard_sensor(station):
     details = getattr(station, "details", None)
-    last_reading = (
-        StationReadingsGold.objects.filter(station_id=station.id)
-        .order_by("-date_utc")
-        .first()
-    )
+    # The same lookup as the selector's per-sensor AQI, so the selected
+    # sensor's circle and its dashboard always come from the same row.
+    last_reading = latest_station_readings([station.id]).get(station.id)
     return {
         "id": station.id,
         "name": station.name,
@@ -734,7 +741,19 @@ def _dashboard_sensor(station):
         },
         "last_measurement_at": last_reading.date_utc if last_reading else None,
         "supports_raw_export": _supports_raw_export(station),
+        "model": (details.model or None) if details else None,
     }, last_reading
+
+
+def _dashboard_current(last_reading):
+    """PM2.5 / PM10 of the reading ``air_quality`` is computed from.
+
+    Always an object, with null values when there is no reading, so a client
+    reads ``current.pm25`` without first checking ``current`` itself.
+    """
+    if last_reading is None:
+        return {"pm25": None, "pm10": None}
+    return {"pm25": last_reading.pm2_5, "pm10": last_reading.pm10}
 
 
 def _dashboard_air_quality(last_reading):
@@ -783,12 +802,24 @@ def _dashboard_alert_config(institution):
 def _dashboard_available_sensors(institution):
     """The sensors the selector may offer, in the order it shows them.
 
-    Name and id only: enough to label an option and ask for that sensor, with
-    none of the per-sensor detail the selected station's own payload carries.
+    Id, name and current AQI: enough to label an option, colour its AQI circle
+    and ask for that sensor, with none of the per-sensor detail the selected
+    station's own payload carries. The AQIs come from one query for every
+    sensor (``latest_station_readings``), not one per option.
     """
+    contracts = list(get_institution_contracts(institution))
+    latest = latest_station_readings(contract.station_id for contract in contracts)
     return [
-        {"id": contract.station_id, "name": contract.station.name}
-        for contract in get_institution_contracts(institution)
+        {
+            "id": contract.station_id,
+            "name": contract.station.name,
+            "aqi": (
+                round_aqi(latest[contract.station_id].aqi_pm2_5)
+                if contract.station_id in latest
+                else None
+            ),
+        }
+        for contract in contracts
     ]
 
 
@@ -811,9 +842,67 @@ def _build_institution_dashboard(institution, requested_station_id=None):
         "sensor": sensor,
         "available_sensors": _dashboard_available_sensors(institution),
         "air_quality": _dashboard_air_quality(last_reading),
+        "current": _dashboard_current(last_reading),
         "history": _dashboard_history(station),
         "alert_config": _dashboard_alert_config(institution),
     }
+
+
+# How many hourly points each `period` of the readings endpoint spans.
+READINGS_PERIOD_HOURS = {"24h": 24, "7d": 7 * 24, "30d": 30 * 24}
+READINGS_DEFAULT_PERIOD = "7d"
+
+
+def _hourly_pm_series(station_id, hours, now=None):
+    """The last ``hours`` hours of PM2.5 / PM10, one point per hour, oldest first.
+
+    The series is laid out on the clock, not on the rows that happen to exist:
+    every hour of the window is present, and an hour the pipeline has no
+    reading for carries ``None``. That keeps a gap visible as a gap — a chart
+    drawing only the rows it got would join the hours on either side of an
+    outage as if the air had been measured in between.
+
+    The window ends at the start of the current hour. That hour's average is
+    rarely in gold yet, so the last point is usually null; it is kept so the
+    series always ends "now" and a client never mistakes a late pipeline for a
+    shorter period.
+
+    About time: ``StationReadingsGold.date_utc`` maps the gold column
+    ``date_localtime`` (``BACKEND_STATION_READINGS_DATE_COLUMN``). Despite that
+    name, the column is a ``timestamptz`` — the instant the hour starts, as dbt
+    truncates it from the measurement time — so Django reads it as an aware
+    UTC datetime and the instants here are true instants. They are only
+    *rendered* in Paraguayan time, by the serializer. Whole-hour offsets make
+    the UTC and local hour boundaries coincide, so bucketing in UTC is exact.
+    """
+    now = now or timezone.now()
+    end = now.astimezone(dt_timezone.utc).replace(minute=0, second=0, microsecond=0)
+    start = end - timedelta(hours=hours - 1)
+
+    by_hour = {}
+    rows = (
+        StationReadingsGold.objects.filter(
+            station_id=station_id,
+            date_utc__gte=start,
+            date_utc__lt=end + timedelta(hours=1),
+        )
+        .order_by("date_utc")
+        .values_list("date_utc", "pm2_5", "pm10")
+    )
+    for moment, pm25, pm10 in rows:
+        hour = moment.astimezone(dt_timezone.utc).replace(
+            minute=0, second=0, microsecond=0
+        )
+        by_hour[hour] = (pm25, pm10)
+
+    series = []
+    for offset in range(hours):
+        hour = start + timedelta(hours=offset)
+        pm25, pm10 = by_hour.get(hour, (None, None))
+        series.append(
+            {"ts": hour.astimezone(REPORT_TIME_ZONE), "pm25": pm25, "pm10": pm10}
+        )
+    return series
 
 
 def _notification_from_alert(alert):
@@ -990,7 +1079,23 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
             return Institution.objects.filter(pk=institution.pk)
         return Institution.objects.all()
 
-    @extend_schema(summary="Retrieve the caller's own institution")
+    @extend_schema(
+        summary="Retrieve the caller's own institution",
+        description=(
+            "The institution the authenticated user belongs to, plus three "
+            "fields the panel needs before drawing anything:\n\n"
+            "- `role`: the caller's role in it, `admin` or `member`. Members "
+            "read the panel but cannot write to it (e.g. record actions).\n"
+            "- `user`: the caller's `email` and `full_name` (an empty string "
+            "when the account has no name).\n"
+            "- `limits`: MADES (Resolución 259/2015) PM2.5 / PM10 reference "
+            "limits in µg/m³, 24-hour (`h24`) and `annual`, edited by staff "
+            "in the admin. `null` means the limit is not confirmed yet; "
+            "clients show it as such rather than substituting a number.\n\n"
+            "`institution_type` is free text; the panel tailors its copy to "
+            "`industria` and `colegio`."
+        ),
+    )
     @action(detail=False, methods=["get"])
     def me(self, request, *args, **kwargs):
         institution = get_institution_for_user(request.user)
@@ -1016,7 +1121,13 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
             "`available_sensors` lists every sensor this institution may ask "
             "about — what a client builds its sensor selector from. A "
             "`station` outside the caller's own contracts is a 404, never "
-            "another institution's data."
+            "another institution's data.\n\n"
+            "`current` holds PM2.5 / PM10 (µg/m³) of the same latest hourly "
+            "reading `air_quality` comes from; its values are `null` when "
+            "there is none. Each `available_sensors` entry carries that "
+            "sensor's latest AQI (`null` without a reading), and `sensor.model` "
+            "the device model from the station details (`null` when unset). "
+            "The hourly PM series is served separately by `readings`."
         ),
         parameters=[
             OpenApiParameter(
@@ -1039,6 +1150,71 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
         )
         serializer = InstitutionDashboardSerializer(payload)
         return Response(serializer.data)
+
+    @extend_schema(
+        summary="Hourly PM2.5 / PM10 readings for one of the caller's sensors",
+        description=(
+            "One point per hour over the chosen `period` (`24h`, `7d` or "
+            "`30d`; `7d` by default), oldest first, ending at the start of the "
+            "current hour. Every hour of the window is present: an hour with "
+            "no reading has `pm25` and `pm10` set to `null`, so gaps stay "
+            "visible. Values are µg/m³.\n\n"
+            "`ts` is the start of the hour the reading averages, in Paraguayan "
+            "time with an explicit offset (`2026-11-18T00:00:00-03:00`).\n\n"
+            "`station` is resolved like the dashboard's: one of the "
+            "institution's own contracted sensors, the first one when omitted. "
+            "A `station` outside the caller's own contracts is a 404, never "
+            "another institution's data. An unknown `period` is a 400."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="station",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description=(
+                    "Which of the institution's contracted sensors to read. "
+                    "Defaults to the first one."
+                ),
+            ),
+            OpenApiParameter(
+                name="period",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                enum=list(READINGS_PERIOD_HOURS),
+                default=READINGS_DEFAULT_PERIOD,
+                description="How far back the series reaches.",
+            ),
+        ],
+        responses=InstitutionReadingsSerializer,
+    )
+    @action(detail=False, methods=["get"])
+    def readings(self, request, *args, **kwargs):
+        """Its own endpoint rather than part of ``dashboard``.
+
+        Thirty days of hourly points is 720 rows; the dashboard is loaded on
+        every visit and should not carry them for a chart the visitor may never
+        open. Named ``period`` and not ``format``: DRF reserves ``format`` for
+        content negotiation and answers 404 before the view runs.
+        """
+        period = request.query_params.get("period") or READINGS_DEFAULT_PERIOD
+        if period not in READINGS_PERIOD_HOURS:
+            raise ValidationError(
+                {"period": f"Expected one of: {', '.join(READINGS_PERIOD_HOURS)}."}
+            )
+
+        institution = get_institution_for_user(request.user)
+        station = resolve_institution_station(
+            institution, request.query_params.get("station")
+        )
+        if station is None:
+            raise NotFound("This institution does not have an assigned sensor.")
+
+        payload = {
+            "station": station.id,
+            "period": period,
+            "readings": _hourly_pm_series(station.id, READINGS_PERIOD_HOURS[period]),
+        }
+        return Response(InstitutionReadingsSerializer(payload).data)
 
     @extend_schema(
         summary="List the alerts recorded for the caller's institution",
@@ -1211,7 +1387,11 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
         # Forces the CSRF cookie to be set on the response so the frontend can
         # send it back on subsequent unsafe (non-GET) requests in this session.
         get_token(request)
-        return Response(InstitutionSerializer(institution).data)
+        # The request goes in the context so `role` is the one just logged in:
+        # `auth_login` has already set `request.user` to them.
+        return Response(
+            InstitutionSerializer(institution, context={"request": request}).data
+        )
 
     @extend_schema(summary="Log out of the institutional dashboard")
     @action(detail=False, methods=["post"])
@@ -1345,10 +1525,13 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
         summary="Record an action taken by the caller's institution",
         description=(
             "Creates one entry in the institutional action history. "
-            "`institution` and `timestamp` are assigned by the backend and "
-            "ignored if sent. `station` must be a station the institution "
-            "holds a contract for; `alert` is optional and, when given, must "
-            "belong to the same institution and station."
+            "`institution`, `timestamp` and `aqi` are assigned by the backend "
+            "and ignored if sent; `aqi` is the station's AQI at its latest "
+            "reading (`null` without one). `station` must be a station the "
+            "institution holds a contract for; `alert` is optional and, when "
+            "given, must belong to the same institution and station.\n\n"
+            "Only an `admin` of the institution may record actions; a "
+            "`member` gets 403 here (and can still list them)."
         ),
     ),
 )
@@ -1373,7 +1556,9 @@ class ActionLogViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, GenericVi
     """
 
     serializer_class = ActionLogSerializer
-    permission_classes = [IsAuthenticated, IsInstitutionUser]
+    # `IsInstitutionAdmin` lets every institution user list and only admins
+    # create: recording an action is a write to the institution's record.
+    permission_classes = [IsAuthenticated, IsInstitutionUser, IsInstitutionAdmin]
     pagination_class = StandardResultsSetPagination
     http_method_names = ["get", "post"]
 

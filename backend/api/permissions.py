@@ -1,6 +1,13 @@
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import SAFE_METHODS, BasePermission
 
-from .models import Institution, UserRole, get_institution_for_user, user_role
+from .models import (
+    Institution,
+    InstitutionRole,
+    UserRole,
+    get_institution_for_user,
+    get_institution_role,
+    user_role,
+)
 
 
 class IsAdminRole(BasePermission):
@@ -29,6 +36,28 @@ class IsInstitutionUser(BasePermission):
 
     def has_permission(self, request, view):
         return get_institution_for_user(request.user) is not None
+
+
+class IsInstitutionAdmin(BasePermission):
+    """Allow writes only to an institution's admins; members may still read.
+
+    Layered on top of ``IsInstitutionUser`` (which decides whether the caller
+    reaches the panel at all): safe methods pass for every institution user,
+    and only an unsafe one asks for ``InstitutionRole.ADMIN``. That is what
+    lets a view keep a single permission list for both its list and its create
+    instead of splitting them per action.
+
+    Not ``IsAdminRole``: that is the *platform* role gating the backoffice. A
+    member of an institution is never an admin of it because of a platform
+    role, nor the other way round.
+    """
+
+    message = "Only an administrator of your institution can make this change."
+
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:
+            return True
+        return get_institution_role(request.user) == InstitutionRole.ADMIN
 
 
 class IsOwnInstitution(BasePermission):

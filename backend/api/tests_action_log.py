@@ -364,6 +364,8 @@ class ActionLogListTests(ActionLogTestCase):
                 "alert_detail",
                 "timestamp",
                 "note",
+                # The station's AQI when the action was recorded (#335).
+                "aqi",
             },
         )
         self.assertEqual(entry["institution"], self.institution.id)
@@ -752,3 +754,92 @@ class ActionLogMultiSensorTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("station", response.json())
+
+
+class ActionLogAqiTests(ActionLogTestCase):
+    """Each entry records the station's AQI at the time it was written (#335)."""
+
+    def seed(self, station, aqi, hours_ago=0):
+        return StationReadingsGold.seed_for_tests(
+            station=station,
+            date_utc=timezone.now() - timedelta(hours=hours_ago),
+            aqi_pm2_5=aqi,
+        )
+
+    def test_creating_an_action_stamps_the_latest_readings_aqi(self):
+        self.seed(self.station, 150.0, hours_ago=3)
+        self.seed(self.station, 87.0)
+
+        self.client.force_authenticate(self.user)
+        response = self.post(station=self.station.id, note="Se ventilaron las aulas.")
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["aqi"], 87)
+        self.assertEqual(ActionLog.objects.get().aqi, 87)
+
+    def test_the_aqi_is_a_whole_number_rounded_half_up(self):
+        self.seed(self.station, 64.5)
+
+        self.client.force_authenticate(self.user)
+        response = self.post(station=self.station.id, note="Se suspendió el recreo.")
+
+        self.assertEqual(response.json()["aqi"], 65)
+
+    def test_the_aqi_is_null_without_a_reading(self):
+        self.client.force_authenticate(self.user)
+        response = self.post(station=self.station.id, note="Sensor recién instalado.")
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNone(response.json()["aqi"])
+        self.assertIsNone(ActionLog.objects.get().aqi)
+
+    def test_the_aqi_is_null_when_the_latest_reading_has_none(self):
+        self.seed(self.station, 120.0, hours_ago=2)
+        self.seed(self.station, None)
+
+        self.client.force_authenticate(self.user)
+        response = self.post(station=self.station.id, note="Sin AQI en la última hora.")
+
+        self.assertIsNone(response.json()["aqi"])
+
+    def test_the_aqi_comes_from_the_station_acted_on(self):
+        self.seed(self.station, 40.0)
+        self.seed(self.other_station, 190.0)
+
+        self.client.force_authenticate(self.user)
+        response = self.post(station=self.station.id, note="Acción propia.")
+
+        self.assertEqual(response.json()["aqi"], 40)
+
+    def test_a_supplied_aqi_is_ignored(self):
+        self.seed(self.station, 40.0)
+
+        self.client.force_authenticate(self.user)
+        response = self.post(station=self.station.id, note="Intento.", aqi=5)
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["aqi"], 40)
+        self.assertEqual(ActionLog.objects.get().aqi, 40)
+
+    def test_the_recorded_aqi_does_not_follow_later_readings(self):
+        self.seed(self.station, 40.0, hours_ago=1)
+        self.client.force_authenticate(self.user)
+        self.post(station=self.station.id, note="Registrada con 40.")
+
+        self.seed(self.station, 180.0)
+        entry = self.client.get(self.url).json()["results"][0]
+
+        self.assertEqual(entry["aqi"], 40)
+
+    def test_listing_returns_the_aqi_and_null_for_older_entries(self):
+        ActionLog.objects.create(
+            institution=self.institution, station=self.station, note="Anterior."
+        )
+        ActionLog.objects.create(
+            institution=self.institution, station=self.station, note="Nueva.", aqi=72
+        )
+
+        self.client.force_authenticate(self.user)
+        results = self.client.get(self.url).json()["results"]
+
+        self.assertEqual([entry["aqi"] for entry in results], [72, None])
