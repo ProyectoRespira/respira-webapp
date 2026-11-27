@@ -104,54 +104,22 @@ const es = {
     "No pudimos guardar la contraseña. Intentá de nuevo en unos segundos.",
 
   // --- Page ----------------------------------------------------------------
-  pageTitle: "Estado de tu sensor",
   updatedAt: "Actualizado",
 
-  // --- Sensor selector -----------------------------------------------------
-  // Only rendered when the institution leases more than one sensor; with a
-  // single one there is nothing to choose and the whole control is hidden.
-  sensorPickerLabel: "Sensor",
-  sensorPickerHint: "Todo el panel muestra el sensor elegido.",
+  // --- Sensor switch -------------------------------------------------------
+  // Said while the panel loads another sensor picked in the sidebar.
   sensorPickerLoading: "Cambiando de sensor…",
 
   // --- Sensor --------------------------------------------------------------
-  sensorTitle: "Tu sensor",
   sensorOnline: "En línea",
   sensorOffline: "Fuera de línea",
-  sensorLocation: "Ubicación",
-  sensorCity: "Ciudad",
-  sensorCoordinates: "Coordenadas",
-  sensorLastReading: "Última medición",
-  sensorContract: "Contrato",
-  sensorNoReading: "Sin mediciones",
-  sensorOfflineHint:
-    "El sensor no envía datos nuevos. Ya estamos revisando el equipo.",
-  contractActiveUntil: "Activo hasta",
-  contractNoEnd: "Activo, sin fecha de término",
 
   // --- Air quality ---------------------------------------------------------
-  airQualityTitle: "Calidad del aire",
-  aqiUnit: "AQI PM2.5",
-  recommendationsTitle: "Recomendaciones para hoy",
   airQualityEmptyTitle: "Tu sensor aún no reportó mediciones",
   airQualityEmptyBody:
     "En cuanto envíe la primera lectura, vas a ver acá el AQI y la recomendación del día.",
 
-  // --- History -------------------------------------------------------------
-  historyTitle: "Historial de calidad del aire · últimos 3 meses",
-  historySubtitle: "Promedio diario",
-  historyEmptyTitle: "Todavía no hay historial",
-  historyEmptyBody:
-    "El gráfico se arma con los promedios diarios de tu sensor. Aparece en cuanto haya al menos dos días de mediciones.",
-  historyLegendSeries: "AQI diario",
-  historyLegendThreshold: "Umbral de alerta",
-  // Screen-reader summary of the chart. `{days}`, `{min}` and `{max}` are
-  // filled in at render time.
-  historyChartLabel:
-    "{days} días con mediciones, entre {min} y {max} de AQI diario.",
-
   // --- Action log ----------------------------------------------------------
-  actionsTitle: "Acciones registradas",
   actionsEmptyTitle: "Todavía no registraste ninguna acción",
   actionsEmptyBody:
     "Anotá lo que hace tu institución cuando el aire empeora: queda como historial de lo que fueron respondiendo.",
@@ -185,9 +153,8 @@ const es = {
   /** Same, for an older alert that never stored the threshold it fired on. */
   actionFormAlertOptionNoThreshold: "{date} · {aqi} AQI",
   actionFormNoteLabel: "¿Qué hicieron?",
-  actionFormNotePlaceholder:
-    "Ej.: Se suspendió el recreo al aire libre y se avisó a las familias.",
-  actionFormNoteHelp: "La fecha y la hora se guardan solas al registrar.",
+  actionFormNoteHelp:
+    "La fecha, la hora y el AQI del momento se guardan solos.",
   actionFormSubmit: "Guardar acción",
   actionFormSubmitting: "Guardando…",
   actionFormSaved: "Acción guardada.",
@@ -198,7 +165,7 @@ const es = {
     "Necesitás un sensor asignado para registrar acciones. Escribinos si creés que es un error.",
 
   // --- Sensor notifications ------------------------------------------------
-  notificationsTitle: "Notificaciones del sensor",
+  notificationsTitle: "Avisos enviados",
   notificationsEmptyTitle: "Todavía no hay notificaciones",
   notificationsEmptyBody:
     "Acá vas a ver los avisos que enviamos sobre tu sensor: las alertas por calidad del aire y los mensajes que te mandemos.",
@@ -214,7 +181,6 @@ const es = {
   notificationThreshold: "Umbral",
 
   // --- Downloads -----------------------------------------------------------
-  downloadsTitle: "Descargas",
   // Doubles as the month field's label and as the button when no month is
   // chosen yet, so it names the thing rather than the action.
   downloadMonthly: "Reporte mensual (PDF)",
@@ -274,6 +240,200 @@ const es = {
   contactEmail: "Correo",
   contactHint:
     "Escribinos si el sensor aparece fuera de línea más de 24 horas.",
+
+  // --- Panel by pages (Dirección 4: #338, #329, #328) -----------------------
+  // One block for the whole redesign, so it merges as one hunk. Keys ending in
+  // a digit are a level: 0–5 for the six AQI bands, 0–3 for the four particle
+  // levels (good, moderate, sensitive, unhealthy). `Industria` / `Colegio`
+  // follow `institution_type`.
+  navLabel: "Secciones",
+  navSummary: "Resumen",
+  navAnalysis: "Análisis",
+  navLog: "Bitácora",
+  navAlerts: "Alertas",
+  navDownloads: "Descargas",
+  navAlertsBadge: "{count} alertas en los últimos 7 días",
+  sidebarInstitution: "Institución",
+  sidebarSensors: "Sensores",
+  userAccess: "Tu acceso",
+  roleAdmin: "Administrador",
+  roleMember: "Miembro · solo lectura",
+
+  aqiLevel0: "Aire bueno",
+  aqiLevel1: "Aire moderado",
+  aqiLevel2: "Dañino para grupos sensibles",
+  aqiLevel3: "Aire dañino",
+  aqiLevel4: "Aire muy dañino",
+  aqiLevel5: "Aire peligroso",
+  aqiBand0: "Bueno",
+  aqiBand1: "Moderado",
+  aqiBand2: "Sensibles",
+  aqiBand3: "Dañino",
+  aqiBand4: "Muy dañino",
+  aqiBand5: "Peligroso",
+  aqiScaleLabel: "AQI {aqi}: {level}, en una escala de seis niveles.",
+  heroIndustria0: "Sin medidas especiales hoy.",
+  heroIndustria1: "Personal sensible: limitar esfuerzos largos al aire libre.",
+  heroIndustria2:
+    "Reducir tareas al aire libre y usar protección respiratoria.",
+  heroIndustria3:
+    "Suspender tareas al aire libre y usar protección respiratoria.",
+  heroIndustria4:
+    "Suspender el trabajo al aire libre y mantener al personal adentro.",
+  heroIndustria5:
+    "Mantener a todo el personal adentro, con puertas y ventanas cerradas.",
+  heroColegio0: "Sin restricciones para actividades afuera.",
+  heroColegio1:
+    "Las personas sensibles deberían evitar esfuerzos largos afuera.",
+  heroColegio2: "Pasar el recreo adentro y cerrar ventanas.",
+  heroColegio3: "Suspender actividades al aire libre.",
+  heroColegio4:
+    "Suspender actividades al aire libre y mantener las aulas cerradas.",
+  heroColegio5: "Mantener a todos adentro, con puertas y ventanas cerradas.",
+
+  madesTitle: "Partículas frente al límite MADES",
+  madesSource: "Res. 259/2015",
+  madesAverage24h: "µg/m³ · promedio 24 h",
+  madesWithin: "Dentro del límite",
+  madesOver: "Sobre el límite",
+  madesPending: "Límite a confirmar",
+  madesNoData: "Sin datos",
+  madesShare: "Usa el {pct} % del límite diario",
+  madesSharePending: "El límite de 24 h todavía no está confirmado.",
+  madesLimit24h: "Límite 24 h:",
+  madesLimitAnnual: "Límite anual:",
+  limitPending: "a confirmar",
+
+  weekTitle: "La semana",
+  weekSubtitle: "Promedio diario de PM2.5 y PM10",
+  weekDaysOver: "{count} días sobre el límite MADES",
+  weekDaysOverOne: "1 día sobre el límite MADES",
+  weekLimitsPending: "límites MADES a confirmar",
+  weekLegendPm25: "PM2.5 (color según nivel)",
+  weekLegendPm10: "PM10",
+  weekSeeAnalysis: "Ver análisis completo",
+  weekDay: "{day}: PM2.5 {pm25}, PM10 {pm10} µg/m³",
+  weekEmpty: "Todavía no hay mediciones de partículas esta semana.",
+  noData: "sin datos",
+
+  latestTitle: "Lo último",
+  latestAlert: "Alerta · AQI {aqi}",
+  latestAlertNone: "Sin alertas",
+  latestAlertNoneBody: "No hubo alertas de calidad del aire.",
+  latestAction: "Acción registrada",
+  latestActionNone: "Sin acciones registradas",
+  latestActionNoneBody: "Cuando registren una acción, aparece acá.",
+
+  measureTabs: "Medida",
+  measureNow: "{measure} ahora",
+  measureTodo: "Qué hacer ahora",
+  measureWhatToggle: "¿Qué es el {measure} y por qué importa?",
+  pm25What:
+    "Partículas finas, 30 veces más chicas que un cabello. Vienen del humo de quemas, del tráfico y del polvo.",
+  pm25Why:
+    "Entran hasta los pulmones y la sangre. Afectan más a niños, personas mayores y a quien tiene asma.",
+  pm10What:
+    "Partículas más grandes: polvo de calles sin asfaltar, obras, tierra y polen.",
+  pm10Why: "Irritan ojos, nariz y garganta, y pueden empeorar alergias y asma.",
+  particleSource:
+    "Límites: MADES, Resolución 259/2015. Colores: escala AQI de la EPA.",
+  particleLevel0: "Bueno",
+  particleLevel1: "Moderado",
+  particleLevel2: "Dañino para sensibles",
+  particleLevel3: "Dañino",
+  pm25Range0: "0 a 12 µg/m³",
+  pm25Range1: "12 a 35",
+  pm25Range2: "35 a 55",
+  pm25Range3: "más de 55",
+  pm10Range0: "0 a 54 µg/m³",
+  pm10Range1: "55 a 154",
+  pm10Range2: "155 a 254",
+  pm10Range3: "más de 254",
+  todoIndustriaPm250: "Condiciones normales para el trabajo al aire libre.",
+  todoIndustriaPm251: "Personal sensible: limitar esfuerzos largos afuera.",
+  todoIndustriaPm252:
+    "Reducir tareas al aire libre y usar protección respiratoria.",
+  todoIndustriaPm253:
+    "Suspender tareas al aire libre y usar protección respiratoria.",
+  todoIndustriaPm100: "Sin medidas especiales.",
+  todoIndustriaPm101: "Humedecer caminos y zonas de carga para bajar el polvo.",
+  todoIndustriaPm102:
+    "Humedecer zonas de polvo y usar protección respiratoria.",
+  todoIndustriaPm103: "Pausar tareas que levantan polvo.",
+  todoColegioPm250:
+    "Aire limpio: recreo y educación física afuera sin problema.",
+  todoColegioPm251:
+    "Las personas sensibles deberían evitar esfuerzos largos afuera.",
+  todoColegioPm252: "Pasar el recreo adentro y cerrar ventanas.",
+  todoColegioPm253: "Suspender actividades al aire libre.",
+  todoColegioPm100: "Sin cuidados especiales.",
+  todoColegioPm101: "Regar el patio si hay mucho polvo.",
+  todoColegioPm102: "Evitar actividades con polvo y cerrar ventanas.",
+  todoColegioPm103: "Mantener a todos adentro.",
+
+  chartView: "Vista",
+  chartViewTime: "En el tiempo",
+  chartViewHour: "Por hora del día",
+  chartPeriod: "Período",
+  period24h: "Últimas 24 h",
+  period7d: "7 días",
+  period30d: "30 días",
+  chartTitle24h: "{measure} · últimas 24 horas",
+  chartTitle7d: "{measure} · últimos 7 días por hora",
+  chartTitle30d: "{measure} · últimos 30 días",
+  chartTitleHeat: "{measure} · por hora del día",
+  chartLimit: "Límite MADES 24 h · {value}",
+  chartLimitPending: "Límite MADES 24 h · a confirmar",
+  chartAverage: "Promedio: {value}",
+  chartDayAverage: "promedio del día",
+  chartNoReading: "Sin datos",
+  chartSummary:
+    "{title}. Promedio {avg} µg/m³, máximo {max} µg/m³. Usá las flechas para recorrer las barras.",
+  heatNote:
+    "Últimos 7 días. Cada cuadro es una hora: sirve para ver en qué horarios suele empeorar.",
+  heatSummary: "Mapa de calor de {measure} por día y hora, últimos 7 días.",
+  scaleTitle: "Escala",
+  insightMeanTitle: "Media y mediana · 7 días",
+  insightMeanBody:
+    "Media y mediana en µg/m³. La mediana no se deja llevar por picos aislados, como una quema puntual.",
+  insightLimitTitle: "Frente al límite MADES",
+  insightDaysOver: "{count} días sobre",
+  insightDaysOverOne: "1 día sobre",
+  insightLimitPending: "A confirmar",
+  insightLimitBody: "Días con promedio de 24 h sobre {limit} µg/m³.",
+  insightLimitBodyPending: "El límite de 24 h todavía no está confirmado.",
+  insightAnnual: "Límite anual: {limit} µg/m³.",
+  insightAnnualPending: "Límite anual a confirmar.",
+  insightHoursTitle: "Horarios",
+  insightBestHour: "Mejor horario: {hour}",
+  insightWorstHour:
+    "Peor horario: {hour}. Útil para planificar tareas al aire libre y ventilación (promedio por hora, últimos 7 días).",
+  analysisUnavailableTitle: "El análisis todavía no está disponible",
+  analysisUnavailableBody:
+    "Aparece en cuanto la plataforma publique las mediciones por hora de tu sensor.",
+  analysisEmptyTitle: "Sin mediciones en este período",
+  analysisEmptyBody: "El sensor no envió datos de partículas en este período.",
+
+  logIntro:
+    "Anotá lo que hizo la institución cuando cambió el aire. Queda como historial para reportes y para aprender qué funciona.",
+  logPlaceholderIndustria:
+    "Ej.: Se entregaron barbijos al personal de patio y se pausó la carga a cielo abierto.",
+  logPlaceholderColegio:
+    "Ej.: Se suspendió el recreo al aire libre y se avisó a las familias.",
+  logMemberNotice:
+    "Tenés acceso de miembro: podés ver la bitácora; solo los administradores registran acciones.",
+  logHistoryTitle: "Historial",
+  logNoAqi: "AQI sin registrar",
+
+  alertsRulesTitle: "Cuándo avisar",
+  alertsRuleAqi: "Calidad del aire",
+  alertsRuleAqiSub: "Cuando el AQI supere {threshold}",
+  alertsRuleNoThreshold: "Sin umbral configurado",
+  alertsRuleActive: "Activa",
+  alertsRulePaused: "Pausada",
+  alertsGroups: "Grupos sensibles",
+  alertsManagedByRespira:
+    "Las reglas las configura el equipo de Respira. Escribinos si querés cambiarlas.",
 
   // --- Shared states -------------------------------------------------------
   errorTitle: "No pudimos cargar estos datos",
@@ -375,50 +535,21 @@ const en: Translation = {
     "We couldn't save the password. Try again in a few seconds.",
 
   // --- Page ----------------------------------------------------------------
-  pageTitle: "Your sensor's status",
   updatedAt: "Updated",
 
-  // --- Sensor selector -----------------------------------------------------
-  sensorPickerLabel: "Sensor",
-  sensorPickerHint: "The whole panel shows the selected sensor.",
+  // --- Sensor switch -------------------------------------------------------
   sensorPickerLoading: "Switching sensor…",
 
   // --- Sensor --------------------------------------------------------------
-  sensorTitle: "Your sensor",
   sensorOnline: "Online",
   sensorOffline: "Offline",
-  sensorLocation: "Location",
-  sensorCity: "City",
-  sensorCoordinates: "Coordinates",
-  sensorLastReading: "Last reading",
-  sensorContract: "Contract",
-  sensorNoReading: "No readings",
-  sensorOfflineHint:
-    "The sensor isn't sending new data. We're already looking into it.",
-  contractActiveUntil: "Active until",
-  contractNoEnd: "Active, with no end date",
 
   // --- Air quality ---------------------------------------------------------
-  airQualityTitle: "Air quality",
-  aqiUnit: "AQI PM2.5",
-  recommendationsTitle: "Recommendations for today",
   airQualityEmptyTitle: "Your sensor hasn't reported any readings yet",
   airQualityEmptyBody:
     "As soon as it sends its first reading, you'll see the AQI and today's recommendation here.",
 
-  // --- History -------------------------------------------------------------
-  historyTitle: "Air quality history · last 3 months",
-  historySubtitle: "Daily average",
-  historyEmptyTitle: "No history yet",
-  historyEmptyBody:
-    "The chart is built from your sensor's daily averages. It appears once there are at least two days of readings.",
-  historyLegendSeries: "Daily AQI",
-  historyLegendThreshold: "Alert threshold",
-  historyChartLabel:
-    "{days} days with readings, between {min} and {max} daily AQI.",
-
   // --- Action log ----------------------------------------------------------
-  actionsTitle: "Logged actions",
   actionsEmptyTitle: "You haven't logged any actions yet",
   actionsEmptyBody:
     "Note down what your institution does when the air gets worse: it becomes a record of how you responded.",
@@ -443,10 +574,8 @@ const en: Translation = {
   actionFormAlertOption: "{date} · {aqi} AQI · threshold {threshold}",
   actionFormAlertOptionNoThreshold: "{date} · {aqi} AQI",
   actionFormNoteLabel: "What did you do?",
-  actionFormNotePlaceholder:
-    "E.g.: Outdoor recess was cancelled and families were notified.",
   actionFormNoteHelp:
-    "The date and time are saved automatically when you log it.",
+    "The date, the time and the AQI at that moment are saved automatically.",
   actionFormSubmit: "Save action",
   actionFormSubmitting: "Saving…",
   actionFormSaved: "Action saved.",
@@ -457,7 +586,7 @@ const en: Translation = {
     "You need an assigned sensor to log actions. Write to us if you think this is a mistake.",
 
   // --- Sensor notifications ------------------------------------------------
-  notificationsTitle: "Sensor notifications",
+  notificationsTitle: "Alerts sent",
   notificationsEmptyTitle: "No notifications yet",
   notificationsEmptyBody:
     "This is where you'll see the alerts we send about your sensor: air quality warnings and any messages we send you.",
@@ -471,7 +600,6 @@ const en: Translation = {
   notificationThreshold: "Threshold",
 
   // --- Downloads -----------------------------------------------------------
-  downloadsTitle: "Downloads",
   downloadMonthly: "Monthly report (PDF)",
   downloadMonthlyNote:
     "A processed report for the month: averages, peaks and recommendations, ready to share.",
@@ -510,6 +638,186 @@ const en: Translation = {
   contactEmail: "Email",
   contactHint:
     "Write to us if the sensor shows as offline for more than 24 hours.",
+
+  // --- Panel by pages (Dirección 4: #338, #329, #328) -----------------------
+  navLabel: "Sections",
+  navSummary: "Summary",
+  navAnalysis: "Analysis",
+  navLog: "Logbook",
+  navAlerts: "Alerts",
+  navDownloads: "Downloads",
+  navAlertsBadge: "{count} alerts in the last 7 days",
+  sidebarInstitution: "Institution",
+  sidebarSensors: "Sensors",
+  userAccess: "Your access",
+  roleAdmin: "Administrator",
+  roleMember: "Member · read-only",
+
+  aqiLevel0: "Good air",
+  aqiLevel1: "Moderate air",
+  aqiLevel2: "Unhealthy for sensitive groups",
+  aqiLevel3: "Unhealthy air",
+  aqiLevel4: "Very unhealthy air",
+  aqiLevel5: "Hazardous air",
+  aqiBand0: "Good",
+  aqiBand1: "Moderate",
+  aqiBand2: "Sensitive",
+  aqiBand3: "Unhealthy",
+  aqiBand4: "Very unhealthy",
+  aqiBand5: "Hazardous",
+  aqiScaleLabel: "AQI {aqi}: {level}, on a six-level scale.",
+  heroIndustria0: "No special measures today.",
+  heroIndustria1: "Sensitive staff: limit long outdoor exertion.",
+  heroIndustria2: "Cut back outdoor tasks and use respiratory protection.",
+  heroIndustria3: "Stop outdoor tasks and use respiratory protection.",
+  heroIndustria4: "Stop outdoor work and keep staff indoors.",
+  heroIndustria5: "Keep all staff indoors, with doors and windows closed.",
+  heroColegio0: "No restrictions on outdoor activities.",
+  heroColegio1: "Sensitive people should avoid long exertion outdoors.",
+  heroColegio2: "Hold recess indoors and close the windows.",
+  heroColegio3: "Cancel outdoor activities.",
+  heroColegio4: "Cancel outdoor activities and keep classrooms closed.",
+  heroColegio5: "Keep everyone indoors, with doors and windows closed.",
+
+  madesTitle: "Particles against the MADES limit",
+  madesSource: "Res. 259/2015",
+  madesAverage24h: "µg/m³ · 24 h average",
+  madesWithin: "Within the limit",
+  madesOver: "Over the limit",
+  madesPending: "Limit to be confirmed",
+  madesNoData: "No data",
+  madesShare: "Uses {pct} % of the daily limit",
+  madesSharePending: "The 24 h limit is not confirmed yet.",
+  madesLimit24h: "24 h limit:",
+  madesLimitAnnual: "Annual limit:",
+  limitPending: "to be confirmed",
+
+  weekTitle: "The week",
+  weekSubtitle: "Daily average of PM2.5 and PM10",
+  weekDaysOver: "{count} days over the MADES limit",
+  weekDaysOverOne: "1 day over the MADES limit",
+  weekLimitsPending: "MADES limits to be confirmed",
+  weekLegendPm25: "PM2.5 (colour by level)",
+  weekLegendPm10: "PM10",
+  weekSeeAnalysis: "See full analysis",
+  weekDay: "{day}: PM2.5 {pm25}, PM10 {pm10} µg/m³",
+  weekEmpty: "No particle readings this week yet.",
+  noData: "no data",
+
+  latestTitle: "Latest",
+  latestAlert: "Alert · AQI {aqi}",
+  latestAlertNone: "No alerts",
+  latestAlertNoneBody: "There have been no air quality alerts.",
+  latestAction: "Logged action",
+  latestActionNone: "No logged actions",
+  latestActionNoneBody: "Once you log an action, it shows up here.",
+
+  measureTabs: "Measure",
+  measureNow: "{measure} now",
+  measureTodo: "What to do now",
+  measureWhatToggle: "What is {measure} and why does it matter?",
+  pm25What:
+    "Fine particles, 30 times smaller than a hair. They come from burning, traffic and dust.",
+  pm25Why:
+    "They reach deep into the lungs and the bloodstream. Children, older people and anyone with asthma are hit hardest.",
+  pm10What:
+    "Larger particles: dust from unpaved roads, building work, soil and pollen.",
+  pm10Why:
+    "They irritate the eyes, nose and throat, and can make allergies and asthma worse.",
+  particleSource:
+    "Limits: MADES, Resolution 259/2015. Colours: the EPA AQI scale.",
+  particleLevel0: "Good",
+  particleLevel1: "Moderate",
+  particleLevel2: "Unhealthy for sensitive groups",
+  particleLevel3: "Unhealthy",
+  pm25Range0: "0 to 12 µg/m³",
+  pm25Range1: "12 to 35",
+  pm25Range2: "35 to 55",
+  pm25Range3: "over 55",
+  pm10Range0: "0 to 54 µg/m³",
+  pm10Range1: "55 to 154",
+  pm10Range2: "155 to 254",
+  pm10Range3: "over 254",
+  todoIndustriaPm250: "Normal conditions for outdoor work.",
+  todoIndustriaPm251: "Sensitive staff: limit long exertion outdoors.",
+  todoIndustriaPm252: "Cut back outdoor tasks and use respiratory protection.",
+  todoIndustriaPm253: "Stop outdoor tasks and use respiratory protection.",
+  todoIndustriaPm100: "No special measures.",
+  todoIndustriaPm101: "Wet down roads and loading areas to keep the dust down.",
+  todoIndustriaPm102: "Wet down dusty areas and use respiratory protection.",
+  todoIndustriaPm103: "Pause tasks that raise dust.",
+  todoColegioPm250: "Clean air: recess and PE outdoors without a problem.",
+  todoColegioPm251: "Sensitive people should avoid long exertion outdoors.",
+  todoColegioPm252: "Hold recess indoors and close the windows.",
+  todoColegioPm253: "Cancel outdoor activities.",
+  todoColegioPm100: "No special care needed.",
+  todoColegioPm101: "Water the playground if it is very dusty.",
+  todoColegioPm102: "Avoid dusty activities and close the windows.",
+  todoColegioPm103: "Keep everyone indoors.",
+
+  chartView: "View",
+  chartViewTime: "Over time",
+  chartViewHour: "By hour of day",
+  chartPeriod: "Period",
+  period24h: "Last 24 h",
+  period7d: "7 days",
+  period30d: "30 days",
+  chartTitle24h: "{measure} · last 24 hours",
+  chartTitle7d: "{measure} · last 7 days by hour",
+  chartTitle30d: "{measure} · last 30 days",
+  chartTitleHeat: "{measure} · by hour of day",
+  chartLimit: "MADES 24 h limit · {value}",
+  chartLimitPending: "MADES 24 h limit · to be confirmed",
+  chartAverage: "Average: {value}",
+  chartDayAverage: "daily average",
+  chartNoReading: "No data",
+  chartSummary:
+    "{title}. Average {avg} µg/m³, highest {max} µg/m³. Use the arrow keys to move through the bars.",
+  heatNote:
+    "Last 7 days. Each square is one hour: it shows at what times of day the air tends to get worse.",
+  heatSummary: "Heat map of {measure} by day and hour, last 7 days.",
+  scaleTitle: "Scale",
+  insightMeanTitle: "Mean and median · 7 days",
+  insightMeanBody:
+    "Mean and median in µg/m³. The median is not pulled up by isolated peaks, such as a one-off fire.",
+  insightLimitTitle: "Against the MADES limit",
+  insightDaysOver: "{count} days over",
+  insightDaysOverOne: "1 day over",
+  insightLimitPending: "To be confirmed",
+  insightLimitBody: "Days with a 24 h average over {limit} µg/m³.",
+  insightLimitBodyPending: "The 24 h limit is not confirmed yet.",
+  insightAnnual: "Annual limit: {limit} µg/m³.",
+  insightAnnualPending: "Annual limit to be confirmed.",
+  insightHoursTitle: "Times of day",
+  insightBestHour: "Best time: {hour}",
+  insightWorstHour:
+    "Worst time: {hour}. Useful for planning outdoor tasks and ventilation (hourly average, last 7 days).",
+  analysisUnavailableTitle: "The analysis isn't available yet",
+  analysisUnavailableBody:
+    "It appears as soon as the platform publishes your sensor's hourly readings.",
+  analysisEmptyTitle: "No readings in this period",
+  analysisEmptyBody: "The sensor sent no particle data in this period.",
+
+  logIntro:
+    "Note down what your institution did when the air changed. It becomes a record for reports and for learning what works.",
+  logPlaceholderIndustria:
+    "E.g.: Masks were handed out to yard staff and open-air loading was paused.",
+  logPlaceholderColegio:
+    "E.g.: Outdoor recess was cancelled and families were notified.",
+  logMemberNotice:
+    "You have member access: you can read the logbook; only administrators log actions.",
+  logHistoryTitle: "History",
+  logNoAqi: "AQI not recorded",
+
+  alertsRulesTitle: "When to alert",
+  alertsRuleAqi: "Air quality",
+  alertsRuleAqiSub: "When the AQI goes above {threshold}",
+  alertsRuleNoThreshold: "No threshold set",
+  alertsRuleActive: "Active",
+  alertsRulePaused: "Paused",
+  alertsGroups: "Sensitive groups",
+  alertsManagedByRespira:
+    "The Respira team sets up the rules. Write to us if you want to change them.",
 
   // --- Shared states -------------------------------------------------------
   errorTitle: "We couldn't load this data",
@@ -606,50 +914,21 @@ const pt: Translation = {
     "Não conseguimos salvar a senha. Tente de novo em alguns segundos.",
 
   // --- Page ----------------------------------------------------------------
-  pageTitle: "Estado do seu sensor",
   updatedAt: "Atualizado",
 
-  // --- Sensor selector -----------------------------------------------------
-  sensorPickerLabel: "Sensor",
-  sensorPickerHint: "Todo o painel mostra o sensor escolhido.",
+  // --- Sensor switch -------------------------------------------------------
   sensorPickerLoading: "Trocando de sensor…",
 
   // --- Sensor --------------------------------------------------------------
-  sensorTitle: "Seu sensor",
   sensorOnline: "On-line",
   sensorOffline: "Fora do ar",
-  sensorLocation: "Localização",
-  sensorCity: "Cidade",
-  sensorCoordinates: "Coordenadas",
-  sensorLastReading: "Última medição",
-  sensorContract: "Contrato",
-  sensorNoReading: "Sem medições",
-  sensorOfflineHint:
-    "O sensor não está enviando dados novos. Já estamos verificando o equipamento.",
-  contractActiveUntil: "Ativo até",
-  contractNoEnd: "Ativo, sem data de término",
 
   // --- Air quality ---------------------------------------------------------
-  airQualityTitle: "Qualidade do ar",
-  aqiUnit: "AQI PM2.5",
-  recommendationsTitle: "Recomendações para hoje",
   airQualityEmptyTitle: "Seu sensor ainda não reportou medições",
   airQualityEmptyBody:
     "Assim que enviar a primeira leitura, você vai ver aqui o AQI e a recomendação do dia.",
 
-  // --- History -------------------------------------------------------------
-  historyTitle: "Histórico de qualidade do ar · últimos 3 meses",
-  historySubtitle: "Média diária",
-  historyEmptyTitle: "Ainda não há histórico",
-  historyEmptyBody:
-    "O gráfico é montado com as médias diárias do seu sensor. Aparece assim que houver pelo menos dois dias de medições.",
-  historyLegendSeries: "AQI diário",
-  historyLegendThreshold: "Limite de alerta",
-  historyChartLabel:
-    "{days} dias com medições, entre {min} e {max} de AQI diário.",
-
   // --- Action log ----------------------------------------------------------
-  actionsTitle: "Ações registradas",
   actionsEmptyTitle: "Você ainda não registrou nenhuma ação",
   actionsEmptyBody:
     "Anote o que sua instituição faz quando o ar piora: fica como histórico do que vocês foram respondendo.",
@@ -674,9 +953,7 @@ const pt: Translation = {
   actionFormAlertOption: "{date} · {aqi} AQI · limite {threshold}",
   actionFormAlertOptionNoThreshold: "{date} · {aqi} AQI",
   actionFormNoteLabel: "O que vocês fizeram?",
-  actionFormNotePlaceholder:
-    "Ex.: O recreio ao ar livre foi suspenso e as famílias foram avisadas.",
-  actionFormNoteHelp: "A data e a hora são salvas sozinhas ao registrar.",
+  actionFormNoteHelp: "A data, a hora e o AQI do momento são salvos sozinhos.",
   actionFormSubmit: "Salvar ação",
   actionFormSubmitting: "Salvando…",
   actionFormSaved: "Ação salva.",
@@ -688,7 +965,7 @@ const pt: Translation = {
     "Você precisa de um sensor atribuído para registrar ações. Escreva para nós se achar que é um erro.",
 
   // --- Sensor notifications ------------------------------------------------
-  notificationsTitle: "Notificações do sensor",
+  notificationsTitle: "Avisos enviados",
   notificationsEmptyTitle: "Ainda não há notificações",
   notificationsEmptyBody:
     "Aqui você verá os avisos que enviamos sobre o seu sensor: os alertas de qualidade do ar e as mensagens que mandarmos.",
@@ -702,7 +979,6 @@ const pt: Translation = {
   notificationThreshold: "Limite",
 
   // --- Downloads -----------------------------------------------------------
-  downloadsTitle: "Downloads",
   downloadMonthly: "Relatório mensal (PDF)",
   downloadMonthlyNote:
     "Relatório processado do mês: médias, picos e recomendações, pronto para compartilhar.",
@@ -743,6 +1019,192 @@ const pt: Translation = {
   contactEmail: "E-mail",
   contactHint:
     "Escreva para nós se o sensor aparecer fora do ar por mais de 24 horas.",
+
+  // --- Panel by pages (Dirección 4: #338, #329, #328) -----------------------
+  navLabel: "Seções",
+  navSummary: "Resumo",
+  navAnalysis: "Análise",
+  navLog: "Registro",
+  navAlerts: "Alertas",
+  navDownloads: "Downloads",
+  navAlertsBadge: "{count} alertas nos últimos 7 dias",
+  sidebarInstitution: "Instituição",
+  sidebarSensors: "Sensores",
+  userAccess: "Seu acesso",
+  roleAdmin: "Administrador",
+  roleMember: "Membro · somente leitura",
+
+  aqiLevel0: "Ar bom",
+  aqiLevel1: "Ar moderado",
+  aqiLevel2: "Prejudicial para grupos sensíveis",
+  aqiLevel3: "Ar prejudicial",
+  aqiLevel4: "Ar muito prejudicial",
+  aqiLevel5: "Ar perigoso",
+  aqiBand0: "Bom",
+  aqiBand1: "Moderado",
+  aqiBand2: "Sensíveis",
+  aqiBand3: "Prejudicial",
+  aqiBand4: "Muito prejudicial",
+  aqiBand5: "Perigoso",
+  aqiScaleLabel: "AQI {aqi}: {level}, numa escala de seis níveis.",
+  heroIndustria0: "Sem medidas especiais hoje.",
+  heroIndustria1: "Pessoal sensível: limitar esforços longos ao ar livre.",
+  heroIndustria2: "Reduzir tarefas ao ar livre e usar proteção respiratória.",
+  heroIndustria3: "Suspender tarefas ao ar livre e usar proteção respiratória.",
+  heroIndustria4: "Suspender o trabalho ao ar livre e manter o pessoal dentro.",
+  heroIndustria5:
+    "Manter todo o pessoal dentro, com portas e janelas fechadas.",
+  heroColegio0: "Sem restrições para atividades ao ar livre.",
+  heroColegio1:
+    "Pessoas sensíveis deveriam evitar esforços longos ao ar livre.",
+  heroColegio2: "Fazer o recreio dentro e fechar as janelas.",
+  heroColegio3: "Suspender atividades ao ar livre.",
+  heroColegio4: "Suspender atividades ao ar livre e manter as salas fechadas.",
+  heroColegio5: "Manter todos dentro, com portas e janelas fechadas.",
+
+  madesTitle: "Partículas frente ao limite MADES",
+  madesSource: "Res. 259/2015",
+  madesAverage24h: "µg/m³ · média 24 h",
+  madesWithin: "Dentro do limite",
+  madesOver: "Acima do limite",
+  madesPending: "Limite a confirmar",
+  madesNoData: "Sem dados",
+  madesShare: "Usa {pct} % do limite diário",
+  madesSharePending: "O limite de 24 h ainda não está confirmado.",
+  madesLimit24h: "Limite 24 h:",
+  madesLimitAnnual: "Limite anual:",
+  limitPending: "a confirmar",
+
+  weekTitle: "A semana",
+  weekSubtitle: "Média diária de PM2.5 e PM10",
+  weekDaysOver: "{count} dias acima do limite MADES",
+  weekDaysOverOne: "1 dia acima do limite MADES",
+  weekLimitsPending: "limites MADES a confirmar",
+  weekLegendPm25: "PM2.5 (cor conforme o nível)",
+  weekLegendPm10: "PM10",
+  weekSeeAnalysis: "Ver análise completa",
+  weekDay: "{day}: PM2.5 {pm25}, PM10 {pm10} µg/m³",
+  weekEmpty: "Ainda não há medições de partículas nesta semana.",
+  noData: "sem dados",
+
+  latestTitle: "O mais recente",
+  latestAlert: "Alerta · AQI {aqi}",
+  latestAlertNone: "Sem alertas",
+  latestAlertNoneBody: "Não houve alertas de qualidade do ar.",
+  latestAction: "Ação registrada",
+  latestActionNone: "Sem ações registradas",
+  latestActionNoneBody: "Quando registrarem uma ação, ela aparece aqui.",
+
+  measureTabs: "Medida",
+  measureNow: "{measure} agora",
+  measureTodo: "O que fazer agora",
+  measureWhatToggle: "O que é o {measure} e por que importa?",
+  pm25What:
+    "Partículas finas, 30 vezes menores que um fio de cabelo. Vêm da fumaça de queimadas, do trânsito e da poeira.",
+  pm25Why:
+    "Chegam até os pulmões e o sangue. Afetam mais crianças, idosos e quem tem asma.",
+  pm10What:
+    "Partículas maiores: poeira de ruas sem asfalto, obras, terra e pólen.",
+  pm10Why: "Irritam olhos, nariz e garganta, e podem piorar alergias e asma.",
+  particleSource:
+    "Limites: MADES, Resolução 259/2015. Cores: escala AQI da EPA.",
+  particleLevel0: "Bom",
+  particleLevel1: "Moderado",
+  particleLevel2: "Prejudicial para sensíveis",
+  particleLevel3: "Prejudicial",
+  pm25Range0: "0 a 12 µg/m³",
+  pm25Range1: "12 a 35",
+  pm25Range2: "35 a 55",
+  pm25Range3: "mais de 55",
+  pm10Range0: "0 a 54 µg/m³",
+  pm10Range1: "55 a 154",
+  pm10Range2: "155 a 254",
+  pm10Range3: "mais de 254",
+  todoIndustriaPm250: "Condições normais para o trabalho ao ar livre.",
+  todoIndustriaPm251: "Pessoal sensível: limitar esforços longos ao ar livre.",
+  todoIndustriaPm252:
+    "Reduzir tarefas ao ar livre e usar proteção respiratória.",
+  todoIndustriaPm253:
+    "Suspender tarefas ao ar livre e usar proteção respiratória.",
+  todoIndustriaPm100: "Sem medidas especiais.",
+  todoIndustriaPm101:
+    "Umedecer caminhos e áreas de carga para baixar a poeira.",
+  todoIndustriaPm102: "Umedecer áreas com poeira e usar proteção respiratória.",
+  todoIndustriaPm103: "Pausar tarefas que levantam poeira.",
+  todoColegioPm250:
+    "Ar limpo: recreio e educação física ao ar livre sem problema.",
+  todoColegioPm251:
+    "Pessoas sensíveis deveriam evitar esforços longos ao ar livre.",
+  todoColegioPm252: "Fazer o recreio dentro e fechar as janelas.",
+  todoColegioPm253: "Suspender atividades ao ar livre.",
+  todoColegioPm100: "Sem cuidados especiais.",
+  todoColegioPm101: "Molhar o pátio se houver muita poeira.",
+  todoColegioPm102: "Evitar atividades com poeira e fechar as janelas.",
+  todoColegioPm103: "Manter todos dentro.",
+
+  chartView: "Visualização",
+  chartViewTime: "Ao longo do tempo",
+  chartViewHour: "Por hora do dia",
+  chartPeriod: "Período",
+  period24h: "Últimas 24 h",
+  period7d: "7 dias",
+  period30d: "30 dias",
+  chartTitle24h: "{measure} · últimas 24 horas",
+  chartTitle7d: "{measure} · últimos 7 dias por hora",
+  chartTitle30d: "{measure} · últimos 30 dias",
+  chartTitleHeat: "{measure} · por hora do dia",
+  chartLimit: "Limite MADES 24 h · {value}",
+  chartLimitPending: "Limite MADES 24 h · a confirmar",
+  chartAverage: "Média: {value}",
+  chartDayAverage: "média do dia",
+  chartNoReading: "Sem dados",
+  chartSummary:
+    "{title}. Média {avg} µg/m³, máximo {max} µg/m³. Use as setas para percorrer as barras.",
+  heatNote:
+    "Últimos 7 dias. Cada quadro é uma hora: serve para ver em que horários o ar costuma piorar.",
+  heatSummary: "Mapa de calor de {measure} por dia e hora, últimos 7 dias.",
+  scaleTitle: "Escala",
+  insightMeanTitle: "Média e mediana · 7 dias",
+  insightMeanBody:
+    "Média e mediana em µg/m³. A mediana não se deixa levar por picos isolados, como uma queimada pontual.",
+  insightLimitTitle: "Frente ao limite MADES",
+  insightDaysOver: "{count} dias acima",
+  insightDaysOverOne: "1 dia acima",
+  insightLimitPending: "A confirmar",
+  insightLimitBody: "Dias com média de 24 h acima de {limit} µg/m³.",
+  insightLimitBodyPending: "O limite de 24 h ainda não está confirmado.",
+  insightAnnual: "Limite anual: {limit} µg/m³.",
+  insightAnnualPending: "Limite anual a confirmar.",
+  insightHoursTitle: "Horários",
+  insightBestHour: "Melhor horário: {hour}",
+  insightWorstHour:
+    "Pior horário: {hour}. Útil para planejar tarefas ao ar livre e ventilação (média por hora, últimos 7 dias).",
+  analysisUnavailableTitle: "A análise ainda não está disponível",
+  analysisUnavailableBody:
+    "Aparece assim que a plataforma publicar as medições por hora do seu sensor.",
+  analysisEmptyTitle: "Sem medições neste período",
+  analysisEmptyBody: "O sensor não enviou dados de partículas neste período.",
+
+  logIntro:
+    "Anote o que a instituição fez quando o ar mudou. Fica como histórico para relatórios e para aprender o que funciona.",
+  logPlaceholderIndustria:
+    "Ex.: Foram entregues máscaras ao pessoal do pátio e a carga a céu aberto foi pausada.",
+  logPlaceholderColegio:
+    "Ex.: O recreio ao ar livre foi suspenso e as famílias foram avisadas.",
+  logMemberNotice:
+    "Você tem acesso de membro: pode ver o registro; só os administradores registram ações.",
+  logHistoryTitle: "Histórico",
+  logNoAqi: "AQI não registrado",
+
+  alertsRulesTitle: "Quando avisar",
+  alertsRuleAqi: "Qualidade do ar",
+  alertsRuleAqiSub: "Quando o AQI passar de {threshold}",
+  alertsRuleNoThreshold: "Sem limite configurado",
+  alertsRuleActive: "Ativa",
+  alertsRulePaused: "Pausada",
+  alertsGroups: "Grupos sensíveis",
+  alertsManagedByRespira:
+    "As regras são configuradas pela equipe da Respira. Escreva para nós se quiser mudá-las.",
 
   // --- Shared states -------------------------------------------------------
   errorTitle: "Não conseguimos carregar estes dados",

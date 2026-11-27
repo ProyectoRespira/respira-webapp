@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-import {
-  emojiForCategory,
-  type InstitutionNotification,
-} from "../../../data/institution";
+import type { InstitutionNotification } from "../../../data/institution";
 import type { Lang } from "../../../i18n/config";
 import { useInstitutionCopy } from "../../../i18n/institution";
 import {
@@ -15,18 +12,10 @@ import {
   formatShortDate,
   formatTime,
 } from "../../../utils/institution-format";
+import { aqiBand } from "../../../utils/institution-readings";
 import { INSTITUTION_LOGIN_PATH } from "../../../utils/institution-session";
-import { getColorRange, isValidAqi } from "../../../utils";
-import {
-  Button,
-  Card,
-  CardHead,
-  CardTitle,
-  ErrorState,
-  Pill,
-  Skeleton,
-  StateBlock,
-} from "./ui";
+import { PanelButton, PanelCard, PanelNotice, PanelTitle } from "./panel-ui";
+import { Skeleton } from "./ui";
 
 // Loaded in the browser rather than during SSR, like the action log: the feed
 // is paginated and grows on its own, so it owns its state from the start.
@@ -37,8 +26,6 @@ type ListState =
       items: InstitutionNotification[];
       hasMore: boolean;
       page: number;
-      /** Everything the sensor has, not just what is loaded — the badge shows this. */
-      total: number;
     }
   | { status: "error" }
   | { status: "expired" }
@@ -61,11 +48,8 @@ const stateForError = (error: unknown): ListState => {
  * the whole difference from `ActionLogPanel`, which is a form plus its history;
  * the two sections sit side by side and neither reads the other's data.
  *
- * Shows only what was sent, not the rule behind it. The alert configuration was
- * a band in this header once; institutions have no write path for it, so stating
- * it here only invited questions the dashboard could not answer. The threshold
- * still reaches the reader where it means something — as the line on the history
- * chart, and on each notification that carries one.
+ * Shows what was sent; the rule behind it sits beside it on the Alertas page,
+ * read-only, since institutions have no write path for it yet (#339).
  *
  * Both kinds of notification share one list. `type` is what separates them —
  * an AQI alert carries a reading and a threshold, a general announcement
@@ -98,7 +82,6 @@ export function NotificationsPanel({
         items: page.results,
         hasMore: Boolean(page.next),
         page: 1,
-        total: page.count,
       });
     } catch (error) {
       setList(stateForError(error));
@@ -123,7 +106,6 @@ export function NotificationsPanel({
         items: [...list.items, ...next.results],
         hasMore: Boolean(next.next),
         page: list.page + 1,
-        total: next.count,
       });
     } catch (error) {
       setList(stateForError(error));
@@ -133,17 +115,10 @@ export function NotificationsPanel({
   };
 
   return (
-    <Card tone="main">
-      <CardHead>
-        <CardTitle level="main">{copy.notificationsTitle}</CardTitle>
-        {list.status === "ready" && list.items.length > 0 && (
-          <span className="ml-auto">
-            {/* The sensor's whole history, not the part currently loaded — the
-                list is paginated, so those two numbers differ. */}
-            <Pill>{list.total}</Pill>
-          </span>
-        )}
-      </CardHead>
+    <PanelCard labelledBy="panel-notifications">
+      <PanelTitle id="panel-notifications">
+        {copy.notificationsTitle}
+      </PanelTitle>
 
       {list.status === "loading" && (
         <div className="flex flex-col gap-3">
@@ -155,31 +130,31 @@ export function NotificationsPanel({
       )}
 
       {list.status === "error" && (
-        <ErrorState
-          title={copy.errorTitle}
-          body={copy.errorBody}
-          onRetry={load}
-          retryLabel={copy.retry}
-        />
+        <div role="alert" className="flex flex-col items-start gap-3">
+          <PanelNotice title={copy.errorTitle} body={copy.errorBody} />
+          <PanelButton variant="secondary" onClick={load}>
+            {copy.retry}
+          </PanelButton>
+        </div>
       )}
 
       {list.status === "expired" && (
-        <StateBlock
-          title={copy.sessionExpiredTitle}
-          body={copy.sessionExpiredBody}
-          action={
-            <Button
-              variant="void"
-              onClick={() => window.location.assign(INSTITUTION_LOGIN_PATH)}
-            >
-              {copy.goToLogin}
-            </Button>
-          }
-        />
+        <div className="flex flex-col items-start gap-3">
+          <PanelNotice
+            title={copy.sessionExpiredTitle}
+            body={copy.sessionExpiredBody}
+          />
+          <PanelButton
+            variant="secondary"
+            onClick={() => window.location.assign(INSTITUTION_LOGIN_PATH)}
+          >
+            {copy.goToLogin}
+          </PanelButton>
+        </div>
       )}
 
       {list.status === "unavailable" && (
-        <StateBlock
+        <PanelNotice
           title={copy.notificationsUnavailableTitle}
           body={copy.notificationsUnavailableBody}
         />
@@ -187,46 +162,45 @@ export function NotificationsPanel({
 
       {list.status === "ready" &&
         (list.items.length === 0 ? (
-          <StateBlock
+          <PanelNotice
             title={copy.notificationsEmptyTitle}
             body={copy.notificationsEmptyBody}
           />
         ) : (
-          <>
-            {/* Scrolls inside the card rather than growing it. A leased sensor
-                accumulates notifications indefinitely, and an unbounded list
-                pushes the cards below it off the page — the history is worth
-                keeping reachable, not worth handing the whole viewport to.
-                `max-h` rather than `h`: a short feed still sizes to content
-                instead of leaving dead space under it. */}
-            <div className="-mx-1 max-h-[28rem] overflow-y-auto overscroll-contain px-1">
-              <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                {list.items.map((item) => (
-                  <NotificationRow key={item.id} item={item} lang={lang} />
-                ))}
-              </ul>
-              {list.hasMore && (
-                <div className="pt-2">
-                  <Button
-                    variant="void"
-                    onClick={loadMore}
-                    disabled={loadingMore}
-                    block
-                  >
-                    {loadingMore
-                      ? copy.notificationsLoadingMore
-                      : copy.notificationsLoadMore}
-                  </Button>
-                </div>
-              )}
-            </div>
-          </>
+          /* Scrolls inside the card rather than growing it: a leased sensor
+             accumulates notifications indefinitely. `max-h` rather than `h`,
+             so a short feed still sizes to its content. */
+          <div className="-mx-1 max-h-[36rem] overflow-y-auto overscroll-contain px-1">
+            <ul className="m-0 flex list-none flex-col gap-3 p-0">
+              {list.items.map((item) => (
+                <NotificationRow key={item.id} item={item} lang={lang} />
+              ))}
+            </ul>
+            {list.hasMore && (
+              <div className="pt-3">
+                <PanelButton
+                  variant="secondary"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="w-full"
+                >
+                  {loadingMore
+                    ? copy.notificationsLoadingMore
+                    : copy.notificationsLoadMore}
+                </PanelButton>
+              </div>
+            )}
+          </div>
         ))}
-    </Card>
+    </PanelCard>
   );
 }
 
 // --- Row --------------------------------------------------------------------
+
+/** The rail colour of a notification: its AQI band, or blue for news. */
+const RAIL = ["#6FCF6A", "#F3D34A", "#F59A3C", "#E5484D", "#9B4DB3", "#7A1F2B"];
+const GENERAL_RAIL = "#7FB2E5";
 
 function NotificationRow({
   item,
@@ -236,95 +210,39 @@ function NotificationRow({
   lang: Lang;
 }) {
   const copy = useInstitutionCopy(lang);
-  const isAqi = item.type === "aqi";
-  const emoji = item.aqi_category ? emojiForCategory(item.aqi_category) : "";
+  const band = aqiBand(item.aqi);
+  // A colour rail instead of a coloured row: the band is the fastest way to
+  // read severity down a long list, and tinting whole rows would make the body
+  // harder to read. The type is also written out, so colour never carries the
+  // meaning alone.
+  const rail = band != null ? RAIL[band] : GENERAL_RAIL;
 
-  // The band colour from the same table the AQI card, the history chart and the
-  // public map read, so a value is never a different colour here than there.
-  // Guarded because a reading outside the classifiable range makes it throw
-  // inside render, which unmounts the island.
-  const bandColor =
-    item.aqi != null && isValidAqi(item.aqi)
-      ? getColorRange(item.aqi)
-      : undefined;
+  const meta = [
+    `${formatShortDate(item.sent_at)} · ${formatTime(item.sent_at)}`,
+    item.type === "aqi"
+      ? copy.notificationTypeAqi
+      : copy.notificationTypeGeneral,
+    item.aqi != null ? `AQI ${formatAqi(item.aqi)}` : null,
+    item.alert_threshold != null
+      ? `${copy.notificationThreshold} ${item.alert_threshold}`
+      : null,
+    item.station_name,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <li className="flex overflow-hidden rounded-lg border border-bg-gray bg-white">
-      {/* A colour rail instead of a coloured row: the AQI band is the fastest
-          way to read severity down a long list, but tinting whole rows would
-          fight the card it sits in and make the body text harder to read.
-          General notifications get the neutral surface — they have no reading
-          to be a colour of. */}
-      <span
-        aria-hidden="true"
-        className={`w-1 shrink-0 ${bandColor ? "" : "bg-bg-gray"}`}
-        style={bandColor ? { backgroundColor: bandColor } : undefined}
-      />
-
-      <div className="min-w-0 flex-1 p-3.5">
-        {/* Wraps rather than stacks: `items-center` would stretch the pill to
-            the full row width in a column, and the timestamp and badge read as
-            one line anyway. */}
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-          {isAqi && emoji && (
-            <span
-              className="font-emoji text-base leading-none"
-              aria-hidden="true"
-            >
-              {emoji}
-            </span>
-          )}
-          <p className="m-0 text-xs text-gray tabular-nums">
-            {formatShortDate(item.sent_at)}
-            <span className="text-lightgray">
-              {" "}
-              · {formatTime(item.sent_at)}
-            </span>
-          </p>
-          {/* Neutral in both cases: the rail already carries the severity, and
-              in the band's own colour. A red badge beside an orange rail says
-              "danger" twice, in two different colours, for one reading. */}
-          <Pill tone="neutral">
-            {isAqi ? copy.notificationTypeAqi : copy.notificationTypeGeneral}
-          </Pill>
-
-          {/* The AQI reading sits with the metadata rather than in a chip of
-              its own below the text: it is what distinguishes one alert from
-              the next when the wording repeats, so it belongs on the line the
-              eye scans. */}
-          {item.aqi != null && (
-            <span className="ml-auto flex items-baseline gap-1.5">
-              <span className="font-serif text-lg font-bold leading-none tabular-nums">
-                {formatAqi(item.aqi)}
-              </span>
-              <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-lightgray">
-                AQI
-              </span>
-            </span>
-          )}
-        </div>
-
-        <p className="m-0 mt-2 text-[13.5px] font-bold leading-snug">
-          {item.title}
-        </p>
-        <p className="m-0 mt-1 whitespace-pre-line text-[13.5px] leading-relaxed text-gray">
+    <li
+      className="flex flex-col gap-[3px] rounded-[4px_10px_10px_4px] border-l-[5px] bg-[#F9F6F4] px-3.5 py-3"
+      style={{ borderLeftColor: rail }}
+    >
+      <p className="m-0 text-[15px] font-bold leading-snug">{item.title}</p>
+      {item.body && (
+        <p className="m-0 whitespace-pre-line text-[13px] leading-relaxed text-[#3E3A36]">
           {item.body}
         </p>
-
-        {/* The quiet trailing line: category, threshold and sensor. Present for
-            the record, deliberately not competing with the message itself. */}
-        <p className="m-0 mt-2 text-[11.5px] text-lightgray">
-          {[
-            item.aqi_category_label,
-            item.alert_threshold != null
-              ? `${copy.notificationThreshold} ${item.alert_threshold}`
-              : null,
-            item.station_name,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
-      </div>
+      )}
+      <p className="m-0 text-[12px] text-[#5C5752]">{meta}</p>
     </li>
   );
 }

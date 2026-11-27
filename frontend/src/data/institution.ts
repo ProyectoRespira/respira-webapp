@@ -5,8 +5,6 @@
 // consumes a handful of endpoints, not the whole schema — but they must be kept
 // in step with those serializers when the backend changes.
 
-import type { AQILevelId } from "./cards";
-
 /** Paths under the API root (`BACKEND_URL`, e.g. `/api`). */
 export const INSTITUTION_ENDPOINTS = {
   // Implemented: RES-368 (auth) and RES-369 (dashboard).
@@ -41,6 +39,11 @@ export const INSTITUTION_ENDPOINTS = {
   reportMonths: "/institution/report/months/",
   monthlyReport: "/institution/report/monthly/",
   rawExport: "/institution/export/",
+
+  // Hourly PM2.5/PM10 for one sensor (#322). Newer than the rest: a backend
+  // that predates it answers 404, which the panel reads as "not deployed yet"
+  // and hides the particle blocks rather than showing an error.
+  readings: "/institution/readings/",
 } as const;
 
 // --- Institution ------------------------------------------------------------
@@ -83,7 +86,75 @@ export type Institution = {
    * than reading this field directly.
    */
   contracts?: InstitutionContract[];
+  /**
+   * The caller's role inside the institution (#314). Optional because a
+   * backend that predates roles sends nothing; read it through
+   * `institutionRole`, which treats that as `admin` — the only role there was.
+   */
+  role?: InstitutionRole | null;
+  /**
+   * The MADES reference limits for particles (#333), in µg/m³. Absent on an
+   * older backend, which hides every block that compares against them; a
+   * `null` value inside means the limit is not confirmed yet and is shown as
+   * such, never replaced by a number of our own.
+   */
+  limits?: ParticleLimits;
+  /**
+   * Who is signed in, for the sidebar's user card. Optional and nullable
+   * because a backend that predates it sends nothing; read it through
+   * `institutionUserLabel`, which keeps the card as it was in that case.
+   */
+  user?: InstitutionUser | null;
 };
+
+export type InstitutionUser = {
+  email: string;
+  /** "" when the account has no name set. */
+  full_name: string;
+};
+
+export type InstitutionRole = "admin" | "member";
+
+export type ParticleLimit = { h24: number | null; annual: number | null };
+
+export type ParticleLimits = {
+  pm25?: ParticleLimit;
+  pm10?: ParticleLimit;
+};
+
+/** `role ?? "admin"`: anything that is not explicitly a member keeps full access. */
+export const institutionRole = (
+  institution: Institution | null | undefined,
+): InstitutionRole => (institution?.role === "member" ? "member" : "admin");
+
+/**
+ * The name to show for the signed-in person: their full name, or the email
+ * when the account has none (invited users often start without one). `null`
+ * when the backend does not say who it is, so the card shows only the role.
+ */
+export const institutionUserLabel = (
+  institution: Institution | null | undefined,
+): string | null => {
+  const user = institution?.user;
+  if (!user) return null;
+  return user.full_name?.trim() || user.email?.trim() || null;
+};
+
+/**
+ * Which set of texts the panel speaks in. Set from the admin as free text, so
+ * it is normalised here: the school words read as `colegio`, and anything else
+ * — including empty — as `industria`, the panel's main audience.
+ */
+export type InstitutionKind = "industria" | "colegio";
+
+const SCHOOL_TYPES = new Set(["colegio", "educativa", "escuela"]);
+
+export const institutionKind = (
+  institution: Institution | null | undefined,
+): InstitutionKind =>
+  SCHOOL_TYPES.has(institution?.institution_type?.trim().toLowerCase() ?? "")
+    ? "colegio"
+    : "industria";
 
 /**
  * The institution's contracts, whichever shape the backend answered with.
@@ -142,6 +213,8 @@ export type DashboardSensor = {
    * from panels served by an older deployment.
    */
   supports_raw_export?: boolean;
+  /** The device model (#334), e.g. an AirGradient model. Absent on older backends. */
+  model?: string | null;
 };
 
 export type DashboardAirQuality = {
@@ -174,6 +247,17 @@ export type InstitutionAlertConfig = {
 export type DashboardAvailableSensor = {
   id: number;
   name: string;
+  /**
+   * The sensor's current AQI (#334). Absent on an older backend, which drops
+   * the circle from the list; null when the sensor has no reading to rate.
+   */
+  aqi?: number | null;
+};
+
+/** The latest particle concentrations, in µg/m³ (#322). */
+export type DashboardCurrent = {
+  pm25: number | null;
+  pm10: number | null;
 };
 
 export type InstitutionDashboard = {
@@ -190,6 +274,35 @@ export type InstitutionDashboard = {
   air_quality: DashboardAirQuality | null;
   history: DashboardHistoryPoint[];
   alert_config: InstitutionAlertConfig;
+  /**
+   * "Now" for each particle (#322). Always an object on a current backend,
+   * with nulls when there is no reading; absent only on one that predates it,
+   * where the panel falls back to the newest hourly reading.
+   */
+  current?: DashboardCurrent;
+};
+
+// --- Hourly readings --------------------------------------------------------
+
+export type ReadingsPeriod = "24h" | "7d" | "30d";
+
+/**
+ * One hour of particles, oldest first; `ts` is the start of the hour, with its
+ * offset (`-03:00`, Paraguay's fixed time). A gap is an hour with both values
+ * null — the series stays contiguous (24, 168 or 720 points) so charts draw it
+ * as a gap. The last hour is usually null because it is still in progress, so
+ * it is never read as "now": that is `InstitutionDashboard.current`.
+ */
+export type SensorReading = {
+  ts: string;
+  pm25: number | null;
+  pm10: number | null;
+};
+
+export type SensorReadings = {
+  station: number;
+  period: ReadingsPeriod;
+  readings: SensorReading[];
 };
 
 /**
@@ -234,6 +347,11 @@ export type ActionLog = {
   /** Server-assigned (`auto_now_add`); never sent by the client. */
   timestamp: string;
   note: string;
+  /**
+   * The AQI when the action was logged (#335). Absent on an older backend;
+   * null for entries written before the field existed.
+   */
+  aqi?: number | null;
 };
 
 /**
@@ -292,45 +410,3 @@ export type Paginated<T> = {
 
 /** Matches `note = models.TextField()` with the serializer's non-empty check. */
 export const ACTION_NOTE_MAX_LENGTH = 1000;
-
-// --- AQI categories ---------------------------------------------------------
-
-// `air_quality.category` arrives in the snake_case keys of `backend/api/aqi.py`.
-// The band colour itself comes from `getColorRange(aqi)` — the same table the
-// public map uses — so a value is never a different colour here than there.
-// Only the emoji has no numeric source, so it is mapped by category.
-
-/** Mirrors the `emoji` field of `AQI_LEVELS` in `backend/api/aqi.py`. */
-const CATEGORY_EMOJI: Record<string, string> = {
-  good: "😁",
-  moderate: "🙂",
-  unhealthy_sensitive: "😷",
-  unhealthy: "😶‍🌫️",
-  very_unhealthy: "😨",
-  hazardous: "💀",
-};
-
-export const emojiForCategory = (category: string): string =>
-  CATEGORY_EMOJI[category] ?? "";
-
-// The backend sends `category_label`, `message` and `recommendations` in
-// Spanish only (`AQI_LEVELS` has no translations), so the panel renders them
-// from the site dictionary instead, keyed by the category. Same table, same
-// wording as the public AQI cards — only the language follows the reader.
-const CATEGORY_LEVEL_ID: Record<string, AQILevelId> = {
-  good: "good",
-  moderate: "moderate",
-  unhealthy_sensitive: "unhealthySensitive",
-  unhealthy: "unhealthy",
-  very_unhealthy: "veryUnhealthy",
-  hazardous: "hazardous",
-};
-
-/**
- * The AQI level id for a backend category, or `null` for one we don't know.
- *
- * A null means the backend grew a level the frontend hasn't learned yet; the
- * caller falls back to the Spanish text the API sent rather than showing a gap.
- */
-export const levelIdForCategory = (category: string): AQILevelId | null =>
-  CATEGORY_LEVEL_ID[category] ?? null;
