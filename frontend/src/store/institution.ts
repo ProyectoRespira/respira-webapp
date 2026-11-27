@@ -267,6 +267,21 @@ export const requestPasswordReset = async (email: string): Promise<void> => {
 };
 
 /**
+ * Asks for the "create your password" link a new dashboard user was invited
+ * with. Resolves for any well-formed address, exactly like
+ * `requestPasswordReset`: the backend only sends to accounts an organization
+ * set up that have no password yet, and never says which case it was.
+ */
+export const requestAccountActivation = async (
+  email: string,
+): Promise<void> => {
+  await request(INSTITUTION_ENDPOINTS.activate, {
+    method: "POST",
+    body: { email },
+  });
+};
+
+/**
  * Sets a new password from an emailed reset link.
  *
  * Rejects with `code: "invalid"` in two distinguishable cases: the link is

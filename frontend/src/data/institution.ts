@@ -21,6 +21,10 @@ export const INSTITUTION_ENDPOINTS = {
   // an account exists.
   passwordReset: "/institution/password-reset/",
   passwordResetConfirm: "/institution/password-reset/confirm/",
+  // "¿Sos nuevo en la plataforma?": asks for the invitation link again. Open
+  // and always 204, like `passwordReset`. At the API root under `auth/`, not
+  // under `/institution/`.
+  activate: "/auth/activate/",
 
   // Implemented in RES-370. Note it is registered at the API root
   // (`/action-logs/`), not nested under `/institution/`: the router entry is

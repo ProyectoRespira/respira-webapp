@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from accounts.admin_base import ReadOnlyModelAdmin, RoleBasedModelAdmin
 
-from . import push
+from . import invitations, push
 from .forms import (
     InstitutionAlertRuleForm,
     PushBroadcastForm,
@@ -481,6 +481,8 @@ class InstitutionAdmin(RoleBasedModelAdmin):
         ("Notes", {"fields": ("notes",)}),
     )
 
+    actions = ("send_dashboard_invitations",)
+
     def get_queryset(self, request):
         # Annotated so `sensor_count` costs one query for the whole changelist
         # rather than one per row.
@@ -489,6 +491,58 @@ class InstitutionAdmin(RoleBasedModelAdmin):
     @admin.display(description="Sensors", ordering="_sensor_count")
     def sensor_count(self, obj):
         return obj._sensor_count
+
+    @admin.action(
+        description="Send dashboard invitation to users without a password",
+        permissions=["change"],
+    )
+    def send_dashboard_invitations(self, request, queryset):
+        """Emails the "create your password" link to each pending user.
+
+        Pending means what ``awaits_first_password`` says: active, linked to
+        the institution, never chose a password (nor ever signed in). Someone who already has one
+        is skipped rather than sent a link that would replace it — they have
+        "¿Olvidaste tu contraseña?" for that. Running it twice re-sends to
+        whoever is still pending, which is how an expired link is renewed.
+        """
+        sent = skipped = failed = 0
+        for institution in queryset:
+            links = institution.users.select_related("user")
+            for link in links:
+                if not invitations.awaits_first_password(link.user):
+                    skipped += 1
+                    continue
+                try:
+                    invitations.send_institution_invitation(
+                        link.user, institution, request=request
+                    )
+                except Exception as error:
+                    failed += 1
+                    self.message_user(
+                        request,
+                        f"Could not send the invitation to {link.user.email}: {error}",
+                        level=messages.ERROR,
+                    )
+                else:
+                    sent += 1
+
+        if sent:
+            self.message_user(
+                request, f"Invitation sent to {sent} user(s).", level=messages.SUCCESS
+            )
+        if skipped:
+            self.message_user(
+                request,
+                f"{skipped} user(s) skipped: they already have a password, "
+                "have signed in before, or their account is inactive.",
+                level=messages.INFO,
+            )
+        if not (sent or skipped or failed):
+            self.message_user(
+                request,
+                "The selected institutions have no dashboard users.",
+                level=messages.WARNING,
+            )
 
 
 @admin.register(SensitiveGroup)

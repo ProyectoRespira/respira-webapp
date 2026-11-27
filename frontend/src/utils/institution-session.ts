@@ -20,6 +20,21 @@ export const INSTITUTION_FORGOT_PASSWORD_PATH = "/institucion/recuperar-clave";
  * host come from the request, so the same link works in every environment.
  */
 export const INSTITUTION_RESET_PASSWORD_PATH = "/institucion/restablecer-clave";
+/**
+ * The query parameter the invitation email adds to the reset link
+ * (`?modo=crear&uid=…&token=…`) to turn the page into "create your password".
+ * Must match `CREATE_MODE_PARAM` / `CREATE_MODE_VALUE` in
+ * `backend/api/invitations.py`.
+ */
+export const INSTITUTION_CREATE_MODE_PARAM = "modo";
+export const INSTITUTION_CREATE_MODE_VALUE = "crear";
+/**
+ * Opens the login page with "¿Sos nuevo en la plataforma?" already expanded:
+ * where a dead invitation link sends the visitor for a new one. The recovery
+ * page would not do — it only ever mails accounts that already have a password.
+ */
+export const INSTITUTION_ACTIVATE_PARAM = "nuevo";
+export const INSTITUTION_ACTIVATE_PATH = `${INSTITUTION_LOGIN_PATH}?${INSTITUTION_ACTIVATE_PARAM}=1`;
 
 export type InstitutionSession =
   /** A valid session belonging to an institution. */

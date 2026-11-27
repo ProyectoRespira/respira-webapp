@@ -32,6 +32,7 @@ from rest_framework.viewsets import GenericViewSet, ModelViewSet, ReadOnlyModelV
 
 from backend.client_ip import get_client_ip
 
+from . import invitations
 from .airgradient import AirGradientError, location_id_for_station
 from .aqi import classify_aqi, round_aqi
 from .exports import REPORT_TIME_ZONE
@@ -1406,7 +1407,10 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
             "Always answers 204, whether or not an account exists, so the "
             "endpoint cannot be used to find out which addresses are "
             "registered. The email carries a signed, time-limited link "
-            "(`PASSWORD_RESET_TIMEOUT`) pointing at the public reset page."
+            "(`PASSWORD_RESET_TIMEOUT`) pointing at the public reset page. "
+            "A dashboard user who has not chosen a password yet receives the "
+            'invitation instead (the same link in "create" mode), since '
+            "there is no password to reset."
         ),
         request=InstitutionPasswordResetSerializer,
         responses={204: None},
@@ -1425,9 +1429,15 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
 
         Built on ``django.contrib.auth.forms.PasswordResetForm``, so the set of
         accounts that may be reset is Django's own: active users with a usable
-        password. Nothing about the outcome reaches the caller — the response is
-        identical for a registered address, an unregistered one, and an inactive
-        account.
+        password. That set leaves out exactly the invitees who never chose one,
+        and "¿Olvidaste tu contraseña?" is the button such a person reaches for
+        when the invitation got lost — so they are sent the invitation again
+        instead of nothing. The two sets cannot overlap (usable password or
+        not), so nobody gets both emails.
+
+        Nothing about the outcome reaches the caller — the response is
+        identical for a registered address, an invitee, an unregistered one,
+        and an inactive account.
         """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -1458,6 +1468,9 @@ class InstitutionViewSet(ReadOnlyModelViewSet):
                     ),
                     "timeout_hours": settings.PASSWORD_RESET_TIMEOUT // 3600,
                 },
+            )
+            invitations.invite_pending_users(
+                form.cleaned_data["email"], request=request
             )
 
         return Response(status=status.HTTP_204_NO_CONTENT)

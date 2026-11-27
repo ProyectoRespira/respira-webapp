@@ -1,0 +1,1 @@
+{# Rendered by api.invitations; must stay a single line — newlines are stripped before it becomes a header. #}{% autoescape off %}Creá tu contraseña para el panel de {{ institution_name }} en Proyecto Respira{% endautoescape %}

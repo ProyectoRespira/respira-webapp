@@ -8,6 +8,7 @@ from .exports import (
     InstitutionRawExportView,
     InstitutionReportMonthsView,
 )
+from .invitations import InstitutionActivateView
 from .public_exports import PublicStationExportView
 from .views import (
     ActionLogViewSet,
@@ -76,6 +77,13 @@ urlpatterns = [
         r"institution/export/",
         InstitutionRawExportView.as_view(),
         name="institution-raw-export",
+    ),
+    # Under `auth/` rather than `institution/`: it is reached before there is
+    # a session, and the mobile token login (`auth/token/`) will sit next to it.
+    path(
+        r"auth/activate/",
+        InstitutionActivateView.as_view(),
+        name="auth-activate",
     ),
     path(r"", include(router.urls)),
     path(r"faq/", FaqListView.as_view(), name="faq"),

@@ -9,11 +9,22 @@
 //
 // The path must stay in step with `INSTITUTION_PASSWORD_RESET_URL` in
 // `backend/backend/settings.py`, which is what the email is built from.
+//
+// The invitation email (first access) opens this same page with `?modo=crear`:
+// the submit is identical — `password-reset/confirm` accepts an account that
+// never had a password — and only the copy changes to "create your password".
 
 import InstitutionAuthLayout from "../../layouts/InstitutionAuthLayout.astro";
-import { ResetPasswordForm } from "../../components/react/institution/ResetPasswordForm";
+import {
+  ResetPasswordForm,
+  type ResetPasswordMode,
+} from "../../components/react/institution/ResetPasswordForm";
 import { useInstitutionCopy } from "../../i18n/institution";
 import { getLangFromLocals } from "../../i18n/utils";
+import {
+  INSTITUTION_CREATE_MODE_PARAM,
+  INSTITUTION_CREATE_MODE_VALUE,
+} from "../../utils/institution-session";
 
 const lang = getLangFromLocals(Astro.locals);
 const copy = useInstitutionCopy(lang);
@@ -21,12 +32,23 @@ const copy = useInstitutionCopy(lang);
 const params = Astro.url.searchParams;
 const uid = params.get("uid") ?? "";
 const token = params.get("token") ?? "";
+const mode: ResetPasswordMode =
+  params.get(INSTITUTION_CREATE_MODE_PARAM) === INSTITUTION_CREATE_MODE_VALUE
+    ? "create"
+    : "reset";
+const isCreate = mode === "create";
 ---
 
 <InstitutionAuthLayout
-  title={copy.resetTitle}
-  tagline={copy.resetTagline}
-  blurb={copy.resetBlurb}
+  title={isCreate ? copy.createTitle : copy.resetTitle}
+  tagline={isCreate ? copy.createTagline : copy.resetTagline}
+  blurb={isCreate ? copy.createBlurb : copy.resetBlurb}
 >
-  <ResetPasswordForm uid={uid} token={token} lang={lang} client:load />
+  <ResetPasswordForm
+    uid={uid}
+    token={token}
+    mode={mode}
+    lang={lang}
+    client:load
+  />
 </InstitutionAuthLayout>

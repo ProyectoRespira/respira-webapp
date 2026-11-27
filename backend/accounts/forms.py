@@ -1,6 +1,12 @@
 from django import forms
-from django.contrib.auth import password_validation
-from django.contrib.auth.forms import ReadOnlyPasswordHashField
+from django.contrib.auth.forms import (
+    AdminPasswordChangeForm as BaseAdminPasswordChangeForm,
+)
+from django.contrib.auth.forms import (
+    ReadOnlyPasswordHashField,
+    SetPasswordMixin,
+    SetUnusablePasswordMixin,
+)
 
 from .models import User
 
@@ -71,50 +77,171 @@ class ContactSelectionMixin(forms.ModelForm):
             selected.save(update_fields=["user", "updated_at"])
 
 
-class UserCreationForm(ContactSelectionMixin):
-    """Admin form to create users, keyed on email instead of username."""
+class UserCreationForm(
+    SetUnusablePasswordMixin, SetPasswordMixin, ContactSelectionMixin
+):
+    """Admin form to create users, keyed on email instead of username.
 
-    password1 = forms.CharField(
-        label="Password", widget=forms.PasswordInput, strip=False
+    Two kinds of account come out of it. Staff get a password typed here, as
+    before. An institution's dashboard user gets none: the operator disables
+    password-based authentication, picks the institution (and the role inside
+    it), and the admin emails the invitation on save (see
+    ``accounts.admin.UserAdmin.save_related``) — the person chooses their own
+    password from that link, so nobody else ever knows it.
+
+    ``username`` is left empty in both cases: accounts sign in by email
+    (``USERNAME_FIELD``) and the column is only kept for compatibility.
+
+    The dashboard fields are declared here but the admin removes them for an
+    operator who may not create ``InstitutionUser`` links, so every method
+    below treats them as optional.
+    """
+
+    usable_password = SetUnusablePasswordMixin.create_usable_password_field(
+        help_text=(
+            "Disable it for an institution's dashboard user: pick the "
+            "institution below and they are emailed an invitation to choose "
+            "their own password. Keep it enabled to set a password now, as "
+            "for a staff account."
+        )
     )
-    password2 = forms.CharField(
-        label="Password confirmation",
-        widget=forms.PasswordInput,
-        strip=False,
-        help_text="Enter the same password as before, for verification.",
+    password1, password2 = SetPasswordMixin.create_password_fields()
+
+    dashboard_institution = forms.ModelChoiceField(
+        # Set in __init__, like `contact`: the class-level queryset only has to
+        # exist for field validation at import time.
+        queryset=None,
+        required=False,
+        label="Institution",
+        help_text="Optional. Gives the user access to this institution's dashboard.",
     )
+    # Replaced in __init__ by ``InstitutionUser.role``'s own form field, so
+    # the choices and the default stay the model's.
+    dashboard_role = forms.ChoiceField(required=False, label="Role")
+
+    dashboard_field_names = ("dashboard_institution", "dashboard_role")
 
     class Meta:
         model = User
-        fields = ("email",)
+        fields = ("email", "first_name", "last_name")
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._init_contact_field()
+        # Optional at field level, like Django's own AdminUserCreationForm:
+        # `validate_passwords` requires them only when the password is usable.
+        self.fields["password1"].required = False
+        self.fields["password2"].required = False
+        self._init_dashboard_fields()
 
-    def clean_password2(self) -> str:
-        password1 = self.cleaned_data.get("password1")
-        password2 = self.cleaned_data.get("password2")
-        if password1 and password2 and password1 != password2:
-            raise forms.ValidationError("The two password fields didn't match.")
-        return password2
+    def _init_dashboard_fields(self) -> None:
+        from api.models import Institution, InstitutionUser
+
+        institution_field = self.fields.get("dashboard_institution")
+        if institution_field is not None:
+            institution_field.queryset = Institution.objects.order_by("legal_name")
+        if "dashboard_role" in self.fields:
+            self.fields["dashboard_role"] = InstitutionUser._meta.get_field(
+                "role"
+            ).formfield(
+                required=False,
+                label="Role",
+                help_text=(
+                    "Inside the institution: admins can also write to the "
+                    "panel, members only read it."
+                ),
+            )
+
+    def clean(self):
+        self.validate_passwords()
+        cleaned_data = super().clean()
+        if (
+            not cleaned_data.get("set_usable_password", True)
+            and cleaned_data.get("dashboard_institution") is None
+            and "usable_password" not in self.errors
+        ):
+            # The invitation is the only way into an account without a
+            # password, and it goes only to someone linked to an institution.
+            # Without one this would create an account nobody can sign in to.
+            self.add_error(
+                "usable_password",
+                "A user without a password can only get in through the "
+                "dashboard invitation, which needs an institution. Pick one, "
+                "or enable password-based authentication and set a password.",
+            )
+        return cleaned_data
 
     def _post_clean(self) -> None:
         super()._post_clean()
-        password = self.cleaned_data.get("password2")
-        if password:
-            try:
-                password_validation.validate_password(password, self.instance)
-            except forms.ValidationError as error:
-                self.add_error("password2", error)
+        # After super(), so the validators see the email just typed (the
+        # similarity check compares the password against it).
+        self.validate_password_for_user(self.instance)
+
+    @property
+    def sends_invitation(self) -> bool:
+        """Whether saving this form should be followed by the invitation."""
+        return (
+            not self.cleaned_data.get("set_usable_password", True)
+            and self.cleaned_data.get("dashboard_institution") is not None
+        )
 
     def save(self, commit: bool = True) -> User:
         user = super().save(commit=False)
-        user.set_password(self.cleaned_data["password1"])
+        user = self.set_password_and_save(user, commit=commit)
         if commit:
-            user.save()
-            self._save_contact(user)
+            self._save_links(user)
+        else:
+            # The admin saves with commit=False and only then calls save_m2m();
+            # the links need the user's row, so they ride along with it, the
+            # same way UserChangeForm handles the contact.
+            original_save_m2m = self.save_m2m
+
+            def save_m2m():
+                original_save_m2m()
+                self._save_links(user)
+
+            self.save_m2m = save_m2m
         return user
+
+    def _save_links(self, user) -> None:
+        self._save_contact(user)
+        self._save_dashboard_access(user)
+
+    def _save_dashboard_access(self, user) -> None:
+        from api.models import InstitutionUser
+
+        institution = self.cleaned_data.get("dashboard_institution")
+        if institution is None:
+            return
+        link = {"user": user, "institution": institution}
+        role = self.cleaned_data.get("dashboard_role")
+        if role:
+            link["role"] = role
+        InstitutionUser.objects.create(**link)
+
+
+class AdminPasswordChangeForm(BaseAdminPasswordChangeForm):
+    """Users → Change password, saying what "Disabled" does to dashboard access.
+
+    Disabling the password of someone who has signed in before does keep them
+    out: they have nothing to sign in with, password reset skips them, and
+    ``api.invitations.awaits_first_password`` no longer counts them as an
+    invitee. Of someone who never signed in it does not — to the dashboard
+    they still look like an invitee who can ask for a create-password link.
+    The operator is told which control revokes access in every case rather
+    than having to know that distinction.
+    """
+
+    usable_password_help_text = (
+        BaseAdminPasswordChangeForm.usable_password_help_text
+        + (
+            '<ul class="messagelist"><li class="info">'
+            "To take away an institution user's dashboard access, uncheck "
+            "“Active” on the user or remove their institution link instead: "
+            "someone without a password who has never signed in can still ask "
+            "for an invitation to create one.</li></ul>"
+        )
+    )
 
 
 class UserChangeForm(ContactSelectionMixin):

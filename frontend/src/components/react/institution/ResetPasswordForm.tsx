@@ -4,6 +4,11 @@
 // `token` as query parameters. Neither is secret to this component: they are
 // checked server-side on submit, so the page renders the form for any pair and
 // lets the backend be the one that says a link is spent or expired.
+//
+// The same form serves the invitation link (first access): `mode="create"`
+// swaps the words — "create your password" rather than "choose a new one" —
+// and where a dead link sends the visitor for another. The submit does not
+// change: the confirm endpoint takes an account that never had a password.
 
 import { useId, useState, type FormEvent } from "react";
 
@@ -17,6 +22,7 @@ import {
   InstitutionApiError,
 } from "../../../store/institution";
 import {
+  INSTITUTION_ACTIVATE_PATH,
   INSTITUTION_FORGOT_PASSWORD_PATH,
   INSTITUTION_LOGIN_PATH,
 } from "../../../utils/institution-session";
@@ -38,6 +44,52 @@ const RULE_KEYS: Record<string, InstitutionCopyKey> = {
   password_not_complex: "resetRuleNotComplex",
 };
 
+export type ResetPasswordMode = "reset" | "create";
+
+/**
+ * The words that differ between the two modes, as copy keys. Everything else
+ * (password rules, mismatch, throttling) reads the same either way.
+ */
+const MODE_COPY = {
+  reset: {
+    title: "resetTitle",
+    subtitle: "resetSubtitle",
+    password: "resetPassword",
+    submit: "resetSubmit",
+    submitting: "resetSubmitting",
+    doneTitle: "resetDoneTitle",
+    doneBody: "resetDoneBody",
+    invalidTitle: "resetInvalidTitle",
+    invalidBody: "resetInvalidBody",
+    requestAnother: "resetRequestAnother",
+  },
+  create: {
+    title: "createTitle",
+    subtitle: "createSubtitle",
+    password: "createPassword",
+    submit: "createSubmit",
+    submitting: "createSubmitting",
+    doneTitle: "createDoneTitle",
+    doneBody: "createDoneBody",
+    invalidTitle: "createInvalidTitle",
+    invalidBody: "createInvalidBody",
+    requestAnother: "createRequestAnother",
+  },
+} as const satisfies Record<
+  ResetPasswordMode,
+  Record<string, InstitutionCopyKey>
+>;
+
+/**
+ * Where a dead link sends the visitor for a new one. Not the same page for
+ * both: the recovery form only mails accounts that already have a password,
+ * so an invitee asks again from "¿Sos nuevo en la plataforma?".
+ */
+const REQUEST_ANOTHER_HREF: Record<ResetPasswordMode, string> = {
+  reset: INSTITUTION_FORGOT_PASSWORD_PATH,
+  create: INSTITUTION_ACTIVATE_PATH,
+};
+
 type Outcome =
   | { state: "editing" }
   /** The link itself is unusable — a new one has to be requested. */
@@ -47,13 +99,16 @@ type Outcome =
 export function ResetPasswordForm({
   uid,
   token,
+  mode = "reset",
   lang,
 }: {
   uid: string;
   token: string;
+  mode?: ResetPasswordMode;
   lang: Lang;
 }) {
   const copy = useInstitutionCopy(lang);
+  const keys = MODE_COPY[mode];
   const passwordId = useId();
   const confirmId = useId();
   const rulesId = useId();
@@ -127,9 +182,9 @@ export function ResetPasswordForm({
       <div className="flex flex-col items-start gap-4">
         <div>
           <h1 className="font-serif text-xl font-bold">
-            {copy.resetDoneTitle}
+            {copy[keys.doneTitle]}
           </h1>
-          <p className="mt-1 text-[13px] text-gray">{copy.resetDoneBody}</p>
+          <p className="mt-1 text-[13px] text-gray">{copy[keys.doneBody]}</p>
         </div>
         <a
           className="inline-flex items-center justify-center rounded-md border border-transparent bg-green_dark px-5 py-3 text-[13px] font-bold uppercase tracking-wide text-white transition-colors hover:bg-green_darker focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green_dark"
@@ -146,15 +201,15 @@ export function ResetPasswordForm({
       <div className="flex flex-col items-start gap-4" role="alert">
         <div>
           <h1 className="font-serif text-xl font-bold">
-            {copy.resetInvalidTitle}
+            {copy[keys.invalidTitle]}
           </h1>
-          <p className="mt-1 text-[13px] text-gray">{copy.resetInvalidBody}</p>
+          <p className="mt-1 text-[13px] text-gray">{copy[keys.invalidBody]}</p>
         </div>
         <a
           className="inline-flex items-center justify-center rounded-md border border-transparent bg-green_dark px-5 py-3 text-[13px] font-bold uppercase tracking-wide text-white transition-colors hover:bg-green_darker focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green_dark"
-          href={INSTITUTION_FORGOT_PASSWORD_PATH}
+          href={REQUEST_ANOTHER_HREF[mode]}
         >
-          {copy.resetRequestAnother}
+          {copy[keys.requestAnother]}
         </a>
       </div>
     );
@@ -163,8 +218,8 @@ export function ResetPasswordForm({
   return (
     <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
       <div>
-        <h1 className="font-serif text-xl font-bold">{copy.resetTitle}</h1>
-        <p className="mt-1 text-[13px] text-gray">{copy.resetSubtitle}</p>
+        <h1 className="font-serif text-xl font-bold">{copy[keys.title]}</h1>
+        <p className="mt-1 text-[13px] text-gray">{copy[keys.subtitle]}</p>
       </div>
 
       {errors.length > 0 && (
@@ -186,7 +241,7 @@ export function ResetPasswordForm({
       )}
 
       <div className="flex flex-col gap-1.5">
-        <FieldLabel htmlFor={passwordId}>{copy.resetPassword}</FieldLabel>
+        <FieldLabel htmlFor={passwordId}>{copy[keys.password]}</FieldLabel>
         <input
           id={passwordId}
           className={fieldClassName}
@@ -220,7 +275,7 @@ export function ResetPasswordForm({
       </div>
 
       <Button type="submit" block disabled={submitting}>
-        {submitting ? copy.resetSubmitting : copy.resetSubmit}
+        {submitting ? copy[keys.submitting] : copy[keys.submit]}
       </Button>
     </form>
   );
