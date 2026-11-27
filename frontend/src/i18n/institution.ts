@@ -34,7 +34,10 @@ const es = {
   loginHelp: "¿Problemas para entrar? Escribinos a",
   // Sits above `loginHelp`: the guide answers most of what would otherwise
   // become an email to the team, so it is offered before the contact address.
-  loginGuide: "¿Primera vez acá? Leé la",
+  // Worded as a question about the panel, not about being new: first access
+  // has its own prompt ("¿Sos nuevo en la plataforma?", `activateToggle`) and
+  // two of them on one page compete for the same visitor.
+  loginGuide: "¿Dudas sobre el panel? Leé la",
   loginGuideLink: "guía del panel",
 
   loginErrorCredentials:
@@ -102,6 +105,46 @@ const es = {
     "Demasiados intentos. Esperá un rato antes de volver a probar.",
   resetErrorUnexpected:
     "No pudimos guardar la contraseña. Intentá de nuevo en unos segundos.",
+
+  // --- First access --------------------------------------------------------
+  // The invitation link opens the reset page with `?modo=crear`: same form and
+  // submit, these words instead of the `reset*` ones (#325). The `activate*`
+  // keys are "¿Sos nuevo en la plataforma?" on the login page (#327), which
+  // asks for that link again and, like recovery, answers the same whether or
+  // not the address was set up.
+  createTagline: "Bienvenido a tu panel.",
+  createBlurb:
+    "Tu organización te dio acceso. Creá una contraseña y ya vas a poder ingresar.",
+  createTitle: "Creá tu contraseña",
+  createSubtitle:
+    "Es la que vas a usar, junto con tu correo, para ingresar al panel.",
+  createPassword: "Contraseña",
+  createSubmit: "Crear contraseña",
+  createSubmitting: "Creando…",
+  createDoneTitle: "Listo, ya tenés contraseña",
+  createDoneBody: "Ingresá al panel con tu correo y la contraseña que creaste.",
+  createInvalidTitle: "Este enlace ya no sirve",
+  createInvalidBody:
+    "Puede haber vencido o haberse usado. Pedí uno nuevo con tu correo y volvé a intentar.",
+  createRequestAnother: "Pedir un enlace nuevo",
+
+  activateToggle: "¿Sos nuevo en la plataforma?",
+  activateToggleAction: "Hacé click acá",
+  activateTitle: "Primer ingreso",
+  activateSubtitle:
+    "Escribí el correo que te dio de alta tu organización y te enviamos un enlace para crear tu contraseña.",
+  activateEmail: "Correo institucional",
+  activateSubmit: "Enviar enlace",
+  activateSubmitting: "Enviando…",
+  activateSentTitle: "Revisá tu correo",
+  activateSentBody:
+    "Si tu organización dio de alta ese correo, en unos minutos vas a recibir un enlace para crear tu contraseña. Mirá también la carpeta de spam.",
+  activateSentHint:
+    "¿Ya creaste tu contraseña antes? Entonces usá «¿Olvidaste tu contraseña?».",
+  activateErrorThrottled:
+    "Pediste el enlace demasiadas veces. Esperá un rato antes de volver a intentar.",
+  activateErrorUnexpected:
+    "No pudimos enviar el correo. Intentá de nuevo en unos segundos.",
 
   // --- Page ----------------------------------------------------------------
   pageTitle: "Estado de tu sensor",
@@ -312,7 +355,7 @@ const en: Translation = {
   loginSubmit: "Sign in",
   loginSubmitting: "Signing in…",
   loginHelp: "Trouble signing in? Write to us at",
-  loginGuide: "First time here? Read the",
+  loginGuide: "Questions about the panel? Read the",
   loginGuideLink: "panel guide",
 
   loginErrorCredentials:
@@ -373,6 +416,42 @@ const en: Translation = {
   resetErrorThrottled: "Too many attempts. Wait a while before trying again.",
   resetErrorUnexpected:
     "We couldn't save the password. Try again in a few seconds.",
+
+  // --- First access --------------------------------------------------------
+  createTagline: "Welcome to your panel.",
+  createBlurb:
+    "Your organization gave you access. Create a password and you're ready to log in.",
+  createTitle: "Create your password",
+  createSubtitle:
+    "You'll use it, together with your email, to log in to the panel.",
+  createPassword: "Password",
+  createSubmit: "Create password",
+  createSubmitting: "Creating…",
+  createDoneTitle: "Done, your password is set",
+  createDoneBody:
+    "Log in to the panel with your email and the password you created.",
+  createInvalidTitle: "This link no longer works",
+  createInvalidBody:
+    "It may have expired or already been used. Request a new one with your email and try again.",
+  createRequestAnother: "Request a new link",
+
+  activateToggle: "New to the platform?",
+  activateToggleAction: "Click here",
+  activateTitle: "First login",
+  activateSubtitle:
+    "Enter the email your organization registered you with and we'll send you a link to create your password.",
+  activateEmail: "Institutional email",
+  activateSubmit: "Send link",
+  activateSubmitting: "Sending…",
+  activateSentTitle: "Check your inbox",
+  activateSentBody:
+    "If your organization registered that email, you'll receive a link to create your password in a few minutes. Check your spam folder too.",
+  activateSentHint:
+    "Already created your password before? Then use “Forgot your password?”.",
+  activateErrorThrottled:
+    "You've requested the link too many times. Wait a while before trying again.",
+  activateErrorUnexpected:
+    "We couldn't send the email. Try again in a few seconds.",
 
   // --- Page ----------------------------------------------------------------
   pageTitle: "Your sensor's status",
@@ -543,7 +622,7 @@ const pt: Translation = {
   loginSubmit: "Entrar",
   loginSubmitting: "Entrando…",
   loginHelp: "Problemas para entrar? Escreva para",
-  loginGuide: "Primeira vez aqui? Leia o",
+  loginGuide: "Dúvidas sobre o painel? Leia o",
   loginGuideLink: "guia do painel",
 
   loginErrorCredentials:
@@ -604,6 +683,41 @@ const pt: Translation = {
     "Tentativas demais. Espere um pouco antes de tentar de novo.",
   resetErrorUnexpected:
     "Não conseguimos salvar a senha. Tente de novo em alguns segundos.",
+
+  // --- First access --------------------------------------------------------
+  createTagline: "Boas-vindas ao seu painel.",
+  createBlurb:
+    "Sua organização deu acesso a você. Crie uma senha e você já poderá entrar.",
+  createTitle: "Crie sua senha",
+  createSubtitle:
+    "É a que você vai usar, junto com seu e-mail, para entrar no painel.",
+  createPassword: "Senha",
+  createSubmit: "Criar senha",
+  createSubmitting: "Criando…",
+  createDoneTitle: "Pronto, sua senha foi criada",
+  createDoneBody: "Entre no painel com seu e-mail e a senha que você criou.",
+  createInvalidTitle: "Este link não funciona mais",
+  createInvalidBody:
+    "Ele pode ter expirado ou já ter sido usado. Peça um novo com seu e-mail e tente de novo.",
+  createRequestAnother: "Pedir um link novo",
+
+  activateToggle: "É novo na plataforma?",
+  activateToggleAction: "Clique aqui",
+  activateTitle: "Primeiro acesso",
+  activateSubtitle:
+    "Digite o e-mail com que sua organização cadastrou você e enviaremos um link para criar sua senha.",
+  activateEmail: "E-mail institucional",
+  activateSubmit: "Enviar link",
+  activateSubmitting: "Enviando…",
+  activateSentTitle: "Confira seu e-mail",
+  activateSentBody:
+    "Se sua organização cadastrou esse e-mail, em alguns minutos você vai receber um link para criar sua senha. Confira também a pasta de spam.",
+  activateSentHint:
+    "Já criou sua senha antes? Então use “Esqueceu sua senha?”.",
+  activateErrorThrottled:
+    "Você pediu o link muitas vezes. Espere um pouco antes de tentar de novo.",
+  activateErrorUnexpected:
+    "Não conseguimos enviar o e-mail. Tente de novo em alguns segundos.",
 
   // --- Page ----------------------------------------------------------------
   pageTitle: "Estado do seu sensor",

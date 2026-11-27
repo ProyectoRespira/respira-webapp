@@ -6,18 +6,24 @@
 // after login does not land on an empty form.
 
 import InstitutionAuthLayout from "../../layouts/InstitutionAuthLayout.astro";
+import { ActivateAccountForm } from "../../components/react/institution/ActivateAccountForm";
 import { LoginForm } from "../../components/react/institution/LoginForm";
 import { useInstitutionCopy } from "../../i18n/institution";
 import { getLangFromLocals } from "../../i18n/utils";
 import { GUIDE_ROUTES } from "../../data/menu";
 import { getFrontendRuntimeConfig } from "../../runtime-env";
 import {
+  INSTITUTION_ACTIVATE_PARAM,
   INSTITUTION_DASHBOARD_PATH,
   resolveInstitutionSession,
 } from "../../utils/institution-session";
 
 const lang = getLangFromLocals(Astro.locals);
 const copy = useInstitutionCopy(lang);
+
+// `?nuevo=1` opens "¿Sos nuevo en la plataforma?" on arrival — where a dead
+// invitation link sends the visitor for a new one.
+const activateOpen = Astro.url.searchParams.has(INSTITUTION_ACTIVATE_PARAM);
 
 const session = await resolveInstitutionSession(Astro.request);
 
@@ -50,4 +56,5 @@ try {
     lang={lang}
     client:load
   />
+  <ActivateAccountForm lang={lang} defaultOpen={activateOpen} client:load />
 </InstitutionAuthLayout>

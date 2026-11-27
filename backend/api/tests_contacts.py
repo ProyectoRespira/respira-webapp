@@ -262,3 +262,19 @@ class ContactAdminTests(TestCase):
         response = self.client.get(reverse("admin:accounts_user_add"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'name="contact"')
+
+    def test_contact_picked_on_the_user_add_page_is_linked(self):
+        """The admin saves with commit=False; the link must survive that."""
+        response = self.client.post(
+            reverse("admin:accounts_user_add"),
+            {
+                "email": "nueva@example.com",
+                "usable_password": "true",
+                "password1": "pw-Str0ng!42",
+                "password2": "pw-Str0ng!42",
+                "contact": str(self.contact.pk),
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.contact.refresh_from_db()
+        self.assertEqual(self.contact.user.email, "nueva@example.com")

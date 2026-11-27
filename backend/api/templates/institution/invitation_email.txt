@@ -1,0 +1,14 @@
+{% autoescape off %}Hola,
+
+{{ institution_name }} te dio acceso a su panel de calidad del aire en Proyecto Respira. Para entrar, creá una contraseña para tu cuenta ({{ email }}).
+
+Entrá en este enlace para crear tu contraseña:
+
+{{ invitation_url }}
+
+El enlace vence en {{ timeout_hours }} horas y solo se puede usar una vez. Si venció, pedí uno nuevo desde «¿Sos nuevo en la plataforma?» en la página de ingreso al panel.
+
+Si no esperabas este correo, podés ignorarlo: sin este enlace nadie puede crear la contraseña de tu cuenta.
+
+— Equipo de Proyecto Respira
+{% endautoescape %}

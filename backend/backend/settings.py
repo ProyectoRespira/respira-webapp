@@ -128,6 +128,13 @@ REST_FRAMEWORK = {
         "password_reset_confirm": _env_str(
             "BACKEND_PASSWORD_RESET_CONFIRM_THROTTLE", "30/hour"
         ),
+        # "¿Sos nuevo en la plataforma?" (api.invitations). Same reasoning and
+        # the same rate as `password_reset`: it mails an address the caller
+        # chose. Its own bucket, so asking for one link does not spend the
+        # other's budget.
+        "account_activation": _env_str(
+            "BACKEND_ACCOUNT_ACTIVATION_THROTTLE", "10/hour"
+        ),
         # The public historical export (api.public_exports). Unauthenticated by
         # design, so this is what stops the endpoint being scripted in a loop:
         # each request walks a range of upstream calls, and the data is free
