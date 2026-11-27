@@ -1747,9 +1747,7 @@ class MadesPmLimits(models.Model):
         admin offers "add" again in that state, so the fix is one form away.
         """
         row = cls.objects.filter(pk=cls.SINGLETON_ID).first()
-        if row is None:
-            logger.warning(
-                "MADES PM limits row is missing; serving every limit as null"
-            )
-            row = cls(id=cls.SINGLETON_ID)
-        return row.as_payload()
+        if row is not None:
+            return row.as_payload()
+        logger.warning("MADES PM limits row is missing; serving every limit as null")
+        return cls(id=cls.SINGLETON_ID).as_payload()
